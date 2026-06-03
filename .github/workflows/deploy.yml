@@ -7,7 +7,7 @@ on:
 
 jobs:
   build-and-deploy:
-    name: Build & Deploy via SFTP
+    name: Build & Deploy
     runs-on: ubuntu-latest
 
     steps:
@@ -39,15 +39,27 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
-      # 5. Deploy via SFTP (Hostinger usa porta 22 / SFTP)
-      #    Usa wlixcc/SFTP-Deploy-Action que suporta autenticação por senha via SFTP real.
-      - name: Deploy to Hostinger via SFTP
-        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
-        with:
-          server: ${{ secrets.FTP_SERVER }}
-          username: ${{ secrets.FTP_USERNAME }}
-          password: ${{ secrets.FTP_PASSWORD }}
-          port: 22
-          local_path: './web/dist/*'
-          remote_path: './'
-          sftpArgs: '-o ConnectTimeout=10 -o StrictHostKeyChecking=no'
+      # 5. Deploy via lftp (suporta FTP, FTPS e SFTP com retry automático)
+      - name: Deploy to Hostinger
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq lftp sshpass
+          
+          echo "=== Tentando SFTP (porta 22) ==="
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
+            -e "set sftp:auto-confirm yes; set net:timeout 30; set net:max-retries 3; set net:reconnect-interval-base 5; mirror -R --verbose web/dist/ ./; quit" \
+            sftp://"$FTP_SERVER":22 && echo "SFTP OK" && exit 0 || true
+
+          echo "=== SFTP falhou, tentando FTPS (porta 21) ==="
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
+            -e "set ftp:ssl-force true; set ssl:verify-certificate no; set net:timeout 30; set net:max-retries 3; set net:reconnect-interval-base 5; mirror -R --verbose web/dist/ ./; quit" \
+            ftp://"$FTP_SERVER":21 && echo "FTPS OK" && exit 0 || true
+
+          echo "=== FTPS falhou, tentando FTP simples (porta 21) ==="
+          lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
+            -e "set ftp:ssl-allow no; set net:timeout 30; set net:max-retries 3; set net:reconnect-interval-base 5; mirror -R --verbose web/dist/ ./; quit" \
+            ftp://"$FTP_SERVER":21
+
+        env:
+          FTP_SERVER: ${{ secrets.FTP_SERVER }}
+          FTP_USERNAME: ${{ secrets.FTP_USERNAME }}
+          FTP_PASSWORD: ${{ secrets.FTP_PASSWORD }}
