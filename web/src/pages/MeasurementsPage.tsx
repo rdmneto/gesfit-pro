@@ -22,123 +22,78 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import {
-  sampleMeasurements,
-  samplePendingMeasurements,
-  sampleStudent,
-  sampleStudents,
-} from "../data/sample";
+import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { bmi, calculateAge } from "../lib/format";
+import {
+  useMeasurements,
+  usePendingMeasurements,
+  useStudent,
+  useStudents,
+} from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import type { Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
 export function MeasurementsPage() {
   const role = useSessionStore((state) => state.claims.role);
-  const [measurements, setMeasurements] = useState(sampleMeasurements);
-  const [pendingMeasurements, setPendingMeasurements] = useState(samplePendingMeasurements);
+  const user = useSessionStore((state) => state.user);
 
   if (role === "trainer") {
-    return (
-      <TrainerStudentsPage
-        measurements={measurements}
-        pendingMeasurements={pendingMeasurements}
-        onSubmitMeasurement={(measurement) =>
-          setPendingMeasurements((current) => [measurement, ...current])
-        }
-      />
-    );
+    return <TrainerStudentsPage trainerId={user?.uid ?? null} />;
   }
 
-  return (
-    <StudentMeasurementsPage
-      measurements={measurements}
-      pendingMeasurements={pendingMeasurements}
-      onAcceptMeasurement={(measurement) => {
-        const accepted: StudentMeasurement = {
-          id: `measure-accepted-${measurement.id}`,
-          studentId: measurement.studentId,
-          measuredAt: measurement.measuredAt,
-          weightKg: measurement.weightKg,
-          waistCm: measurement.waistCm,
-          hipCm: measurement.hipCm,
-          chestCm: measurement.chestCm,
-          bodyFatPercent: measurement.bodyFatPercent,
-          notes: measurement.notes,
-        };
-
-        setMeasurements((current) => [...current, accepted]);
-        setPendingMeasurements((current) =>
-          current.filter((candidate) => candidate.id !== measurement.id),
-        );
-      }}
-      onRejectMeasurement={(measurementId) =>
-        setPendingMeasurements((current) =>
-          current.filter((candidate) => candidate.id !== measurementId),
-        )
-      }
-    />
-  );
+  return <StudentMeasurementsPage studentId={user?.uid ?? null} studentName={user?.displayName ?? "Aluno"} />;
 }
 
-function TrainerStudentsPage({
-  measurements,
-  pendingMeasurements,
-  onSubmitMeasurement,
-}: {
-  measurements: StudentMeasurement[];
-  pendingMeasurements: StudentMeasurementSubmission[];
-  onSubmitMeasurement: (measurement: StudentMeasurementSubmission) => void;
-}) {
-  const sortedStudents = useMemo(
-    () =>
-      [...sampleStudents].sort((first, second) =>
-        first.displayName.localeCompare(second.displayName, "pt-BR"),
-      ),
-    [],
-  );
+
+function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
+  const user = useSessionStore((state) => state.user);
+  const { data: allStudents, loading: studentsLoading } = useStudents(trainerId);
   const [query, setQuery] = useState("");
-  const [selectedStudentId, setSelectedStudentId] = useState(
-    sortedStudents.find((student) =>
-      measurements.some((measurement) => measurement.studentId === student.uid),
-    )?.uid ??
-      sortedStudents[0]?.uid ??
-      "",
+
+  const sortedStudents = useMemo(
+    () => [...(allStudents || [])].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
+    [allStudents],
   );
+
+  const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+
+  // Auto-select first student when data loads
+  const effectiveSelectedId = selectedStudentId ?? sortedStudents[0]?.uid ?? null;
+
   const filteredStudents = sortedStudents.filter((student) =>
     student.displayName.toLowerCase().includes(query.trim().toLowerCase()),
   );
-  const selectedStudent =
-    sortedStudents.find((student) => student.uid === selectedStudentId) ?? sortedStudents[0];
-  const selectedMeasurements = measurements.filter(
-    (measurement) => measurement.studentId === selectedStudent?.uid,
-  );
-  const selectedPending = pendingMeasurements.filter(
-    (measurement) => measurement.studentId === selectedStudent?.uid,
-  );
 
-  function handleSubmit(event: FormEvent<HTMLFormElement>) {
+  const selectedStudent = sortedStudents.find((s) => s.uid === effectiveSelectedId) ?? null;
+
+  const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
+  const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
-
-    if (!selectedStudent) {
-      return;
-    }
+    if (!selectedStudent || !db || !user) return;
 
     const data = new FormData(event.currentTarget);
-    onSubmitMeasurement({
-      id: `pending-${selectedStudent.uid}-${Date.now()}`,
-      studentId: selectedStudent.uid,
-      measuredAt: String(data.get("measuredAt")),
-      weightKg: Number(data.get("weightKg")),
-      waistCm: Number(data.get("waistCm")),
-      hipCm: Number(data.get("hipCm")),
-      chestCm: Number(data.get("chestCm")),
-      bodyFatPercent: Number(data.get("bodyFatPercent")) || undefined,
-      notes: String(data.get("notes") ?? ""),
-      submittedBy: "trainer-ana",
-      submittedByName: "Ana Beatriz",
-      status: "pending",
-    });
-    event.currentTarget.reset();
+    try {
+      await addDoc(collection(db, `students/${selectedStudent.uid}/measurementSubmissions`), {
+        studentId: selectedStudent.uid,
+        measuredAt: String(data.get("measuredAt")),
+        weightKg: Number(data.get("weightKg")),
+        waistCm: Number(data.get("waistCm")),
+        hipCm: Number(data.get("hipCm")),
+        chestCm: Number(data.get("chestCm")),
+        bodyFatPercent: Number(data.get("bodyFatPercent")) || null,
+        notes: String(data.get("notes") ?? ""),
+        submittedBy: user.uid,
+        submittedByName: user.displayName ?? "Treinador",
+        status: "pending",
+        createdAt: serverTimestamp(),
+      });
+      event.currentTarget.reset();
+    } catch (err) {
+      console.error("Erro ao salvar medida:", err);
+    }
   }
 
   return (
@@ -170,159 +125,182 @@ function TrainerStudentsPage({
         </label>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Users aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Alunos</h2>
-          </div>
-          <div className="mt-4 space-y-2">
-            {filteredStudents.map((student) => (
-              <button
-                key={student.uid}
-                type="button"
-                className={[
-                  "focus-ring grid w-full gap-2 rounded-md border p-3 text-left sm:grid-cols-[1fr_auto]",
-                  selectedStudent?.uid === student.uid
-                    ? "border-emerald-700 bg-emerald-50"
-                    : "border-stone-200 bg-white hover:bg-stone-50",
-                ].join(" ")}
-                onClick={() => setSelectedStudentId(student.uid)}
-              >
-                <div>
-                  <p className="font-black">{student.displayName}</p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    {student.onboarding.email ?? "Sem e-mail"} - {student.status}
-                  </p>
-                </div>
-                <span className="h-max rounded-md bg-stone-100 px-2 py-1 text-xs font-bold text-stone-700">
-                  {measurements.filter((measurement) => measurement.studentId === student.uid).length} registros
-                </span>
-              </button>
-            ))}
-          </div>
-        </section>
-
-        <div className="grid gap-4">
-          {selectedStudent ? (
-            <>
-              <StudentProfileSummary
-                measurements={selectedMeasurements}
-                pendingCount={selectedPending.length}
-                student={selectedStudent}
-              />
-
-              <form className="card p-5" onSubmit={handleSubmit}>
-                <div className="flex items-center gap-2">
-                  <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
-                    <Plus aria-hidden="true" className="text-emerald-700" size={16} />
-                  </div>
-                  <h2 className="text-lg font-black text-stone-950">Inserir métricas</h2>
-                </div>
-
-                {/* Medidas principais */}
-                <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Dados principais</p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-2">
-                  <Field label="Data" name="measuredAt" type="date" required />
-                  <Field label="Peso (kg)" name="weightKg" placeholder="68.7" type="number" step="0.1" required />
-                  <Field label="Cintura (cm)" name="waistCm" placeholder="80" type="number" step="0.1" required />
-                  <Field label="Quadril (cm)" name="hipCm" placeholder="100" type="number" step="0.1" required />
-                  <Field label="Tórax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
-                  <Field
-                    label="Gordura corporal (%)"
-                    name="bodyFatPercent"
-                    placeholder="27.9"
-                    type="number"
-                    step="0.1"
-                  />
-                </div>
-
-                {/* Circunferências adicionais */}
-                <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Circunferências adicionais <span className="normal-case font-normal text-stone-300">(opcional)</span></p>
-                <div className="mt-3 grid gap-4 sm:grid-cols-3">
-                  <Field label="Braço dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
-                  <Field label="Coxa (cm)" name="thighCm" placeholder="55" type="number" step="0.1" />
-                  <Field label="Panturrilha (cm)" name="calfCm" placeholder="37" type="number" step="0.1" />
-                </div>
-
-                {/* Foto de progresso */}
-                <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Foto de progresso <span className="normal-case font-normal text-stone-300">(opcional)</span></p>
-                <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-4 transition-all hover:border-emerald-300 hover:bg-emerald-50">
-                  <Camera aria-hidden="true" className="text-stone-400" size={20} />
-                  <div>
-                    <p className="text-sm font-semibold text-stone-600">Anexar foto de avaliação</p>
-                    <p className="text-xs text-stone-400">JPG ou PNG, até 5 MB</p>
-                  </div>
-                  <input type="file" accept="image/jpeg,image/png" className="sr-only" />
-                </label>
-
-                {/* Observações */}
-                <label className="mt-4 block">
-                  <span className="text-sm font-semibold text-stone-700">Observações</span>
-                  <textarea
-                    className="focus-ring mt-2 min-h-24 w-full rounded-md border border-stone-300 px-3 py-2"
-                    name="notes"
-                    placeholder="Observações da avaliação presencial."
-                  />
-                </label>
-
-                <button
-                  type="submit"
-                  className="focus-ring mt-5 btn btn-primary"
-                >
-                  <Plus aria-hidden="true" size={18} />
-                  Enviar para confirmação do aluno
-                </button>
-              </form>
-
-              <TrainerMeasurementsHistory measurements={selectedMeasurements} />
-
-              {selectedPending.length ? (
-                <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-                  <h2 className="text-xl font-black">Aguardando confirmacao</h2>
-                  <div className="mt-4 grid gap-3">
-                    {selectedPending.map((measurement) => (
-                      <MeasurementReviewCard key={measurement.id} measurement={measurement} />
-                    ))}
-                  </div>
-                </section>
-              ) : null}
-            </>
-          ) : null}
+      {studentsLoading ? (
+        <div className="mt-8 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" /></div>
+      ) : sortedStudents.length === 0 ? (
+        <div className="mt-10 rounded-2xl border border-dashed border-stone-200 bg-stone-50 py-16 text-center">
+          <Users className="mx-auto mb-4 text-stone-300" size={40} />
+          <p className="font-semibold text-stone-500">Nenhum aluno cadastrado ainda</p>
+          <p className="mt-1 text-sm text-stone-400">Os alunos que se vincularem a você aparecerão aqui.</p>
         </div>
-      </div>
+      ) : (
+        <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
+          <section className="rounded-lg border border-stone-200 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <Users aria-hidden="true" className="text-emerald-800" size={22} />
+              <h2 className="text-xl font-black">Alunos</h2>
+            </div>
+            <div className="mt-4 space-y-2">
+              {filteredStudents.map((student) => (
+                <button
+                  key={student.uid}
+                  type="button"
+                  className={[
+                    "focus-ring grid w-full gap-2 rounded-md border p-3 text-left sm:grid-cols-[1fr_auto]",
+                    effectiveSelectedId === student.uid
+                      ? "border-emerald-700 bg-emerald-50"
+                      : "border-stone-200 bg-white hover:bg-stone-50",
+                  ].join(" ")}
+                  onClick={() => setSelectedStudentId(student.uid)}
+                >
+                  <div>
+                    <p className="font-black">{student.displayName}</p>
+                    <p className="mt-1 text-sm text-stone-600">
+                      {student.onboarding?.email ?? "Sem e-mail"}
+                    </p>
+                  </div>
+                </button>
+              ))}
+            </div>
+          </section>
+
+          <div className="grid gap-4">
+            {selectedStudent ? (
+              <>
+                <StudentProfileSummary
+                  measurements={selectedMeasurements}
+                  pendingCount={selectedPending.length}
+                  student={selectedStudent}
+                />
+
+                <form className="card p-5" onSubmit={handleSubmit}>
+                  <div className="flex items-center gap-2">
+                    <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
+                      <Plus aria-hidden="true" className="text-emerald-700" size={16} />
+                    </div>
+                    <h2 className="text-lg font-black text-stone-950">Inserir métricas</h2>
+                  </div>
+
+                  <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Dados principais</p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-2">
+                    <Field label="Data" name="measuredAt" type="date" required />
+                    <Field label="Peso (kg)" name="weightKg" placeholder="68.7" type="number" step="0.1" required />
+                    <Field label="Cintura (cm)" name="waistCm" placeholder="80" type="number" step="0.1" required />
+                    <Field label="Quadril (cm)" name="hipCm" placeholder="100" type="number" step="0.1" required />
+                    <Field label="Tórax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
+                    <Field label="Gordura corporal (%)" name="bodyFatPercent" placeholder="27.9" type="number" step="0.1" />
+                  </div>
+
+                  <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Circunferências adicionais <span className="normal-case font-normal text-stone-300">(opcional)</span></p>
+                  <div className="mt-3 grid gap-4 sm:grid-cols-3">
+                    <Field label="Braço dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
+                    <Field label="Coxa (cm)" name="thighCm" placeholder="55" type="number" step="0.1" />
+                    <Field label="Panturrilha (cm)" name="calfCm" placeholder="37" type="number" step="0.1" />
+                  </div>
+
+                  <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Foto de progresso <span className="normal-case font-normal text-stone-300">(opcional)</span></p>
+                  <label className="mt-3 flex cursor-pointer items-center gap-3 rounded-xl border-2 border-dashed border-stone-200 p-4 transition-all hover:border-emerald-300 hover:bg-emerald-50">
+                    <Camera aria-hidden="true" className="text-stone-400" size={20} />
+                    <div>
+                      <p className="text-sm font-semibold text-stone-600">Anexar foto de avaliação</p>
+                      <p className="text-xs text-stone-400">JPG ou PNG, até 5 MB</p>
+                    </div>
+                    <input type="file" accept="image/jpeg,image/png" className="sr-only" />
+                  </label>
+
+                  <label className="mt-4 block">
+                    <span className="text-sm font-semibold text-stone-700">Observações</span>
+                    <textarea
+                      className="focus-ring mt-2 min-h-24 w-full rounded-md border border-stone-300 px-3 py-2"
+                      name="notes"
+                      placeholder="Observações da avaliação presencial."
+                    />
+                  </label>
+
+                  <button type="submit" className="focus-ring mt-5 btn btn-primary">
+                    <Plus aria-hidden="true" size={18} />
+                    Enviar para confirmação do aluno
+                  </button>
+                </form>
+
+                <TrainerMeasurementsHistory measurements={selectedMeasurements} />
+
+                {selectedPending.length > 0 && (
+                  <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
+                    <h2 className="text-xl font-black">Aguardando confirmacao</h2>
+                    <div className="mt-4 grid gap-3">
+                      {selectedPending.map((measurement) => (
+                        <MeasurementReviewCard key={measurement.id} measurement={measurement} />
+                      ))}
+                    </div>
+                  </section>
+                )}
+              </>
+            ) : null}
+          </div>
+        </div>
+      )}
     </section>
   );
 }
 
 function StudentMeasurementsPage({
-  measurements,
-  pendingMeasurements,
-  onAcceptMeasurement,
-  onRejectMeasurement,
+  studentId,
+  studentName,
 }: {
-  measurements: StudentMeasurement[];
-  pendingMeasurements: StudentMeasurementSubmission[];
-  onAcceptMeasurement: (measurement: StudentMeasurementSubmission) => void;
-  onRejectMeasurement: (measurementId: string) => void;
+  studentId: string | null;
+  studentName: string;
 }) {
-  const studentMeasurements = measurements.filter(
-    (measurement) => measurement.studentId === sampleStudent.uid,
-  );
-  const studentPending = pendingMeasurements.filter(
-    (measurement) => measurement.studentId === sampleStudent.uid,
-  );
+  const { data: dbStudent } = useStudent(studentId);
+  const { data: allMeasurements = [] } = useMeasurements(studentId);
+  const { data: pendingMeasurements = [] } = usePendingMeasurements(studentId);
+
   const sortedMeasurements = useMemo(
-    () =>
-      [...studentMeasurements].sort((first, second) =>
-        first.measuredAt.localeCompare(second.measuredAt),
-      ),
-    [studentMeasurements],
+    () => [...allMeasurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)),
+    [allMeasurements],
   );
+
   const first = sortedMeasurements[0];
   const latest = sortedMeasurements.at(-1);
-  const currentBmi = bmi(latest?.weightKg, sampleStudent.physiological.alturaCm);
+  const heightCm = dbStudent?.physiological?.alturaCm ?? undefined;
+  const currentBmi = bmi(latest?.weightKg, heightCm);
   const weightChange = first && latest ? Number((latest.weightKg - first.weightKg).toFixed(1)) : 0;
+
+  // Accept measurement: save to Firestore measurements subcollection
+  async function handleAccept(measurement: StudentMeasurementSubmission) {
+    if (!db || !studentId) return;
+    try {
+      await addDoc(collection(db, `students/${studentId}/measurements`), {
+        studentId: measurement.studentId,
+        measuredAt: measurement.measuredAt,
+        weightKg: measurement.weightKg,
+        waistCm: measurement.waistCm,
+        hipCm: measurement.hipCm,
+        chestCm: measurement.chestCm,
+        bodyFatPercent: measurement.bodyFatPercent ?? null,
+        notes: measurement.notes ?? "",
+        confirmedAt: serverTimestamp(),
+      });
+      // Mark submission as accepted
+      await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurement.id), {
+        status: "accepted",
+      });
+    } catch (err) {
+      console.error("Erro ao confirmar medida:", err);
+    }
+  }
+
+  // Reject measurement: mark submission as rejected
+  async function handleReject(measurementId: string) {
+    if (!db || !studentId) return;
+    try {
+      await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurementId), {
+        status: "rejected",
+      });
+    } catch (err) {
+      console.error("Erro ao recusar medida:", err);
+    }
+  }
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8">
@@ -339,11 +317,11 @@ function StudentMeasurementsPage({
         </div>
         <div className="rounded-lg border border-stone-200 bg-white px-4 py-3">
           <p className="text-sm text-stone-600">Aluno</p>
-          <p className="font-black">{sampleStudent.displayName}</p>
+          <p className="font-black">{studentName}</p>
         </div>
       </div>
 
-      {studentPending.length ? (
+      {pendingMeasurements.length > 0 ? (
         <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-center gap-2">
             <CheckCircle2 aria-hidden="true" className="text-amber-800" size={22} />
@@ -354,14 +332,14 @@ function StudentMeasurementsPage({
             seu historico e no grafico.
           </p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {studentPending.map((measurement) => (
+            {pendingMeasurements.map((measurement) => (
               <article key={measurement.id} className="rounded-md border border-amber-200 bg-white p-4">
                 <MeasurementReviewCard measurement={measurement} />
                 <div className="mt-4 flex flex-wrap gap-2">
                   <button
                     type="button"
                     className="focus-ring inline-flex h-10 items-center gap-2 rounded-md bg-emerald-800 px-4 text-sm font-bold text-white hover:bg-emerald-700"
-                    onClick={() => onAcceptMeasurement(measurement)}
+                    onClick={() => handleAccept(measurement)}
                   >
                     <CheckCircle2 aria-hidden="true" size={17} />
                     Confirmar metricas
@@ -369,7 +347,7 @@ function StudentMeasurementsPage({
                   <button
                     type="button"
                     className="focus-ring inline-flex h-10 items-center gap-2 rounded-md border border-stone-300 px-4 text-sm font-bold text-stone-800 hover:bg-stone-100"
-                    onClick={() => onRejectMeasurement(measurement.id)}
+                    onClick={() => handleReject(measurement.id)}
                   >
                     <XCircle aria-hidden="true" size={17} />
                     Recusar
@@ -400,11 +378,11 @@ function StudentMeasurementsPage({
           <div className="mt-4 grid gap-3">
             <div className="rounded-md bg-stone-100 p-4">
               <p className="text-sm text-stone-600">Registros aceitos</p>
-              <p className="mt-1 text-2xl font-black">{studentMeasurements.length}</p>
+              <p className="mt-1 text-2xl font-black">{allMeasurements.length}</p>
             </div>
             <div className="rounded-md bg-amber-50 p-4">
               <p className="text-sm text-amber-900">Aguardando confirmacao</p>
-              <p className="mt-1 text-2xl font-black text-amber-950">{studentPending.length}</p>
+              <p className="mt-1 text-2xl font-black text-amber-950">{pendingMeasurements.length}</p>
             </div>
           </div>
         </section>

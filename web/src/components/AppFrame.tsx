@@ -5,6 +5,7 @@ import {
   House,
   LogIn,
   LogOut,
+  RefreshCw,
   Ruler,
   Settings,
   ShieldCheck,
@@ -112,14 +113,24 @@ export function AppFrame() {
               </NavLink>
             ))}
             {isLogged && (
-              <button
-                type="button"
-                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
-                onClick={() => logout()}
-              >
-                <LogOut aria-hidden="true" size={16} />
-                Sair
-              </button>
+              <>
+                <NavLink
+                  to="/app/mudar-perfil"
+                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-400 transition-all duration-150 hover:bg-stone-100 hover:text-stone-700"
+                  title="Mudar tipo de perfil (aluno/treinador)"
+                >
+                  <RefreshCw aria-hidden="true" size={14} />
+                  Mudar perfil
+                </NavLink>
+                <button
+                  type="button"
+                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
+                  onClick={() => logout()}
+                >
+                  <LogOut aria-hidden="true" size={16} />
+                  Sair
+                </button>
+              </>
             )}
           </nav>
 

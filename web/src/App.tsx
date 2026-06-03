@@ -2,6 +2,7 @@ import { useEffect } from "react";
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
+import { ChangeRolePage } from "./pages/ChangeRolePage";
 import { ClassesPage } from "./pages/ClassesPage";
 import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
@@ -45,6 +46,9 @@ export default function App() {
               </RequireAuth>
             }
           />
+
+          {/* Authenticated routes — any role */}
+          <Route path="app/mudar-perfil" element={<RequireAuth><ChangeRolePage /></RequireAuth>} />
 
           {/* Authenticated routes — student */}
           <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />

@@ -120,21 +120,9 @@ import type {
   WorkoutSession,
 } from "../types/domain";
 
-import {
-  sampleBookings,
-  sampleClassProducts,
-  sampleMeasurements,
-  samplePendingMeasurements,
-  samplePurchases,
-  sampleStudents,
-  sampleTeams,
-  sampleWorkoutSessions,
-} from "../data/sample";
-
 /** Team document by teamId */
 export function useTeam(teamId: string | null | undefined) {
-  const fallback = sampleTeams.find((t) => t.id === teamId) ?? sampleTeams[0];
-  return useDocument<Team>("teams", teamId, fallback ?? null);
+  return useDocument<Team>("teams", teamId, null);
 }
 
 /** All students assigned to a trainer */
@@ -142,14 +130,12 @@ export function useStudents(trainerId: string | null | undefined) {
   return useCollection<Student>(
     "students",
     trainerId ? [where("assignedTo", "==", trainerId)] : [],
-    sampleStudents,
   );
 }
 
 /** Single student document */
 export function useStudent(studentId: string | null | undefined) {
-  const fallback = sampleStudents.find((s) => s.uid === studentId) ?? null;
-  return useDocument<Student>("students", studentId, fallback);
+  return useDocument<Student>("students", studentId, null);
 }
 
 /** Measurements for a specific student */
@@ -157,7 +143,6 @@ export function useMeasurements(studentId: string | null | undefined) {
   return useCollection<StudentMeasurement>(
     `students/${studentId}/measurements`,
     [orderBy("measuredAt", "asc")],
-    studentId ? sampleMeasurements.filter((m) => m.studentId === studentId) : [],
   );
 }
 
@@ -166,9 +151,6 @@ export function usePendingMeasurements(studentId: string | null | undefined) {
   return useCollection<StudentMeasurementSubmission>(
     `students/${studentId}/measurementSubmissions`,
     [where("status", "==", "pending")],
-    studentId
-      ? samplePendingMeasurements.filter((m) => m.studentId === studentId)
-      : [],
   );
 }
 
@@ -177,7 +159,6 @@ export function useAllPendingMeasurements(teamId: string | null | undefined) {
   return useCollection<StudentMeasurementSubmission>(
     "measurementSubmissions",
     teamId ? [where("teamId", "==", teamId), where("status", "==", "pending")] : [],
-    samplePendingMeasurements,
   );
 }
 
@@ -191,18 +172,9 @@ export function useWorkoutSessions(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  const fallback = sampleWorkoutSessions.filter((w) => {
-    if (options.trainerId && w.trainerId !== options.trainerId) return false;
-    if (options.studentId && w.studentId !== options.studentId) return false;
-    return true;
-  });
-
-  return useCollection<WorkoutSession>(
-    "workoutSessions",
-    constraints,
-    fallback,
-  );
+  return useCollection<WorkoutSession>("workoutSessions", constraints);
 }
+
 
 /** Bookings for a student or trainer */
 export function useBookings(options: {
@@ -214,11 +186,7 @@ export function useBookings(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  return useCollection<Booking>(
-    "bookings",
-    constraints,
-    sampleBookings,
-  );
+  return useCollection<Booking>("bookings", constraints);
 }
 
 /** Class products (packages/singles) for a team */
@@ -226,7 +194,6 @@ export function useClassProducts(teamId: string | null | undefined) {
   return useCollection<ClassProduct>(
     "classProducts",
     teamId ? [where("teamId", "==", teamId), where("active", "==", true)] : [],
-    sampleClassProducts.filter((p) => !teamId || p.teamId === teamId),
   );
 }
 
@@ -235,7 +202,6 @@ export function useStudentPurchases(studentId: string | null | undefined) {
   return useCollection<ClassPurchase>(
     "classPurchases",
     studentId ? [where("studentId", "==", studentId), orderBy("submittedAt", "desc")] : [],
-    samplePurchases.filter((p) => !studentId || p.studentId === studentId),
   );
 }
 
@@ -246,6 +212,5 @@ export function usePendingPurchases(teamId: string | null | undefined) {
     teamId
       ? [where("teamId", "==", teamId), where("status", "in", ["payment_submitted", "awaiting_payment"])]
       : [],
-    samplePurchases,
   );
 }
