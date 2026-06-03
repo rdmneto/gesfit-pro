@@ -15,7 +15,7 @@ export function OnboardingPage() {
 
   // Student form state
   const [studentPhone, setStudentPhone] = useState("");
-  const [studentAge, setStudentAge] = useState("");
+  const [studentBirthDate, setStudentBirthDate] = useState("");
   const [studentHeight, setStudentHeight] = useState("");
   const [studentWeight, setStudentWeight] = useState("");
   const [studentGoal, setStudentGoal] = useState("");
@@ -43,17 +43,22 @@ export function OnboardingPage() {
         createdAt: new Date().toISOString(),
       });
 
-      // 2. Criar cadastro de aluno com dados físicos
+      // 2. Criar cadastro de aluno com dados físicos estruturados
       await setDoc(doc(db, "students", user.uid), {
         uid: user.uid,
-        email: user.email,
         displayName: user.displayName || "Aluno",
-        phoneNumber: studentPhone,
-        age: Number(studentAge) || null,
-        heightCm: Number(studentHeight) || null,
-        initialWeightKg: Number(studentWeight) || null,
-        goal: studentGoal || "",
         status: "pending",
+        assignedTo: "", // Inicia sem treinador vinculado
+        onboarding: {
+          birthDate: studentBirthDate,
+          email: user.email,
+          celular: studentPhone,
+        },
+        physiological: {
+          alturaCm: Number(studentHeight) || null,
+          pesoInicialKg: Number(studentWeight) || null,
+        },
+        goal: studentGoal || "",
         createdAt: new Date().toISOString(),
       });
 
@@ -219,14 +224,13 @@ export function OnboardingPage() {
               </label>
 
               <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Idade *</span>
+                <span className="text-sm font-semibold text-stone-700">Data de Nascimento *</span>
                 <input
                   required
-                  type="number"
-                  placeholder="30"
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={studentAge}
-                  onChange={(e) => setStudentAge(e.target.value)}
+                  type="date"
+                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3 text-stone-900"
+                  value={studentBirthDate}
+                  onChange={(e) => setStudentBirthDate(e.target.value)}
                 />
               </label>
 

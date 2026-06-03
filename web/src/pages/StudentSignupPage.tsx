@@ -43,7 +43,7 @@ export function StudentSignupPage() {
             <Field label="E-mail" placeholder="marina@email.com" type="email" />
             <Field label="Celular" placeholder="+55 85 99999-9999" />
             <Field label="Senha" placeholder="Minimo 8 caracteres" type="password" />
-            <Field label="Idade" placeholder="32" type="number" />
+            <Field label="Data de nascimento" placeholder="1994-06-03" type="date" />
             <Field label="Genero" placeholder="Feminino" />
             <Field label="Altura (cm)" placeholder="168" type="number" />
             <Field label="Peso inicial (kg)" placeholder="72" type="number" />

@@ -124,6 +124,7 @@ export interface Student {
   assignedTo: string;
   onboarding: {
     idade?: number;
+    birthDate?: string;
     genero?: string;
     email?: string;
     celular?: string;

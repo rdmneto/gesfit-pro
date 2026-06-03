@@ -21,3 +21,21 @@ export function bmi(weightKg?: number, heightCm?: number): number | null {
   const heightM = heightCm / 100;
   return Number((weightKg / (heightM * heightM)).toFixed(1));
 }
+
+export function calculateAge(birthDateString?: string, ageFallback?: number): number | undefined {
+  if (birthDateString) {
+    // Adiciona o timezone local para evitar problemas de fuso
+    const birthDate = new Date(birthDateString + "T00:00:00");
+    if (!isNaN(birthDate.getTime())) {
+      const today = new Date();
+      let age = today.getFullYear() - birthDate.getFullYear();
+      const monthDiff = today.getMonth() - birthDate.getMonth();
+      if (monthDiff < 0 || (monthDiff === 0 && today.getDate() < birthDate.getDate())) {
+        age--;
+      }
+      return age;
+    }
+  }
+  return ageFallback;
+}
+

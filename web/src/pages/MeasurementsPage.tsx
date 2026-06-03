@@ -28,7 +28,7 @@ import {
   sampleStudent,
   sampleStudents,
 } from "../data/sample";
-import { bmi } from "../lib/format";
+import { bmi, calculateAge } from "../lib/format";
 import { useSessionStore } from "../store/session";
 import type { Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
@@ -436,6 +436,8 @@ function StudentProfileSummary({
     first.measuredAt.localeCompare(second.measuredAt),
   ).at(-1);
 
+  const age = calculateAge(student.onboarding.birthDate, student.onboarding.idade);
+
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-5">
       <div className="grid gap-4 sm:grid-cols-[1fr_auto] sm:items-start">
@@ -444,6 +446,7 @@ function StudentProfileSummary({
           <h2 className="mt-1 text-2xl font-black">{student.displayName}</h2>
           <p className="mt-2 text-sm text-stone-600">
             {student.onboarding.email} - {student.onboarding.celular}
+            {age !== undefined ? ` · ${age} anos` : ""}
           </p>
         </div>
         <span className="h-max rounded-md bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700">
