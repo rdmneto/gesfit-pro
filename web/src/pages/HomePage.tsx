@@ -3,7 +3,6 @@ import {
   Building2,
   CalendarDays,
   CheckCircle2,
-  Dumbbell,
   Home,
   MapPin,
   ShieldCheck,
@@ -11,16 +10,11 @@ import {
   Star,
   Tag,
   TrendingUp,
-  Users,
   Zap,
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import {
-  sampleClassProducts,
-  samplePublicSchedule,
-  trainingModalities,
-} from "../data/sample";
+import { trainingModalities } from "../data/sample";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
@@ -344,8 +338,6 @@ function TrainerCard({ team }: { team: Team }) {
       : null;
   }, [products]);
 
-  // Horários públicos virão do Firestore em versão futura
-  const publicSlots = useMemo(() => [], []);
 
   return (
     <article
@@ -424,27 +416,7 @@ function TrainerCard({ team }: { team: Team }) {
           <InfoPill icon={CalendarDays} text="Agenda pública ativa" />
         </div>
 
-        {/* Slots preview */}
-        {publicSlots.length > 0 && (
-          <div className="mt-3 space-y-1.5">
-            {publicSlots.map((slot) => (
-              <div
-                key={slot.id}
-                className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-xs"
-              >
-                <span className="font-semibold text-stone-700">
-                  {slot.weekday} · {slot.time}
-                </span>
-                <span className={[
-                  "font-bold",
-                  slot.available === 0 ? "text-red-600" : "text-emerald-700",
-                ].join(" ")}>
-                  {slot.available === 0 ? "Lotado" : `${slot.available} vaga${slot.available !== 1 ? "s" : ""}`}
-                </span>
-              </div>
-            ))}
-          </div>
-        )}
+
 
         <Link
           className="focus-ring btn btn-primary mt-4 w-full"
