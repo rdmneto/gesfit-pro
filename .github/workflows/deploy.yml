@@ -11,24 +11,24 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      # 1. Faz o checkout do código do repositório
+      # 1. Checkout
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      # 2. Configura a versão do Node.js
+      # 2. Node.js
       - name: Set up Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
           cache: 'npm'
 
-      # 3. Instala as dependências do projeto
+      # 3. Dependências
       - name: Install dependencies
         run: |
           rm -f package-lock.json
           npm install
 
-      # 4. Gera o build estático do frontend
+      # 4. Build
       - name: Build Web Frontend
         run: npm run build --workspace web
         env:
@@ -39,16 +39,15 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
 
-      # 5. Envia os arquivos via SFTP para a Hostinger
-      #    A Hostinger usa SFTP (porta 22), não FTP/FTPS (porta 21).
+      # 5. Deploy via SFTP (Hostinger usa porta 22 / SFTP)
+      #    Usa wlixcc/SFTP-Deploy-Action que suporta autenticação por senha via SFTP real.
       - name: Deploy to Hostinger via SFTP
-        uses: SamKirkland/FTP-Deploy-Action@v4.3.5
+        uses: wlixcc/SFTP-Deploy-Action@v1.2.4
         with:
           server: ${{ secrets.FTP_SERVER }}
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
-          protocol: sftp
           port: 22
-          local-dir: web/dist/
-          server-dir: ./
-          dangerous-clean-slate: false
+          local_path: './web/dist/*'
+          remote_path: './'
+          sftpArgs: '-o ConnectTimeout=10 -o StrictHostKeyChecking=no'
