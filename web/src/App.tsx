@@ -35,8 +35,8 @@ export default function App() {
 
           {/* Authenticated routes — student */}
           <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />
-          <Route path="app/minhas-aulas" element={<RequireAuth><StudentClassesPage /></RequireAuth>} />
-          <Route path="app/medidas" element={<RequireAuth><MeasurementsPage /></RequireAuth>} />
+          <Route path="app/minhas-aulas" element={<RequireStudent><StudentClassesPage /></RequireStudent>} />
+          <Route path="app/medidas" element={<RequireStudent><MeasurementsPage /></RequireStudent>} />
 
           {/* Authenticated routes — trainer */}
           <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
@@ -81,6 +81,16 @@ function RequireTrainer({ children }: { children: ReactNode }) {
   return (
     <RequireAuth>
       {role === "trainer" ? children : <Navigate to="/app" replace />}
+    </RequireAuth>
+  );
+}
+
+function RequireStudent({ children }: { children: ReactNode }) {
+  const role = useSessionStore((state) => state.claims.role);
+
+  return (
+    <RequireAuth>
+      {role === "student" ? children : <Navigate to="/app" replace />}
     </RequireAuth>
   );
 }

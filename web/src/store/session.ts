@@ -32,7 +32,24 @@ export const useSessionStore = create<SessionState>((set) => ({
   isDemo: false,
 
   start: () => {
-    // Check for persisted demo session first
+    // If no Firebase config, stay logged out or fallback to local demo
+    if (!auth) {
+      const savedRole = window.localStorage.getItem(demoRoleKey) as SessionClaims["role"] | null;
+      if (savedRole) {
+        set({
+          user: demoUser(savedRole),
+          claims: { role: savedRole, teamId: "team-movimento" },
+          loading: false,
+          isDemo: true,
+        });
+      } else {
+        set({ loading: false, isDemo: false });
+      }
+      return () => undefined;
+    }
+
+    // Proactively set the demo state on load to avoid flicker,
+    // but the onAuthStateChanged listener will run and can override if a real user is logged in.
     const savedRole = window.localStorage.getItem(demoRoleKey) as SessionClaims["role"] | null;
     if (savedRole) {
       set({
@@ -41,21 +58,29 @@ export const useSessionStore = create<SessionState>((set) => ({
         loading: false,
         isDemo: true,
       });
-      return () => undefined;
-    }
-
-    // If no Firebase config, stay logged out
-    if (!auth) {
-      set({ loading: false, isDemo: false });
-      return () => undefined;
     }
 
     // Real Firebase Auth listener
     return onAuthStateChanged(auth, async (user) => {
       if (!user) {
+        // Se não houver usuário real logado, mas houver demo no LocalStorage, mantém a demo
+        const savedRole = window.localStorage.getItem(demoRoleKey) as SessionClaims["role"] | null;
+        if (savedRole) {
+          set({
+            user: demoUser(savedRole),
+            claims: { role: savedRole, teamId: "team-movimento" },
+            loading: false,
+            isDemo: true,
+          });
+          return;
+        }
+
         set({ user: null, claims: {}, loading: false, isDemo: false });
         return;
       }
+
+      // Se houver um usuário real logado no Firebase Auth, limpa a demo do localStorage imediatamente
+      window.localStorage.removeItem(demoRoleKey);
 
       const token = await user.getIdTokenResult();
       let role = token.claims.role as SessionClaims["role"];

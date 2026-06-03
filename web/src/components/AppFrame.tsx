@@ -52,10 +52,17 @@ export function AppFrame() {
     { to: "/login", label: "Login", icon: LogIn },
   ];
 
+  const onboardingLinks: NavItem[] = [
+    { to: "/", label: "Início", icon: House, exact: true },
+    { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
+  ];
+
   const links = isLogged
     ? role === "trainer"
       ? trainerLinks
-      : studentLinks
+      : role === "student"
+        ? studentLinks
+        : onboardingLinks
     : publicLinks;
 
   // Bottom nav uses a subset of the most important links

@@ -26,7 +26,8 @@ import {
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
-import { useCollection } from "../lib/hooks";
+import { useCollection, useClassProducts } from "../lib/hooks";
+import { useSessionStore } from "../store/session";
 
 const STATS = [
   { icon: Users, value: "2.400+", label: "Alunos ativos" },
@@ -59,16 +60,16 @@ const FEATURES = [
 ];
 
 export function HomePage() {
+  const isDemo = useSessionStore((state) => state.isDemo);
   const { data: dbTeams } = useCollection<Team>("teams");
 
-  // Se houver treinadores reais cadastrados, usamos a lista deles.
-  // Caso contrário, mantemos o fallback dos sampleTeams (apenas para a Home se manter funcional e bonita).
+  // Se for demo, usa os sampleTeams. Caso contrário (produção real), usa apenas os dbTeams reais do Firestore.
   const teams = useMemo(() => {
-    return dbTeams && dbTeams.length > 0 ? dbTeams : sampleTeams;
-  }, [dbTeams]);
+    return isDemo ? sampleTeams : (dbTeams || []);
+  }, [isDemo, dbTeams]);
 
   const featured = useMemo(() => {
-    return teams[0] || sampleTeams[0];
+    return teams[0] || null;
   }, [teams]);
 
   const [selectedModality, setSelectedModality] = useState<TrainingModality | "Todas">("Todas");
@@ -97,7 +98,7 @@ export function HomePage() {
       <section
         className="relative min-h-[70vh] overflow-hidden bg-stone-950 text-white"
         style={{
-          backgroundImage: `linear-gradient(135deg, rgba(6,40,30,0.95) 0%, rgba(6,40,30,0.6) 60%, rgba(6,40,30,0.3) 100%), url(${featured.branding.heroPhotoURL})`,
+          backgroundImage: `linear-gradient(135deg, rgba(6,40,30,0.95) 0%, rgba(6,40,30,0.6) 60%, rgba(6,40,30,0.3) 100%), url(${featured?.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80"})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
         }}
@@ -156,19 +157,21 @@ export function HomePage() {
       </section>
 
       {/* ── Stats bar ─────────────────────────────────────── */}
-      <section className="relative z-10 -mt-8 mx-auto max-w-5xl px-4">
-        <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--shadow-lg)] sm:grid-cols-4 sm:divide-y-0 animate-slide-up">
-          {STATS.map(({ icon: Icon, value, label }) => (
-            <div key={label} className="flex flex-col items-center gap-1 py-5 px-4 text-center">
-              <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50">
-                <Icon size={18} className="text-emerald-700" />
+      {isDemo && (
+        <section className="relative z-10 -mt-8 mx-auto max-w-5xl px-4">
+          <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--shadow-lg)] sm:grid-cols-4 sm:divide-y-0 animate-slide-up">
+            {STATS.map(({ icon: Icon, value, label }) => (
+              <div key={label} className="flex flex-col items-center gap-1 py-5 px-4 text-center">
+                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50">
+                  <Icon size={18} className="text-emerald-700" />
+                </div>
+                <p className="mt-1 text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>{value}</p>
+                <p className="text-xs text-stone-500">{label}</p>
               </div>
-              <p className="mt-1 text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-              <p className="text-xs text-stone-500">{label}</p>
-            </div>
-          ))}
-        </div>
-      </section>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Features ──────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-16" aria-labelledby="features-heading">
@@ -294,130 +297,9 @@ export function HomePage() {
                 Nenhum treinador encontrado para essa modalidade.
               </p>
             ) : (
-              publicTeams.map((team) => {
-                const products = sampleClassProducts.filter(
-                  (p) => p.teamId === team.id && p.publicVisible,
-                );
-                const firstPrice = products.length
-                  ? Math.min(...products.map((p) => p.priceCents))
-                  : null;
-                const publicSlots = samplePublicSchedule
-                  .filter((s) => s.teamId === team.id && s.publicVisible)
-                  .slice(0, 3);
-
-                return (
-                  <article
-                    key={team.id}
-                    className="card overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
-                  >
-                    {/* Banner image */}
-                    <div className="relative h-44 overflow-hidden">
-                      <img
-                        className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-                        src={team.branding.heroPhotoURL}
-                        alt={`Banner ${team.name}`}
-                        loading="lazy"
-                        decoding="async"
-                      />
-                      {/* Photo avatar */}
-                      <img
-                        className="absolute bottom-0 left-4 translate-y-1/2 h-14 w-14 rounded-full border-4 border-white object-cover shadow-md"
-                        src={team.branding.trainerPhotoURL}
-                        alt={`Foto ${team.name}`}
-                        loading="lazy"
-                      />
-                      {firstPrice !== null && (
-                        <span className="absolute right-3 top-3 rounded-full bg-emerald-800 px-3 py-1 text-xs font-black text-white shadow-md">
-                          a partir de {moneyFromCents(firstPrice)}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="px-5 pb-5 pt-10">
-                      <div className="flex items-start justify-between gap-2">
-                        <div>
-                          <h3 className="text-xl font-black text-stone-950">{team.name}</h3>
-                          <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-400">
-                            <MapPin size={11} />
-                            {team.isSolo ? "Treinador solo" : "Equipe de treinamento"}
-                          </p>
-                        </div>
-                        <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
-                          <Star size={11} className="fill-amber-400 text-amber-400" />
-                          4.9
-                        </div>
-                      </div>
-
-                      <p className="mt-3 text-sm leading-6 text-stone-500 line-clamp-2">
-                        {team.branding.bio}
-                      </p>
-
-                      {/* Location badges */}
-                      <div className="mt-3 flex flex-wrap gap-1.5">
-                        {team.worksAt.map((gym) => (
-                          <span
-                            key={gym.id}
-                            className={[
-                              "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
-                              gym.type === "outdoor" ? "border-amber-100 bg-amber-50 text-amber-700" : "border-blue-100 bg-blue-50 text-blue-700",
-                            ].join(" ")}
-                          >
-                            {gym.type === "outdoor" ? "🌳" : "🏋️"} {gym.name.split(" — ")[0]}
-                          </span>
-                        ))}
-                        {team.acceptsHomeVisit && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
-                            <Home size={10} /> Em casa
-                          </span>
-                        )}
-                        {team.acceptsCondoGym && (
-                          <span className="inline-flex items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
-                            <Building2 size={10} /> Cond.
-                          </span>
-                        )}
-                      </div>
-
-                      {/* Info row */}
-                      <div className="mt-4 grid gap-2 sm:grid-cols-2">
-                        <InfoPill icon={Tag} text={`${products.length} pacote${products.length !== 1 ? "s" : ""} disponíveis`} />
-                        <InfoPill icon={CalendarDays} text="Agenda pública ativa" />
-                      </div>
-
-                      {/* Slots preview */}
-                      {publicSlots.length > 0 && (
-                        <div className="mt-3 space-y-1.5">
-                          {publicSlots.map((slot) => (
-                            <div
-                              key={slot.id}
-                              className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-xs"
-                            >
-                              <span className="font-semibold text-stone-700">
-                                {slot.weekday} · {slot.time}
-                              </span>
-                              <span className={[
-                                "font-bold",
-                                slot.available === 0 ? "text-red-600" : "text-emerald-700",
-                              ].join(" ")}>
-                                {slot.available === 0 ? "Lotado" : `${slot.available} vaga${slot.available !== 1 ? "s" : ""}`}
-                              </span>
-                            </div>
-                          ))}
-                        </div>
-                      )}
-
-                      <Link
-                        className="focus-ring btn btn-primary mt-4 w-full"
-                        to={`/t/${team.slug}`}
-                        id={`team-cta-${team.slug}`}
-                        aria-label={`Ver detalhes de ${team.name}`}
-                      >
-                        Ver detalhes
-                        <ArrowRight aria-hidden="true" size={17} />
-                      </Link>
-                    </div>
-                  </article>
-                );
-              })
+              publicTeams.map((team) => (
+                <TrainerCard key={team.id} team={team} />
+              ))
             )}
           </div>
         </div>
@@ -478,5 +360,140 @@ function InfoPill({ icon: Icon, text }: { icon: typeof Tag; text: string }) {
       <Icon aria-hidden="true" className="text-emerald-700 shrink-0" size={14} />
       <span className="text-xs font-semibold text-stone-600">{text}</span>
     </div>
+  );
+}
+
+function TrainerCard({ team }: { team: Team }) {
+  const isDemo = useSessionStore((state) => state.isDemo);
+  const { data: dbProducts } = useClassProducts(!isDemo ? team.id : null);
+
+  const products = useMemo(() => {
+    return isDemo 
+      ? sampleClassProducts.filter((p) => p.teamId === team.id && p.publicVisible)
+      : (dbProducts || []);
+  }, [isDemo, team.id, dbProducts]);
+
+  const firstPrice = useMemo(() => {
+    return products.length
+      ? Math.min(...products.map((p) => p.priceCents))
+      : null;
+  }, [products]);
+
+  const publicSlots = useMemo(() => {
+    return isDemo 
+      ? samplePublicSchedule.filter((s) => s.teamId === team.id && s.publicVisible).slice(0, 3)
+      : [];
+  }, [isDemo, team.id]);
+
+  return (
+    <article
+      className="card overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
+    >
+      {/* Banner image */}
+      <div className="relative h-44 overflow-hidden">
+        <img
+          className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
+          src={team.branding.bannerPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"}
+          alt={`Banner ${team.name}`}
+          loading="lazy"
+          decoding="async"
+        />
+        {/* Photo avatar */}
+        <img
+          className="absolute bottom-0 left-4 translate-y-1/2 h-14 w-14 rounded-full border-4 border-white object-cover shadow-md"
+          src={team.branding.trainerPhotoURL || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80"}
+          alt={`Foto ${team.name}`}
+          loading="lazy"
+        />
+        {firstPrice !== null && (
+          <span className="absolute right-3 top-3 rounded-full bg-emerald-800 px-3 py-1 text-xs font-black text-white shadow-md">
+            a partir de {moneyFromCents(firstPrice)}
+          </span>
+        )}
+      </div>
+
+      <div className="px-5 pb-5 pt-10">
+        <div className="flex items-start justify-between gap-2">
+          <div>
+            <h3 className="text-xl font-black text-stone-950">{team.name}</h3>
+            <p className="mt-0.5 flex items-center gap-1 text-xs text-stone-400">
+              <MapPin size={11} />
+              {team.isSolo ? "Treinador solo" : "Equipe de treinamento"}
+            </p>
+          </div>
+          <div className="flex items-center gap-1 rounded-full bg-amber-50 px-2.5 py-1 text-xs font-bold text-amber-700">
+            <Star size={11} className="fill-amber-400 text-amber-400" />
+            4.9
+          </div>
+        </div>
+
+        <p className="mt-3 text-sm leading-6 text-stone-500 line-clamp-2">
+          {team.branding.bio}
+        </p>
+
+        {/* Location badges */}
+        <div className="mt-3 flex flex-wrap gap-1.5">
+          {(team.worksAt || []).map((gym) => (
+            <span
+              key={gym.id}
+              className={[
+                "inline-flex items-center gap-1 rounded-full border px-2.5 py-0.5 text-xs font-semibold",
+                gym.type === "outdoor" ? "border-amber-100 bg-amber-50 text-amber-700" : "border-blue-100 bg-blue-50 text-blue-700",
+              ].join(" ")}
+            >
+              {gym.type === "outdoor" ? "🌳" : "🏋️"} {gym.name.split(" — ")[0]}
+            </span>
+          ))}
+          {team.acceptsHomeVisit && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-emerald-100 bg-emerald-50 px-2.5 py-0.5 text-xs font-semibold text-emerald-700">
+              <Home size={10} /> Em casa
+            </span>
+          )}
+          {team.acceptsCondoGym && (
+            <span className="inline-flex items-center gap-1 rounded-full border border-violet-100 bg-violet-50 px-2.5 py-0.5 text-xs font-semibold text-violet-700">
+              <Building2 size={10} /> Cond.
+            </span>
+          )}
+        </div>
+
+        {/* Info row */}
+        <div className="mt-4 grid gap-2 sm:grid-cols-2">
+          <InfoPill icon={Tag} text={`${products.length} pacote${products.length !== 1 ? "s" : ""} disponível${products.length !== 1 ? "s" : ""}`} />
+          <InfoPill icon={CalendarDays} text="Agenda pública ativa" />
+        </div>
+
+        {/* Slots preview */}
+        {publicSlots.length > 0 && (
+          <div className="mt-3 space-y-1.5">
+            {publicSlots.map((slot) => (
+              <div
+                key={slot.id}
+                className="flex items-center justify-between rounded-lg bg-stone-50 px-3 py-2 text-xs"
+              >
+                <span className="font-semibold text-stone-700">
+                  {slot.weekday} · {slot.time}
+                </span>
+                <span className={[
+                  "font-bold",
+                  slot.available === 0 ? "text-red-600" : "text-emerald-700",
+                ].join(" ")}>
+                  {slot.available === 0 ? "Lotado" : `${slot.available} vaga${slot.available !== 1 ? "s" : ""}`}
+                </span>
+              </div>
+            ))}
+          </div>
+        )}
+
+        <Link
+          className="focus-ring btn btn-primary mt-4 w-full"
+          to={`/t/${team.slug}`}
+          id={`team-cta-${team.slug}`}
+          aria-label={`Ver detalhes de ${team.name}`}
+        >
+          Ver detalhes
+          <ArrowRight aria-hidden="true" size={17} />
+        </Link>
+      </div>
+    </article>
   );
 }
