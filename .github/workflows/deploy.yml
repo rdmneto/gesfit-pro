@@ -44,10 +44,10 @@ jobs:
         run: |
           sudo apt-get update -qq && sudo apt-get install -y -qq lftp sshpass
           
-          echo "=== Tentando SFTP (porta 22) ==="
+          echo "=== Tentando SFTP (porta 65002) ==="
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
             -e "set sftp:auto-confirm yes; set net:timeout 30; set net:max-retries 3; set net:reconnect-interval-base 5; mirror -R --verbose web/dist/ ./; quit" \
-            sftp://"$FTP_SERVER":22 && echo "SFTP OK" && exit 0 || true
+            sftp://"$FTP_SERVER":65002 && echo "SFTP OK" && exit 0 || true
 
           echo "=== SFTP falhou, tentando FTPS (porta 21) ==="
           lftp -u "$FTP_USERNAME","$FTP_PASSWORD" \
