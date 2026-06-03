@@ -5,16 +5,14 @@ import {
   KeyRound,
   LockKeyhole,
   Mail,
-  UserPlus,
   Users,
 } from "lucide-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Link, useNavigate } from "react-router-dom";
+import { useNavigate } from "react-router-dom";
 import { createAccount, loginWithEmail, loginWithGoogle, resetPassword } from "../lib/auth";
 import { firebaseConfigured } from "../lib/firebase";
-import { useSessionStore } from "../store/session";
 import { Button } from "../components/ui/Button";
 import { Input } from "../components/ui/FormFields";
 import { loginSchema, signupSchema, type LoginFormData, type SignupFormData } from "../lib/schemas";
@@ -23,7 +21,6 @@ type LoginMode = "login" | "signup" | "reset";
 
 export function LoginPage() {
   const navigate = useNavigate();
-  const loginDemo = useSessionStore((state) => state.loginDemo);
 
   const [mode, setMode] = useState<LoginMode>("login");
   const [loading, setLoading] = useState(false);
@@ -41,11 +38,6 @@ export function LoginPage() {
     setSuccessMsg("");
     loginForm.reset();
     signupForm.reset();
-  }
-
-  function enterDemo(role: "student" | "trainer") {
-    loginDemo(role);
-    navigate(role === "trainer" ? "/app/treinador" : "/app");
   }
 
   async function handleLogin(data: LoginFormData) {
@@ -116,7 +108,7 @@ export function LoginPage() {
         <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Acesso</p>
         <h1 className="mt-3 text-4xl text-stone-950">Entrar ou criar conta</h1>
         <p className="mt-4 max-w-xl text-sm leading-7 text-stone-500">
-          Após o login, o app libera o painel do aluno ou a área do treinador conforme seu perfil.
+          Após o login, selecione seu perfil — aluno ou treinador — e acesse todos os recursos da plataforma.
         </p>
 
         <div className="mt-6 grid gap-3 sm:grid-cols-2">
@@ -130,29 +122,6 @@ export function LoginPage() {
             title="Treinador"
             body="Ambiente, alunos, agenda e vitrine pública."
           />
-        </div>
-
-        {/* Demo shortcuts */}
-        <div className="mt-6 rounded-xl border border-dashed border-stone-300 bg-white p-4">
-          <p className="text-xs font-bold uppercase tracking-wider text-stone-400">Acesso demo rápido</p>
-          <div className="mt-3 flex flex-wrap gap-2">
-            <button
-              type="button"
-              className="focus-ring btn btn-secondary btn-sm"
-              onClick={() => enterDemo("student")}
-            >
-              <Dumbbell size={14} />
-              Ver como aluno
-            </button>
-            <button
-              type="button"
-              className="focus-ring btn btn-secondary btn-sm"
-              onClick={() => enterDemo("trainer")}
-            >
-              <Users size={14} />
-              Ver como treinador
-            </button>
-          </div>
         </div>
       </div>
 
@@ -205,7 +174,7 @@ export function LoginPage() {
               )}
               {!isFirebase && (
                 <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                  Firebase não configurado — use o acesso demo acima.
+                  Firebase não configurado — acesso indisponível.
                 </p>
               )}
               <Button type="submit" variant="primary" loading={loading} disabled={!isFirebase} className="w-full" icon={<ArrowRight size={18} />}>
@@ -267,7 +236,7 @@ export function LoginPage() {
               )}
               {!isFirebase && (
                 <p className="text-xs text-amber-700 bg-amber-50 rounded-lg px-3 py-2">
-                  Firebase não configurado — use o acesso demo acima.
+                  Firebase não configurado — acesso indisponível.
                 </p>
               )}
               <Button type="submit" variant="primary" loading={loading} disabled={!isFirebase} className="w-full" icon={<ArrowRight size={18} />}>
@@ -328,32 +297,6 @@ export function LoginPage() {
             Continuar com Google
           </Button>
         </div>
-
-        <section className="card p-5">
-          <div className="flex items-center gap-2">
-            <UserPlus aria-hidden="true" className="text-emerald-700" size={20} />
-            <h2 className="text-base font-black text-stone-900">Novo por aqui?</h2>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-stone-500">
-            Escolha o tipo de conta. O aluno pode vincular um treinador agora ou depois.
-          </p>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            <Link
-              className="focus-ring rounded-lg border border-[var(--color-border)] bg-stone-50 p-4 transition-all hover:border-emerald-600 hover:bg-emerald-50"
-              to="/cadastro/aluno"
-            >
-              <p className="font-black text-stone-900">Sou aluno</p>
-              <p className="mt-1 text-xs text-stone-500">Criar cadastro com anamnese.</p>
-            </Link>
-            <Link
-              className="focus-ring rounded-lg border border-[var(--color-border)] bg-stone-50 p-4 transition-all hover:border-emerald-600 hover:bg-emerald-50"
-              to="/cadastro/treinador"
-            >
-              <p className="font-black text-stone-900">Sou treinador</p>
-              <p className="mt-1 text-xs text-stone-500">Criar ambiente e divulgação.</p>
-            </Link>
-          </div>
-        </section>
       </div>
     </section>
   );

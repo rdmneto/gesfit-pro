@@ -25,7 +25,7 @@ interface NavItem {
 export function AppFrame() {
   const user = useSessionStore((state) => state.user);
   const role = useSessionStore((state) => state.claims.role);
-  const logoutDemo = useSessionStore((state) => state.logoutDemo);
+  const logout = useSessionStore((state) => state.logout);
   const isLogged = Boolean(user);
   const location = useLocation();
 
@@ -115,7 +115,7 @@ export function AppFrame() {
               <button
                 type="button"
                 className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
-                onClick={logoutDemo}
+                onClick={() => logout()}
               >
                 <LogOut aria-hidden="true" size={16} />
                 Sair
@@ -123,17 +123,25 @@ export function AppFrame() {
             )}
           </nav>
 
-          {/* Mobile: show only logo + logout */}
+          {/* Mobile: show logout button if logged in, or login link if not */}
           <div className="flex items-center gap-2 md:hidden">
-            {isLogged && (
+            {isLogged ? (
               <button
                 type="button"
                 className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
-                onClick={logoutDemo}
+                onClick={() => logout()}
                 aria-label="Sair"
               >
                 <LogOut size={18} />
               </button>
+            ) : (
+              <NavLink
+                to="/login"
+                className="focus-ring flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-600 hover:bg-stone-200/70"
+              >
+                <LogIn size={18} />
+                Login
+              </NavLink>
             )}
           </div>
         </div>

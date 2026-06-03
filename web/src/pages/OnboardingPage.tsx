@@ -1,15 +1,17 @@
 import { useState } from "react";
 import { doc, setDoc } from "firebase/firestore";
-import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft } from "lucide-react";
+import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { Button } from "../components/ui/Button";
 
-type Step = "role-select" | "details-student" | "details-trainer";
+type Step = "role-select" | "contract" | "details-student" | "details-trainer";
 
 export function OnboardingPage() {
   const user = useSessionStore((state) => state.user);
   const [step, setStep] = useState<Step>("role-select");
+  const [pendingRole, setPendingRole] = useState<"student" | "trainer" | null>(null);
+  const [contractAccepted, setContractAccepted] = useState(false);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
@@ -27,6 +29,18 @@ export function OnboardingPage() {
 
   if (!user) return null;
 
+  function handleRoleSelect(role: "student" | "trainer") {
+    setPendingRole(role);
+    setContractAccepted(false);
+    setStep("contract");
+  }
+
+  function handleContractAccept() {
+    if (!contractAccepted) return;
+    if (pendingRole === "student") setStep("details-student");
+    else setStep("details-trainer");
+  }
+
   async function handleOnboardingStudent(e: React.FormEvent) {
     e.preventDefault();
     if (!db || !user) return;
@@ -40,6 +54,7 @@ export function OnboardingPage() {
         teamId: null,
         email: user.email,
         name: user.displayName || "Aluno",
+        contractAcceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       });
 
@@ -92,6 +107,7 @@ export function OnboardingPage() {
         teamId: user.uid,
         email: user.email,
         name: user.displayName || "Treinador",
+        contractAcceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       });
 
@@ -161,10 +177,11 @@ export function OnboardingPage() {
       )}
 
       <div className="mt-8">
+        {/* STEP 1: Role select */}
         {step === "role-select" && (
           <div className="grid gap-4 sm:grid-cols-2">
             <button
-              onClick={() => setStep("details-student")}
+              onClick={() => handleRoleSelect("student")}
               className="focus-ring group flex flex-col items-center rounded-2xl border border-stone-200 bg-white p-6 text-center transition-all hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-50/40"
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
@@ -180,7 +197,7 @@ export function OnboardingPage() {
             </button>
 
             <button
-              onClick={() => setStep("details-trainer")}
+              onClick={() => handleRoleSelect("trainer")}
               className="focus-ring group flex flex-col items-center rounded-2xl border border-stone-200 bg-white p-6 text-center transition-all hover:border-emerald-500 hover:shadow-lg hover:shadow-emerald-50/40"
             >
               <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-emerald-50 text-emerald-700 transition-colors group-hover:bg-emerald-600 group-hover:text-white">
@@ -197,12 +214,122 @@ export function OnboardingPage() {
           </div>
         )}
 
+        {/* STEP 2: Contract */}
+        {step === "contract" && (
+          <div className="card p-6 animate-slide-up">
+            <div className="flex items-center gap-2 mb-4">
+              <button
+                type="button"
+                onClick={() => setStep("role-select")}
+                className="rounded-lg p-1.5 hover:bg-stone-100 text-stone-500 transition-colors"
+                aria-label="Voltar"
+              >
+                <ArrowLeft size={16} />
+              </button>
+              <div className="flex items-center gap-2">
+                <FileText size={20} className="text-emerald-700" />
+                <h2 className="text-lg font-black text-stone-950">Contrato de Prestação de Serviços</h2>
+              </div>
+            </div>
+
+            <div
+              className="h-72 overflow-y-auto rounded-xl border border-stone-200 bg-stone-50 p-5 text-sm leading-7 text-stone-600"
+              tabIndex={0}
+              aria-label="Contrato de prestação de serviços — role para ler"
+            >
+              <h3 className="text-base font-black text-stone-900 mb-3">CONTRATO DE PRESTAÇÃO DE SERVIÇOS E POLÍTICA DE TRATAMENTO DE DADOS</h3>
+
+              <p className="font-semibold text-stone-800">1. DAS PARTES</p>
+              <p className="mt-1 mb-3">
+                O presente Contrato é celebrado entre a <strong>Gesfit Pro</strong> (doravante denominada "Plataforma") e o usuário que realiza o cadastro (doravante denominado "Usuário").
+              </p>
+
+              <p className="font-semibold text-stone-800">2. DO OBJETO</p>
+              <p className="mt-1 mb-3">
+                A Plataforma disponibiliza ao Usuário acesso a um sistema de gestão de treinos, agendamentos, controle de medidas corporais e comunicação entre alunos e profissionais de educação física. A prestação dos serviços está condicionada à aceitação integral dos termos deste contrato.
+              </p>
+
+              <p className="font-semibold text-stone-800">3. DAS OBRIGAÇÕES DO USUÁRIO</p>
+              <ul className="mt-1 mb-3 list-disc pl-5 space-y-1">
+                <li>Fornecer informações verdadeiras, precisas e atualizadas no momento do cadastro;</li>
+                <li>Manter a confidencialidade de suas credenciais de acesso;</li>
+                <li>Utilizar a Plataforma exclusivamente para fins lícitos e de acordo com as normas vigentes;</li>
+                <li>Não compartilhar, reproduzir ou comercializar conteúdos da Plataforma sem autorização prévia;</li>
+                <li>Respeitar os profissionais cadastrados e demais usuários da plataforma.</li>
+              </ul>
+
+              <p className="font-semibold text-stone-800">4. DA PROTEÇÃO E TRATAMENTO DE DADOS (LGPD)</p>
+              <p className="mt-1 mb-2">
+                Em conformidade com a Lei Geral de Proteção de Dados Pessoais (Lei nº 13.709/2018 — LGPD), a Plataforma declara:
+              </p>
+              <ul className="mb-3 list-disc pl-5 space-y-1">
+                <li><strong>Dados coletados:</strong> nome completo, e-mail, telefone, data de nascimento, medidas corporais e objetivos de treino;</li>
+                <li><strong>Finalidade:</strong> prestação dos serviços contratados, personalização do atendimento e comunicação relacionada à plataforma;</li>
+                <li><strong>Base legal:</strong> execução de contrato e legítimo interesse;</li>
+                <li><strong>Compartilhamento:</strong> os dados poderão ser compartilhados exclusivamente com o profissional (treinador) vinculado ao Usuário dentro da Plataforma;</li>
+                <li><strong>Segurança:</strong> a Plataforma adota medidas técnicas e administrativas para proteger os dados contra acesso não autorizado, perda ou destruição;</li>
+                <li><strong>Direitos do titular:</strong> o Usuário poderá, a qualquer tempo, solicitar acesso, correção, portabilidade ou exclusão de seus dados mediante contato com o suporte;</li>
+                <li><strong>Retenção:</strong> os dados serão mantidos pelo período necessário à prestação dos serviços ou conforme exigência legal.</li>
+              </ul>
+
+              <p className="font-semibold text-stone-800">5. DA RESPONSABILIDADE</p>
+              <p className="mt-1 mb-3">
+                A Plataforma não se responsabiliza por resultados de treino, prescrições de exercícios ou orientações fornecidas pelos profissionais. O relacionamento entre aluno e treinador é de responsabilidade exclusiva das partes envolvidas. A Plataforma atua como ferramenta de gestão e comunicação.
+              </p>
+
+              <p className="font-semibold text-stone-800">6. DAS DISPOSIÇÕES GERAIS</p>
+              <p className="mt-1 mb-3">
+                Este contrato entra em vigor na data do aceite pelo Usuário e pode ser alterado mediante notificação prévia de 15 (quinze) dias. A continuidade do uso após notificação implica na aceitação das novas condições. Para dirimir eventuais controvérsias, fica eleito o foro da comarca de domicílio do Usuário.
+              </p>
+
+              <p className="mt-4 text-xs text-stone-400">Última atualização: Junho de 2025 · Gesfit Pro — Todos os direitos reservados.</p>
+            </div>
+
+            <label className="mt-5 flex cursor-pointer items-start gap-3 rounded-xl border border-stone-200 bg-white p-4 transition-colors hover:border-emerald-400 hover:bg-emerald-50/30">
+              <input
+                type="checkbox"
+                id="contract-accept"
+                className="mt-0.5 h-5 w-5 shrink-0 rounded border-stone-300 accent-emerald-600 cursor-pointer"
+                checked={contractAccepted}
+                onChange={(e) => setContractAccepted(e.target.checked)}
+              />
+              <div>
+                <p className="text-sm font-semibold text-stone-900">
+                  Li e aceito o Contrato de Prestação de Serviços e a Política de Tratamento de Dados
+                </p>
+                <p className="mt-0.5 text-xs text-stone-500">
+                  Ao marcar esta caixa, confirmo que li o documento acima na íntegra e concordo com todos os seus termos.
+                </p>
+              </div>
+            </label>
+
+            {!contractAccepted && (
+              <p className="mt-3 flex items-center gap-1.5 text-xs text-amber-700">
+                <ShieldCheck size={14} className="shrink-0" />
+                Role o contrato até o final e marque a caixa acima para continuar.
+              </p>
+            )}
+
+            <Button
+              type="button"
+              variant="primary"
+              disabled={!contractAccepted}
+              className="mt-5 w-full"
+              icon={<ArrowRight size={18} />}
+              onClick={handleContractAccept}
+            >
+              Aceito — Continuar cadastro
+            </Button>
+          </div>
+        )}
+
+        {/* STEP 3: Student details */}
         {step === "details-student" && (
           <form onSubmit={handleOnboardingStudent} className="card p-6 animate-slide-up">
             <div className="flex items-center gap-2 mb-4">
               <button
                 type="button"
-                onClick={() => setStep("role-select")}
+                onClick={() => setStep("contract")}
                 className="rounded-lg p-1.5 hover:bg-stone-100 text-stone-500 transition-colors"
                 aria-label="Voltar"
               >
@@ -282,12 +409,13 @@ export function OnboardingPage() {
           </form>
         )}
 
+        {/* STEP 3: Trainer details */}
         {step === "details-trainer" && (
           <form onSubmit={handleOnboardingTrainer} className="card p-6 animate-slide-up">
             <div className="flex items-center gap-2 mb-4">
               <button
                 type="button"
-                onClick={() => setStep("role-select")}
+                onClick={() => setStep("contract")}
                 className="rounded-lg p-1.5 hover:bg-stone-100 text-stone-500 transition-colors"
                 aria-label="Voltar"
               >
