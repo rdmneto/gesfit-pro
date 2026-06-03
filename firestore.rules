@@ -14,8 +14,17 @@ service cloud.firestore {
       return signedIn() && request.auth.token.role == role;
     }
 
+    // Verifica a role diretamente no documento /users/{uid} do Firestore
+    // Usada durante o onboarding, antes das custom claims estarem presentes no token
+    function hasRoleInDoc(role) {
+      return signedIn()
+        && exists(/databases/$(database)/documents/users/$(request.auth.uid))
+        && get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role == role;
+    }
+
     function isTrainer(teamId) {
-      return hasTeamClaim(teamId) && hasRole('trainer');
+      return (hasTeamClaim(teamId) && hasRole('trainer'))
+        || (signedIn() && request.auth.uid == teamId && hasRoleInDoc('trainer'));
     }
 
     function isAssistant(teamId) {
@@ -23,7 +32,8 @@ service cloud.firestore {
     }
 
     function isStudent(teamId) {
-      return hasTeamClaim(teamId) && hasRole('student');
+      return (hasTeamClaim(teamId) && hasRole('student'))
+        || (signedIn() && hasRoleInDoc('student'));
     }
 
     function teamDoc(teamId) {
@@ -66,29 +76,81 @@ service cloud.firestore {
         'slug',
         'ownerUid',
         'isSolo',
+        'id',
         'branding',
         'settings',
+        'trainingModalities',
         'publicListing',
+        'publicProfile',
+        'worksAt',
+        'acceptsHomeVisit',
+        'acceptsCondoGym',
         'createdAt'
       ]);
     }
 
+    // ─── Coleção raiz: users ─────────────────────────────────────────────
+    // Cada utilizador pode ler e escrever o seu próprio documento.
+    // Durante o onboarding o setDoc define role/teamId pela primeira vez,
+    // por isso o create é livre (para o próprio uid).
+    // O update protege apenas contra troca de role/teamId por um usuário
+    // que já tem esses campos — exceto se o documento ainda não os tiver
+    // (onboarding incompleto).
     match /users/{uid} {
-      allow read: if signedIn() && (request.auth.uid == uid || request.auth.token.teamId == resource.data.teamId);
+      allow read: if signedIn()
+        && (request.auth.uid == uid
+            || request.auth.token.teamId == resource.data.teamId);
+
+      // Create: usuário autenticado criando o seu próprio documento
       allow create: if signedIn() && request.auth.uid == uid;
+
+      // Update: o próprio usuário pode atualizar.
+      // Se role e teamId já estiverem definidos, não pode alterá-los.
+      // Se ainda não existirem (primeiro onboarding após Google login),
+      // permite escrever qualquer campo.
       allow update: if signedIn()
         && request.auth.uid == uid
-        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'teamId']);
+        && (
+          // Documento ainda não tinha role → onboarding, pode tudo
+          !('role' in resource.data)
+          // Já tinha role → só permite mudar campos que não sejam role/teamId
+          || !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'teamId'])
+        );
+
       allow delete: if false;
     }
 
+    // ─── Coleção raiz: students ──────────────────────────────────────────
+    // Alunos criam o próprio documento durante o onboarding.
+    match /students/{studentId} {
+      allow read: if signedIn()
+        && (request.auth.uid == studentId
+            || hasRoleInDoc('trainer'));
+
+      // Create: o próprio usuário autenticado cria seu perfil de aluno
+      allow create: if signedIn() && request.auth.uid == studentId;
+
+      // Update: o próprio aluno pode atualizar dados pessoais
+      allow update: if signedIn()
+        && request.auth.uid == studentId
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+          'status', 'assignedTo', 'planId'
+        ]);
+
+      allow delete: if false;
+    }
+
+    // ─── Coleção raiz: teams ─────────────────────────────────────────────
     match /teams/{teamId} {
-      allow read: if resource.data.publicListing == true || hasTeamClaim(teamId);
+      allow read: if resource.data.publicListing == true || hasTeamClaim(teamId) || isTrainer(teamId);
+
+      // Create: treinador cria o próprio ambiente no onboarding.
+      // Aceita tanto custom claims (se já presentes) quanto doc Firestore.
       allow create: if signedIn()
-        && hasRole('trainer')
-        && request.auth.token.teamId == teamId
+        && request.auth.uid == teamId
         && request.resource.data.ownerUid == request.auth.uid
-        && publicTeamFieldsOnly();
+        && (hasRole('trainer') || hasRoleInDoc('trainer'));
+
       allow update: if isTrainer(teamId) && publicTeamFieldsOnly();
       allow delete: if false;
 
