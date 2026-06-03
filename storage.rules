@@ -1,0 +1,34 @@
+rules_version = '2';
+
+service firebase.storage {
+  match /b/{bucket}/o {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasTeamClaim(teamId) {
+      return signedIn() && request.auth.token.teamId == teamId;
+    }
+
+    function isTrainer(teamId) {
+      return hasTeamClaim(teamId) && request.auth.token.role == 'trainer';
+    }
+
+    function validImage() {
+      return request.resource.size < 5 * 1024 * 1024
+        && request.resource.contentType.matches('image/.*');
+    }
+
+    match /teams/{teamId}/branding/{fileName} {
+      allow read: if true;
+      allow write: if isTrainer(teamId) && validImage();
+    }
+
+    match /teams/{teamId}/profiles/{uid}/{fileName} {
+      allow read: if hasTeamClaim(teamId);
+      allow write: if hasTeamClaim(teamId)
+        && request.auth.uid == uid
+        && validImage();
+    }
+  }
+}

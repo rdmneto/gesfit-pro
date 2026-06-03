@@ -1,0 +1,24 @@
+{
+  "name": "gestao-treinador",
+  "private": true,
+  "version": "0.1.0",
+  "type": "module",
+  "scripts": {
+    "build": "npm run build --workspace web && npm run build --workspace functions",
+    "test": "npm run test:rules",
+    "test:rules": "firebase emulators:exec --only firestore \"vitest run tests/firestore.rules.test.ts\"",
+    "emulators": "firebase emulators:start --only auth,firestore,functions,storage",
+    "dev:web": "npm run dev --workspace web"
+  },
+  "workspaces": [
+    "web",
+    "functions"
+  ],
+  "devDependencies": {
+    "@firebase/rules-unit-testing": "5.0.1",
+    "firebase": "^12.14.0",
+    "firebase-tools": "^15.1.0",
+    "typescript": "~6.0.2",
+    "vitest": "^4.1.8"
+  }
+}

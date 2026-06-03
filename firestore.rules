@@ -1,0 +1,241 @@
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function hasTeamClaim(teamId) {
+      return signedIn() && request.auth.token.teamId == teamId;
+    }
+
+    function hasRole(role) {
+      return signedIn() && request.auth.token.role == role;
+    }
+
+    function isTrainer(teamId) {
+      return hasTeamClaim(teamId) && hasRole('trainer');
+    }
+
+    function isAssistant(teamId) {
+      return hasTeamClaim(teamId) && hasRole('assistant');
+    }
+
+    function isStudent(teamId) {
+      return hasTeamClaim(teamId) && hasRole('student');
+    }
+
+    function teamDoc(teamId) {
+      return get(/databases/$(database)/documents/teams/$(teamId));
+    }
+
+    function studentDoc(teamId, studentId) {
+      return get(/databases/$(database)/documents/teams/$(teamId)/students/$(studentId));
+    }
+
+    function cancelWindowHours(teamId) {
+      return teamDoc(teamId).data.settings.cancelWindowHours == null
+        ? 2
+        : teamDoc(teamId).data.settings.cancelWindowHours;
+    }
+
+    function studentIsActive(teamId, studentId) {
+      return studentDoc(teamId, studentId).data.status == 'active';
+    }
+
+    function ownsStudentDoc(teamId, studentId) {
+      return hasTeamClaim(teamId) && request.auth.uid == studentId;
+    }
+
+    function assistantAssignedToExisting(teamId, studentId) {
+      return isAssistant(teamId) && studentDoc(teamId, studentId).data.assignedTo == request.auth.uid;
+    }
+
+    function assistantAssignedToIncoming() {
+      return request.resource.data.assignedTo == request.auth.uid;
+    }
+
+    function onlyChanged(keys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
+    }
+
+    function publicTeamFieldsOnly() {
+      return request.resource.data.keys().hasOnly([
+        'name',
+        'slug',
+        'ownerUid',
+        'isSolo',
+        'branding',
+        'settings',
+        'publicListing',
+        'createdAt'
+      ]);
+    }
+
+    match /users/{uid} {
+      allow read: if signedIn() && (request.auth.uid == uid || request.auth.token.teamId == resource.data.teamId);
+      allow create: if signedIn() && request.auth.uid == uid;
+      allow update: if signedIn()
+        && request.auth.uid == uid
+        && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['role', 'teamId']);
+      allow delete: if false;
+    }
+
+    match /teams/{teamId} {
+      allow read: if resource.data.publicListing == true || hasTeamClaim(teamId);
+      allow create: if signedIn()
+        && hasRole('trainer')
+        && request.auth.token.teamId == teamId
+        && request.resource.data.ownerUid == request.auth.uid
+        && publicTeamFieldsOnly();
+      allow update: if isTrainer(teamId) && publicTeamFieldsOnly();
+      allow delete: if false;
+
+      match /members/{uid} {
+        allow read: if isTrainer(teamId)
+          || (hasTeamClaim(teamId) && request.auth.uid == uid);
+        allow create, update: if isTrainer(teamId);
+        allow delete: if false;
+      }
+
+      match /students/{studentId} {
+        allow read: if isTrainer(teamId)
+          || ownsStudentDoc(teamId, studentId)
+          || assistantAssignedToExisting(teamId, studentId);
+        allow create: if isTrainer(teamId)
+          || (
+            isStudent(teamId)
+            && ownsStudentDoc(teamId, studentId)
+            && request.resource.data.status == 'pending'
+            && request.resource.data.uid == request.auth.uid
+          );
+        allow update: if isTrainer(teamId)
+          || (
+            ownsStudentDoc(teamId, studentId)
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'status',
+              'assignedTo',
+              'planId',
+              'classesQuotaMonth',
+              'classesUsedMonth',
+              'planStartsAt',
+              'planEndsAt'
+            ])
+          )
+          || (
+            assistantAssignedToExisting(teamId, studentId)
+            && assistantAssignedToIncoming()
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+              'status',
+              'planId',
+              'classesQuotaMonth',
+              'classesUsedMonth',
+              'planStartsAt',
+              'planEndsAt'
+            ])
+          );
+        allow delete: if false;
+
+        match /measurements/{measureId} {
+          allow read: if isTrainer(teamId)
+            || ownsStudentDoc(teamId, studentId)
+            || assistantAssignedToExisting(teamId, studentId);
+          allow create: if isTrainer(teamId)
+            || ownsStudentDoc(teamId, studentId)
+            || assistantAssignedToExisting(teamId, studentId);
+          allow update, delete: if isTrainer(teamId);
+        }
+
+        match /goals/{goalId} {
+          allow read: if isTrainer(teamId)
+            || ownsStudentDoc(teamId, studentId)
+            || assistantAssignedToExisting(teamId, studentId);
+          allow create, update: if isTrainer(teamId)
+            || ownsStudentDoc(teamId, studentId)
+            || assistantAssignedToExisting(teamId, studentId);
+          allow delete: if isTrainer(teamId);
+        }
+      }
+
+      match /slots/{slotId} {
+        allow read: if isTrainer(teamId)
+          || isAssistant(teamId)
+          || (isStudent(teamId) && studentIsActive(teamId, request.auth.uid));
+        allow create, update, delete: if isTrainer(teamId) || isAssistant(teamId);
+      }
+
+      match /availability/{availabilityId} {
+        allow read: if isTrainer(teamId)
+          || isAssistant(teamId)
+          || (isStudent(teamId) && studentIsActive(teamId, request.auth.uid));
+        allow write: if false;
+      }
+
+      match /bookings/{bookingId} {
+        allow read: if isTrainer(teamId)
+          || (isAssistant(teamId) && resource.data.trainerId == request.auth.uid)
+          || (isStudent(teamId) && resource.data.studentId == request.auth.uid);
+        allow create: if isTrainer(teamId)
+          || (
+            isAssistant(teamId)
+            && request.resource.data.trainerId == request.auth.uid
+          )
+          || (
+            isStudent(teamId)
+            && request.resource.data.studentId == request.auth.uid
+            && request.resource.data.status == 'scheduled'
+            && studentIsActive(teamId, request.auth.uid)
+          );
+        allow update: if isTrainer(teamId)
+          || (
+            isAssistant(teamId)
+            && resource.data.trainerId == request.auth.uid
+          )
+          || (
+            isStudent(teamId)
+            && resource.data.studentId == request.auth.uid
+            && request.resource.data.studentId == resource.data.studentId
+            && request.resource.data.trainerId == resource.data.trainerId
+            && request.resource.data.startsAt == resource.data.startsAt
+            && (
+              (
+                request.resource.data.status == 'cancelled'
+                && resource.data.status == 'scheduled'
+                && onlyChanged(['status', 'cancelledAt'])
+                && resource.data.startsAt > request.time + duration.value(cancelWindowHours(teamId), 'h')
+              )
+              || (
+                request.resource.data.status == 'no_show'
+                && resource.data.status == 'scheduled'
+                && onlyChanged(['status', 'noShowJustification'])
+              )
+            )
+          );
+        allow delete: if false;
+      }
+
+      match /plans/{planId} {
+        allow read: if resource.data.active == true || isTrainer(teamId);
+        allow write: if isTrainer(teamId);
+      }
+
+      match /subscriptions/{studentId} {
+        allow read: if isTrainer(teamId) || ownsStudentDoc(teamId, studentId);
+        allow write: if false;
+      }
+
+      match /messages/{msgId} {
+        allow read: if hasTeamClaim(teamId)
+          && (resource.data.fromUid == request.auth.uid || resource.data.toUid == request.auth.uid || isTrainer(teamId));
+        allow create: if hasTeamClaim(teamId)
+          && request.resource.data.fromUid == request.auth.uid
+          && request.resource.data.keys().hasOnly(['fromUid', 'toUid', 'body', 'createdAt', 'read']);
+        allow update: if hasTeamClaim(teamId)
+          && resource.data.toUid == request.auth.uid
+          && onlyChanged(['read']);
+        allow delete: if false;
+      }
+    }
+  }
+}

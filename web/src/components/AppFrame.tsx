@@ -1,0 +1,168 @@
+import {
+  BicepsFlexed,
+  CalendarDays,
+  Dumbbell,
+  House,
+  LogIn,
+  LogOut,
+  Ruler,
+  Settings,
+  ShieldCheck,
+  ShoppingBag,
+  UserPlus,
+  Users,
+} from "lucide-react";
+import { NavLink, Outlet, useLocation } from "react-router-dom";
+import { useSessionStore } from "../store/session";
+
+interface NavItem {
+  to: string;
+  label: string;
+  icon: typeof House;
+  exact?: boolean;
+}
+
+export function AppFrame() {
+  const user = useSessionStore((state) => state.user);
+  const role = useSessionStore((state) => state.claims.role);
+  const logoutDemo = useSessionStore((state) => state.logoutDemo);
+  const isLogged = Boolean(user);
+  const location = useLocation();
+
+  const studentLinks: NavItem[] = [
+    { to: "/", label: "Início", icon: House, exact: true },
+    { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
+    { to: "/app/minhas-aulas", label: "Aulas", icon: ShoppingBag },
+    { to: "/app/medidas", label: "Medidas", icon: Ruler },
+    { to: "/t/movimento-forte", label: "Treinador", icon: BicepsFlexed },
+  ];
+
+  const trainerLinks: NavItem[] = [
+    { to: "/", label: "Início", icon: House, exact: true },
+    { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
+    { to: "/app/aulas", label: "Agenda", icon: CalendarDays },
+    { to: "/app/alunos", label: "Alunos", icon: Users },
+    { to: "/app/treinador", label: "Perfil", icon: UserPlus },
+    { to: "/app/configuracoes", label: "Locais", icon: Settings },
+    { to: "/app/seguranca", label: "Regras", icon: ShieldCheck },
+  ];
+
+  const publicLinks: NavItem[] = [
+    { to: "/", label: "Início", icon: House, exact: true },
+    { to: "/login", label: "Login", icon: LogIn },
+  ];
+
+  const links = isLogged
+    ? role === "trainer"
+      ? trainerLinks
+      : studentLinks
+    : publicLinks;
+
+  // Bottom nav uses a subset of the most important links
+  const mobileLinks = links.slice(0, 5);
+
+  function isNavActive(to: string, exact?: boolean) {
+    if (exact) return location.pathname === to;
+    return location.pathname.startsWith(to);
+  }
+
+  return (
+    <div className="min-h-screen bg-[var(--color-surface)] text-stone-950">
+      {/* ── Desktop Header ───────────────────────────────── */}
+      <header className="sticky top-0 z-30 border-b border-[var(--color-border)] bg-[var(--color-surface)]/95 backdrop-blur-md">
+        <div className="mx-auto flex max-w-6xl items-center justify-between px-4 py-2.5">
+          <NavLink
+            to="/"
+            className="flex items-center gap-2 text-base font-black tracking-tight text-stone-950"
+            style={{ fontFamily: "var(--font-display)" }}
+          >
+            <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-emerald-700">
+              <Dumbbell size={16} className="text-white" />
+            </div>
+            <span className="hidden sm:inline">Gesfit Pro</span>
+          </NavLink>
+
+          <nav
+            aria-label="Navegação principal"
+            className="hidden items-center gap-1 md:flex"
+          >
+            {links.map(({ to, label, icon: Icon, exact }) => (
+              <NavLink
+                key={to}
+                to={to}
+                end={exact}
+                className={({ isActive }) =>
+                  [
+                    "focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold transition-all duration-150",
+                    isActive
+                      ? "bg-emerald-700 text-white shadow-sm"
+                      : "text-stone-600 hover:bg-stone-200/70 hover:text-stone-900",
+                  ].join(" ")
+                }
+              >
+                <Icon aria-hidden="true" size={16} />
+                {label}
+              </NavLink>
+            ))}
+            {isLogged && (
+              <button
+                type="button"
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
+                onClick={logoutDemo}
+              >
+                <LogOut aria-hidden="true" size={16} />
+                Sair
+              </button>
+            )}
+          </nav>
+
+          {/* Mobile: show only logo + logout */}
+          <div className="flex items-center gap-2 md:hidden">
+            {isLogged && (
+              <button
+                type="button"
+                className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
+                onClick={logoutDemo}
+                aria-label="Sair"
+              >
+                <LogOut size={18} />
+              </button>
+            )}
+          </div>
+        </div>
+      </header>
+
+      {/* ── Page Content ─────────────────────────────────── */}
+      <main className={isLogged ? "has-bottom-nav" : ""}>
+        <Outlet />
+      </main>
+
+      {/* ── Mobile Bottom Navigation ──────────────────────── */}
+      {isLogged && (
+        <nav
+          aria-label="Navegação mobile"
+          className="bottom-nav md:hidden"
+        >
+          {mobileLinks.map(({ to, label, icon: Icon, exact }) => {
+            const active = isNavActive(to, exact);
+            return (
+              <NavLink
+                key={to}
+                to={to}
+                end={exact}
+                className={["bottom-nav-item", active ? "active" : ""].join(" ")}
+                aria-current={active ? "page" : undefined}
+              >
+                <span className="bottom-nav-icon">
+                  <Icon aria-hidden="true" size={22} />
+                  {active && <span className="active-dot" />}
+                </span>
+                <span>{label}</span>
+              </NavLink>
+            );
+          })}
+        </nav>
+      )}
+    </div>
+  );
+}
