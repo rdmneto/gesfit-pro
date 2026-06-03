@@ -11,10 +11,13 @@ import {
 } from "lucide-react";
 import { useState } from "react";
 import { Link } from "react-router-dom";
+import { addDoc, collection, serverTimestamp } from "firebase/firestore";
+import { db } from "../lib/firebase";
 import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
-import { sampleClassProducts, samplePurchases, sampleStudent } from "../data/sample";
+import { useClassProducts, useStudentPurchases, useStudent, useTeam } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
+import { useSessionStore } from "../store/session";
 import type { ClassProduct, PurchaseStatus } from "../types/domain";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
@@ -25,38 +28,69 @@ const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "am
 };
 
 export function StudentClassesPage() {
-  const student = sampleStudent;
-  const [purchases] = useState(samplePurchases);
+  const user = useSessionStore((state) => state.user);
+  const claims = useSessionStore((state) => state.claims);
+  const teamId = claims.teamId ?? null;
+
+  // Firestore hooks
+  const { data: student } = useStudent(user?.uid ?? null);
+  const { data: purchases = [], loading: purchasesLoading } = useStudentPurchases(user?.uid ?? null);
+  const { data: products = [], loading: productsLoading } = useClassProducts(teamId);
+  const { data: team } = useTeam(teamId);
+
   const [showBuyForm, setShowBuyForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ClassProduct | null>(null);
   const [fileAttached, setFileAttached] = useState(false);
+  const [proofFile, setProofFile] = useState<File | null>(null);
+  const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const totalClasses = student.classesQuotaMonth ?? 0;
-  const usedClasses = student.classesUsedMonth ?? 0;
+  const totalClasses = student?.classesQuotaMonth ?? 0;
+  const usedClasses = student?.classesUsedMonth ?? 0;
   const remainingClasses = Math.max(0, totalClasses - usedClasses);
   const usagePercent = totalClasses > 0 ? (usedClasses / totalClasses) * 100 : 0;
-  const isLow = remainingClasses <= 2;
-  const isEmpty = remainingClasses === 0;
+  const isLow = remainingClasses <= 2 && totalClasses > 0;
+  const isEmpty = remainingClasses === 0 && totalClasses > 0;
 
-  const progressVariant = isEmpty
-    ? "danger"
-    : isLow
-    ? "warning"
-    : "default";
+  const progressVariant = isEmpty ? "danger" : isLow ? "warning" : "default";
 
-  const activeProducts = sampleClassProducts.filter((p) => p.active && p.publicVisible);
+  const activeProducts = products.filter((p) => p.active && p.publicVisible);
   const packageProducts = activeProducts.filter((p) => p.type === "package");
   const singleProducts = activeProducts.filter((p) => p.type === "single");
 
-  function handleBuy() {
-    setSubmitted(true);
-    setTimeout(() => {
-      setSubmitted(false);
-      setShowBuyForm(false);
-      setSelectedProduct(null);
-      setFileAttached(false);
-    }, 2500);
+  // Trainer's team slug for the "Ver vitrine" link
+  const teamSlug = team?.slug ?? teamId ?? "";
+
+  async function handleBuy() {
+    if (!selectedProduct || !user || !db) return;
+    setSubmitting(true);
+    try {
+      await addDoc(collection(db, "classPurchases"), {
+        studentId: user.uid,
+        studentName: user.displayName ?? "Aluno",
+        teamId: teamId ?? "",
+        productId: selectedProduct.id,
+        productName: selectedProduct.name,
+        classesCount: selectedProduct.classesCount,
+        amountCents: selectedProduct.priceCents,
+        status: "awaiting_payment",
+        submittedAt: new Date().toISOString().split("T")[0],
+        proofFileName: proofFile?.name ?? null,
+        createdAt: serverTimestamp(),
+      });
+      setSubmitted(true);
+      setTimeout(() => {
+        setSubmitted(false);
+        setShowBuyForm(false);
+        setSelectedProduct(null);
+        setFileAttached(false);
+        setProofFile(null);
+      }, 2500);
+    } catch (err) {
+      console.error("Erro ao enviar pedido:", err);
+    } finally {
+      setSubmitting(false);
+    }
   }
 
   return (
@@ -87,25 +121,33 @@ export function StudentClassesPage() {
             )}
           </div>
           <p className="mt-4 text-sm font-semibold text-stone-500">Aulas restantes</p>
-          <p className={["mt-1 text-5xl font-black", isLow ? "text-amber-700" : "text-emerald-800"].join(" ")}
-            style={{ fontFamily: "var(--font-display)" }}>
-            {remainingClasses}
-          </p>
-          <p className="mt-1 text-xs text-stone-400">de {totalClasses} aulas do plano atual</p>
-          <div className="mt-4">
-            <ProgressBar
-              value={usagePercent}
-              variant={progressVariant}
-              label={`${usedClasses} utilizadas`}
-              showValue
-            />
-          </div>
-          {isLow && (
-            <p className="mt-3 text-xs font-medium text-amber-800">
-              {isEmpty
-                ? "Você não tem mais aulas. Adquira um pacote para continuar treinando."
-                : `Restam apenas ${remainingClasses} aula${remainingClasses > 1 ? "s" : ""}. Considere renovar!`}
-            </p>
+          {totalClasses === 0 ? (
+            <p className="mt-1 text-2xl font-black text-stone-400">— sem plano ativo</p>
+          ) : (
+            <>
+              <p
+                className={["mt-1 text-5xl font-black", isLow ? "text-amber-700" : "text-emerald-800"].join(" ")}
+                style={{ fontFamily: "var(--font-display)" }}
+              >
+                {remainingClasses}
+              </p>
+              <p className="mt-1 text-xs text-stone-400">de {totalClasses} aulas do plano atual</p>
+              <div className="mt-4">
+                <ProgressBar
+                  value={usagePercent}
+                  variant={progressVariant}
+                  label={`${usedClasses} utilizadas`}
+                  showValue
+                />
+              </div>
+              {isLow && (
+                <p className="mt-3 text-xs font-medium text-amber-800">
+                  {isEmpty
+                    ? "Você não tem mais aulas. Adquira um pacote para continuar treinando."
+                    : `Restam apenas ${remainingClasses} aula${remainingClasses > 1 ? "s" : ""}. Considere renovar!`}
+                </p>
+              )}
+            </>
           )}
         </div>
 
@@ -156,32 +198,51 @@ export function StudentClassesPage() {
                 O treinador vai confirmar o pagamento em breve. Suas aulas serão liberadas logo após.
               </p>
             </div>
+          ) : productsLoading ? (
+            <div className="mt-8 flex justify-center">
+              <div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+            </div>
+          ) : activeProducts.length === 0 ? (
+            <EmptyState
+              icon={ShoppingBag}
+              title="Nenhuma oferta disponível"
+              description="O treinador ainda não cadastrou pacotes ou aulas avulsas."
+              className="mt-4"
+            />
           ) : (
             <div className="mt-5 grid gap-6 lg:grid-cols-2">
               {/* Pacotes */}
               <div>
-                <p className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Pacotes</p>
-                <div className="space-y-2">
-                  {packageProducts.map((product) => (
-                    <ProductOption
-                      key={product.id}
-                      product={product}
-                      selected={selectedProduct?.id === product.id}
-                      onSelect={() => setSelectedProduct(product)}
-                    />
-                  ))}
-                </div>
-                <p className="mt-4 text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Aula avulsa</p>
-                <div className="space-y-2">
-                  {singleProducts.map((product) => (
-                    <ProductOption
-                      key={product.id}
-                      product={product}
-                      selected={selectedProduct?.id === product.id}
-                      onSelect={() => setSelectedProduct(product)}
-                    />
-                  ))}
-                </div>
+                {packageProducts.length > 0 && (
+                  <>
+                    <p className="text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Pacotes</p>
+                    <div className="space-y-2">
+                      {packageProducts.map((product) => (
+                        <ProductOption
+                          key={product.id}
+                          product={product}
+                          selected={selectedProduct?.id === product.id}
+                          onSelect={() => setSelectedProduct(product)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
+                {singleProducts.length > 0 && (
+                  <>
+                    <p className="mt-4 text-xs font-bold uppercase tracking-wider text-stone-400 mb-3">Aula avulsa</p>
+                    <div className="space-y-2">
+                      {singleProducts.map((product) => (
+                        <ProductOption
+                          key={product.id}
+                          product={product}
+                          selected={selectedProduct?.id === product.id}
+                          onSelect={() => setSelectedProduct(product)}
+                        />
+                      ))}
+                    </div>
+                  </>
+                )}
               </div>
 
               {/* Resumo + comprovante */}
@@ -217,7 +278,11 @@ export function StudentClassesPage() {
                       accept=".pdf,.jpg,.jpeg,.png"
                       className="sr-only"
                       id="proof-file"
-                      onChange={(e) => setFileAttached(Boolean(e.target.files?.length))}
+                      onChange={(e) => {
+                        const file = e.target.files?.[0] ?? null;
+                        setProofFile(file);
+                        setFileAttached(Boolean(file));
+                      }}
                     />
                     <label htmlFor="proof-file" className="flex w-full cursor-pointer items-center gap-3">
                       {fileAttached ? (
@@ -226,7 +291,7 @@ export function StudentClassesPage() {
                         <ShoppingBag size={20} className="text-stone-400 shrink-0" />
                       )}
                       <span className="text-sm text-stone-500">
-                        {fileAttached ? "Comprovante anexado ✓" : "Clique para anexar PDF, JPG ou PNG"}
+                        {proofFile ? `📎 ${proofFile.name}` : "Clique para anexar PDF, JPG ou PNG"}
                       </span>
                     </label>
                   </div>
@@ -235,16 +300,17 @@ export function StudentClassesPage() {
                 <div className="flex gap-3">
                   <Button
                     variant="primary"
-                    disabled={!selectedProduct}
-                    icon={<CheckCircle2 size={18} />}
+                    disabled={!selectedProduct || submitting}
+                    icon={submitting ? undefined : <CheckCircle2 size={18} />}
                     onClick={handleBuy}
                     className="flex-1"
                   >
-                    Confirmar pedido
+                    {submitting ? "Enviando…" : "Confirmar pedido"}
                   </Button>
                   <Button
                     variant="secondary"
                     onClick={() => { setShowBuyForm(false); setSelectedProduct(null); }}
+                    disabled={submitting}
                   >
                     Cancelar
                   </Button>
@@ -262,20 +328,23 @@ export function StudentClassesPage() {
           >
             Comprar aulas ou pacote
           </Button>
-          <Link
-            to="/t/movimento-forte"
-            className="btn btn-secondary focus-ring"
-          >
-            Ver vitrine do treinador
-            <ArrowRight size={16} />
-          </Link>
+          {teamSlug && (
+            <Link to={`/t/${teamSlug}`} className="btn btn-secondary focus-ring">
+              Ver vitrine do treinador
+              <ArrowRight size={16} />
+            </Link>
+          )}
         </div>
       )}
 
       {/* ── Histórico de compras ─────────────────────────── */}
       <section className="mt-6 card p-5">
         <CardHeader icon={Package} title="Histórico de aquisições" />
-        {purchases.length === 0 ? (
+        {purchasesLoading ? (
+          <div className="mt-6 flex justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+          </div>
+        ) : purchases.length === 0 ? (
           <EmptyState
             icon={ShoppingBag}
             title="Nenhuma compra ainda"
@@ -322,41 +391,54 @@ export function StudentClassesPage() {
       {/* ── Ofertas disponíveis ──────────────────────────── */}
       <section className="mt-6 card p-5">
         <CardHeader icon={Star} title="Ofertas disponíveis" />
-        <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 stagger">
-          {activeProducts.map((product) => (
-            <article
-              key={product.id}
-              className={[
-                "rounded-xl border p-4 transition-all cursor-pointer",
-                selectedProduct?.id === product.id
-                  ? "border-emerald-500 bg-emerald-50 shadow-md"
-                  : "border-[var(--color-border)] bg-white hover:border-emerald-300 hover:shadow-sm",
-              ].join(" ")}
-              onClick={() => { setShowBuyForm(true); setSelectedProduct(product); }}
-            >
-              <div className="flex items-start justify-between gap-2">
-                <p className="font-black text-stone-900 text-sm">{product.name}</p>
-                <Badge variant={product.type === "package" ? "green" : "stone"}>
-                  {product.type === "package" ? "Pacote" : "Avulsa"}
-                </Badge>
-              </div>
-              <p className="mt-2 text-2xl font-black text-emerald-800" style={{ fontFamily: "var(--font-display)" }}>
-                {moneyFromCents(product.priceCents)}
-              </p>
-              <p className="text-xs text-stone-400">{product.classesCount} aula{product.classesCount > 1 ? "s" : ""}</p>
-              <p className="mt-2 text-xs leading-5 text-stone-500">{product.description}</p>
-              <Button
-                variant="primary"
-                size="sm"
-                className="mt-3 w-full"
-                icon={<ShoppingBag size={14} />}
-                onClick={(e) => { e.stopPropagation(); setShowBuyForm(true); setSelectedProduct(product); }}
+        {productsLoading ? (
+          <div className="mt-6 flex justify-center">
+            <div className="h-6 w-6 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+          </div>
+        ) : activeProducts.length === 0 ? (
+          <EmptyState
+            icon={Star}
+            title="Nenhuma oferta disponível"
+            description="O treinador ainda não cadastrou pacotes ou aulas avulsas."
+            className="mt-4"
+          />
+        ) : (
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 stagger">
+            {activeProducts.map((product) => (
+              <article
+                key={product.id}
+                className={[
+                  "rounded-xl border p-4 transition-all cursor-pointer",
+                  selectedProduct?.id === product.id
+                    ? "border-emerald-500 bg-emerald-50 shadow-md"
+                    : "border-[var(--color-border)] bg-white hover:border-emerald-300 hover:shadow-sm",
+                ].join(" ")}
+                onClick={() => { setShowBuyForm(true); setSelectedProduct(product); }}
               >
-                Adquirir
-              </Button>
-            </article>
-          ))}
-        </div>
+                <div className="flex items-start justify-between gap-2">
+                  <p className="font-black text-stone-900 text-sm">{product.name}</p>
+                  <Badge variant={product.type === "package" ? "green" : "stone"}>
+                    {product.type === "package" ? "Pacote" : "Avulsa"}
+                  </Badge>
+                </div>
+                <p className="mt-2 text-2xl font-black text-emerald-800" style={{ fontFamily: "var(--font-display)" }}>
+                  {moneyFromCents(product.priceCents)}
+                </p>
+                <p className="text-xs text-stone-400">{product.classesCount} aula{product.classesCount > 1 ? "s" : ""}</p>
+                <p className="mt-2 text-xs leading-5 text-stone-500">{product.description}</p>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  className="mt-3 w-full"
+                  icon={<ShoppingBag size={14} />}
+                  onClick={(e) => { e.stopPropagation(); setShowBuyForm(true); setSelectedProduct(product); }}
+                >
+                  Adquirir
+                </Button>
+              </article>
+            ))}
+          </div>
+        )}
       </section>
     </section>
   );

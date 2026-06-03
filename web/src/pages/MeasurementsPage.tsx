@@ -2,6 +2,9 @@ import {
   Activity,
   Camera,
   CheckCircle2,
+  ChevronDown,
+  ChevronUp,
+  Pencil,
   Plus,
   Ruler,
   Search,
@@ -11,7 +14,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { FormEvent, ReactNode } from "react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -311,8 +314,8 @@ function StudentMeasurementsPage({
           </p>
           <h1 className="mt-2 text-3xl font-black">Acompanhamento do aluno</h1>
           <p className="mt-2 max-w-3xl leading-7 text-stone-600">
-            Somente metricas confirmadas por voce entram no historico e compoem o grafico de
-            evolucao.
+            Registre suas próprias medidas ou confirme as lançadas pelo seu personal.
+            Apenas medidas confirmadas entram no grafico de evolucao.
           </p>
         </div>
         <div className="rounded-lg border border-stone-200 bg-white px-4 py-3">
@@ -359,6 +362,9 @@ function StudentMeasurementsPage({
         </section>
       ) : null}
 
+      {/* ── Auto-registro do aluno ───────────────────────── */}
+      <SelfMeasurementForm studentId={studentId} studentName={studentName} />
+
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
         <Metric icon={Activity} label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
         <Metric
@@ -377,7 +383,7 @@ function StudentMeasurementsPage({
           </div>
           <div className="mt-4 grid gap-3">
             <div className="rounded-md bg-stone-100 p-4">
-              <p className="text-sm text-stone-600">Registros aceitos</p>
+              <p className="text-sm text-stone-600">Registros confirmados</p>
               <p className="mt-1 text-2xl font-black">{allMeasurements.length}</p>
             </div>
             <div className="rounded-md bg-amber-50 p-4">
@@ -398,6 +404,160 @@ function StudentMeasurementsPage({
 
       <MeasurementsHistory measurements={sortedMeasurements} title="Historico salvo" />
     </section>
+  );
+}
+
+// ── Auto-registro pelo aluno ────────────────────────────────────────────────
+
+function SelfMeasurementForm({
+  studentId,
+  studentName,
+}: {
+  studentId: string | null;
+  studentName: string;
+}) {
+  const [open, setOpen] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [success, setSuccess] = useState(false);
+  const formRef = useRef<HTMLFormElement>(null);
+
+  async function handleSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (!db || !studentId) return;
+    setSaving(true);
+    setSuccess(false);
+    const data = new FormData(event.currentTarget);
+
+    try {
+      await addDoc(collection(db, `students/${studentId}/measurements`), {
+        studentId,
+        measuredAt: String(data.get("measuredAt")),
+        weightKg: Number(data.get("weightKg")),
+        waistCm: Number(data.get("waistCm")),
+        hipCm: Number(data.get("hipCm")),
+        chestCm: Number(data.get("chestCm")),
+        bodyFatPercent: Number(data.get("bodyFatPercent")) || null,
+        armRightCm: Number(data.get("armRightCm")) || null,
+        thighCm: Number(data.get("thighCm")) || null,
+        calfCm: Number(data.get("calfCm")) || null,
+        notes: String(data.get("notes") ?? ""),
+        source: "self",
+        registeredBy: studentName,
+        confirmedAt: serverTimestamp(),
+      });
+      formRef.current?.reset();
+      setSuccess(true);
+      setTimeout(() => {
+        setOpen(false);
+        setSuccess(false);
+      }, 1500);
+    } catch (err) {
+      console.error("Erro ao salvar medida:", err);
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  return (
+    <div className="mt-6">
+      {/* Toggle button */}
+      <button
+        type="button"
+        id="btn-self-measure"
+        className="focus-ring flex w-full items-center justify-between rounded-xl border border-emerald-200 bg-emerald-50 px-5 py-4 text-left transition-all hover:bg-emerald-100"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+      >
+        <div className="flex items-center gap-3">
+          <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-700">
+            <Pencil aria-hidden="true" className="text-white" size={16} />
+          </div>
+          <div>
+            <p className="font-black text-emerald-900">Registrar minhas medidas</p>
+            <p className="text-sm text-emerald-700">
+              Medidas registradas por voc\u00ea s\u00e3o confirmadas automaticamente
+            </p>
+          </div>
+        </div>
+        {open ? (
+          <ChevronUp aria-hidden="true" className="text-emerald-700 shrink-0" size={20} />
+        ) : (
+          <ChevronDown aria-hidden="true" className="text-emerald-700 shrink-0" size={20} />
+        )}
+      </button>
+
+      {/* Collapsible form */}
+      {open && (
+        <form
+          ref={formRef}
+          className="mt-2 rounded-xl border border-stone-200 bg-white p-6 shadow-sm"
+          onSubmit={handleSubmit}
+        >
+          <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+            Dados principais
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-2">
+            <Field label="Data" name="measuredAt" type="date" required />
+            <Field label="Peso (kg)" name="weightKg" placeholder="68.7" type="number" step="0.1" required />
+            <Field label="Cintura (cm)" name="waistCm" placeholder="80" type="number" step="0.1" required />
+            <Field label="Quadril (cm)" name="hipCm" placeholder="100" type="number" step="0.1" required />
+            <Field label="T\u00f3rax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
+            <Field label="Gordura corporal (%)" name="bodyFatPercent" placeholder="27.9" type="number" step="0.1" />
+          </div>
+
+          <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">
+            Circunfer\u00eancias adicionais{" "}
+            <span className="normal-case font-normal text-stone-300">(opcional)</span>
+          </p>
+          <div className="mt-3 grid gap-4 sm:grid-cols-3">
+            <Field label="Bra\u00e7o dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
+            <Field label="Coxa (cm)" name="thighCm" placeholder="55" type="number" step="0.1" />
+            <Field label="Panturrilha (cm)" name="calfCm" placeholder="37" type="number" step="0.1" />
+          </div>
+
+          <label className="mt-5 block">
+            <span className="text-sm font-semibold text-stone-700">Observa\u00e7\u00f5es</span>
+            <textarea
+              className="focus-ring mt-2 min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
+              name="notes"
+              placeholder="Ex: medida feita em jejum, logo pela manh\u00e3..."
+            />
+          </label>
+
+          {success && (
+            <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3">
+              <CheckCircle2 className="text-emerald-700" size={18} />
+              <p className="text-sm font-semibold text-emerald-800">
+                Medidas salvas com sucesso!
+              </p>
+            </div>
+          )}
+
+          <div className="mt-5 flex flex-wrap gap-3">
+            <button
+              type="submit"
+              className="focus-ring btn btn-primary"
+              disabled={saving}
+            >
+              {saving ? (
+                <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
+              ) : (
+                <Plus aria-hidden="true" size={16} />
+              )}
+              {saving ? "Salvando\u2026" : "Salvar minhas medidas"}
+            </button>
+            <button
+              type="button"
+              className="focus-ring btn btn-outline"
+              onClick={() => setOpen(false)}
+              disabled={saving}
+            >
+              Cancelar
+            </button>
+          </div>
+        </form>
+      )}
+    </div>
   );
 }
 
