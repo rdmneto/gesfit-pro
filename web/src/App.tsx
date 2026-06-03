@@ -7,6 +7,7 @@ import { DashboardPage } from "./pages/DashboardPage";
 import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { MeasurementsPage } from "./pages/MeasurementsPage";
+import { OnboardingPage } from "./pages/OnboardingPage";
 import { SecurityPage } from "./pages/SecurityPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentSignupPage } from "./pages/StudentSignupPage";
@@ -32,6 +33,18 @@ export default function App() {
           <Route path="cadastro/aluno" element={<StudentSignupPage />} />
           <Route path="cadastro/treinador" element={<TrainerSignupPage />} />
           <Route path="t/:slug" element={<TeamLandingPage />} />
+
+          {/* Onboarding — autenticado mas sem role definida ainda */}
+          <Route
+            path="app/onboarding"
+            element={
+              <RequireAuth>
+                <RequireNoRole>
+                  <OnboardingPage />
+                </RequireNoRole>
+              </RequireAuth>
+            }
+          />
 
           {/* Authenticated routes — student */}
           <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />
@@ -75,8 +88,28 @@ function RequireAuth({ children }: { children: ReactNode }) {
   return children;
 }
 
+/**
+ * Permite acesso apenas quando ainda NÃO há role definida.
+ * Se o usuário já tem role, redireciona para /app.
+ */
+function RequireNoRole({ children }: { children: ReactNode }) {
+  const role = useSessionStore((state) => state.claims.role);
+  const loading = useSessionStore((state) => state.loading);
+
+  if (loading) return null;
+
+  if (role) {
+    return <Navigate to="/app" replace />;
+  }
+
+  return children;
+}
+
 function RequireTrainer({ children }: { children: ReactNode }) {
   const role = useSessionStore((state) => state.claims.role);
+  const loading = useSessionStore((state) => state.loading);
+
+  if (loading) return null;
 
   return (
     <RequireAuth>
@@ -87,6 +120,9 @@ function RequireTrainer({ children }: { children: ReactNode }) {
 
 function RequireStudent({ children }: { children: ReactNode }) {
   const role = useSessionStore((state) => state.claims.role);
+  const loading = useSessionStore((state) => state.loading);
+
+  if (loading) return null;
 
   return (
     <RequireAuth>

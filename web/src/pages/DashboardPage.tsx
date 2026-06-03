@@ -60,7 +60,7 @@ import {
   useWorkoutSessions,
   useStudents,
 } from "../lib/hooks";
-import { OnboardingPage } from "./OnboardingPage";
+import { Navigate } from "react-router-dom";
 
 export function DashboardPage() {
   const role = useSessionStore((state) => state.claims.role);
@@ -78,7 +78,7 @@ export function DashboardPage() {
   }
 
   if (!role) {
-    return <OnboardingPage />;
+    return <Navigate to="/app/onboarding" replace />;
   }
 
   return role === "trainer" ? <TrainerDashboard /> : <StudentDashboard />;
