@@ -53,9 +53,34 @@ import {
   weekDays,
   workoutAtSlot,
 } from "../features/dashboard/dashboardUtils";
+import {
+  useTeam,
+  useStudent,
+  useMeasurements,
+  useWorkoutSessions,
+  useStudents,
+} from "../lib/hooks";
+import { OnboardingPage } from "./OnboardingPage";
 
 export function DashboardPage() {
   const role = useSessionStore((state) => state.claims.role);
+  const loading = useSessionStore((state) => state.loading);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+          <p className="text-sm text-stone-400">Carregando painel...</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (!role) {
+    return <OnboardingPage />;
+  }
+
   return role === "trainer" ? <TrainerDashboard /> : <StudentDashboard />;
 }
 
@@ -64,26 +89,75 @@ export function DashboardPage() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function StudentDashboard() {
+  const user = useSessionStore((state) => state.user);
+  const isDemo = useSessionStore((state) => state.isDemo);
+  const teamIdLocal = useSessionStore((state) => state.claims.teamId);
+
+  // Firestore hooks (só consultam se não for demo)
+  const { data: dbStudent, loading: studentLoading } = useStudent(!isDemo && user ? user.uid : null);
+  const { data: dbMeasurements, loading: measureLoading } = useMeasurements(!isDemo && user ? user.uid : null);
+  const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
+    !isDemo && user ? { studentId: user.uid } : {}
+  );
+  
+  const studentAssignedTeamId = dbStudent?.assignedTo || teamIdLocal;
+  const { data: dbTeam } = useTeam(!isDemo ? studentAssignedTeamId : null);
+
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
   const [completedWorkout, setCompletedWorkout] = useState<WorkoutSession | null>(null);
   const [durationMinutes, setDurationMinutes] = useState(0);
   const [calories, setCalories] = useState(0);
-  const team = sampleTeams[0];
-  const student = sampleStudent;
-  const nextWorkout = sampleWorkoutSessions[0];
-  const currentMeasure = sampleMeasurements.at(-1);
-  const currentBmi = bmi(currentMeasure?.weightKg, student.physiological.alturaCm);
-  const calendarItems = calendarView === "week" ? sampleWorkoutSessions : monthItems(sampleWorkoutSessions);
+
+  const defaultBranding = {
+    bannerPhotoURL: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80",
+    primaryColor: "#0f766e",
+    secondaryColor: "#f59e0b",
+    welcomeMessage: "Bem-vindo!",
+    bio: "",
+  };
+
+  const student = isDemo 
+    ? sampleStudent 
+    : (dbStudent || { uid: user?.uid || "", displayName: user?.displayName || "Aluno", physiological: { alturaCm: 175 } });
+  
+  const team = isDemo 
+    ? sampleTeams[0] 
+    : (dbTeam 
+        ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } } 
+        : { name: "Sem Treinador Vinculado", branding: defaultBranding });
+
+  const measurements = isDemo ? sampleMeasurements : dbMeasurements;
+  const workouts = isDemo ? sampleWorkoutSessions : dbWorkoutSessions;
+
+  const nextWorkout = workouts && workouts.length > 0 ? workouts[0] : null;
+  const currentMeasure = measurements && measurements.length > 0 ? measurements.at(-1) : null;
+  const alturaCm = student.physiological?.alturaCm || 175;
+  const currentBmi = currentMeasure ? bmi(currentMeasure.weightKg, alturaCm) : null;
+  const calendarItems = calendarView === "week" ? workouts : monthItems(workouts);
+
   const measureChart = useMemo(
-    () => sampleMeasurements.map((m) => ({
+    () => measurements.map((m) => ({
       date: formatShortDate(m.measuredAt),
       peso: m.weightKg,
       cintura: m.waistCm,
-      gordura: m.bodyFatPercent,
+      gordura: m.bodyFatPercent || 0,
     })),
-    [],
+    [measurements],
   );
+
+  const loading = !isDemo && (studentLoading || measureLoading || workoutsLoading);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+          <p className="text-sm text-stone-400">Carregando dados do aluno...</p>
+        </div>
+      </div>
+    );
+  }
 
   function startWorkout(workout: WorkoutSession) {
     setActiveWorkout(workout);
@@ -116,8 +190,8 @@ function StudentDashboard() {
               {student.displayName}, seu próximo treino está pronto com {team.name}.
             </p>
             <div className="mt-6 grid gap-3 sm:grid-cols-3">
-              <HeroMetric icon={Clock} label="Próximo treino" value={formatDateTime(nextWorkout.startsAt)} />
-              <HeroMetric icon={Flame} label="Meta cal." value={`${nextWorkout.plannedCalories} kcal`} />
+              <HeroMetric icon={Clock} label="Próximo treino" value={nextWorkout ? formatDateTime(nextWorkout.startsAt) : "Sem treinos"} />
+              <HeroMetric icon={Flame} label="Meta cal." value={nextWorkout ? `${nextWorkout.plannedCalories} kcal` : "–"} />
               <HeroMetric icon={Ruler} label="IMC atual" value={currentBmi ? `${currentBmi}` : "–"} />
             </div>
           </div>
@@ -130,24 +204,31 @@ function StudentDashboard() {
             </div>
             <h2 className="text-lg font-black text-stone-950">Próximo treino</h2>
           </div>
-          <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-            <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{nextWorkout.modality}</p>
-            <h3 className="mt-1 text-2xl font-black text-stone-950">{nextWorkout.title}</h3>
-            <p className="mt-2 text-sm text-stone-600">{formatDateTime(nextWorkout.startsAt)}</p>
-            <div className="mt-4 flex flex-wrap gap-2">
-              {nextWorkout.exercises.map((e) => (
-                <span key={e} className="badge badge-green">{e}</span>
-              ))}
+          {nextWorkout ? (
+            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{nextWorkout.modality}</p>
+              <h3 className="mt-1 text-2xl font-black text-stone-950">{nextWorkout.title}</h3>
+              <p className="mt-2 text-sm text-stone-600">{formatDateTime(nextWorkout.startsAt)}</p>
+              <div className="mt-4 flex flex-wrap gap-2">
+                {nextWorkout.exercises?.map((e) => (
+                  <span key={e} className="badge badge-green">{e}</span>
+                ))}
+              </div>
+              <button
+                type="button"
+                className="focus-ring btn btn-primary mt-5 w-full"
+                onClick={() => startWorkout(nextWorkout)}
+              >
+                <Play aria-hidden="true" size={18} />
+                Iniciar treino
+              </button>
             </div>
-            <button
-              type="button"
-              className="focus-ring btn btn-primary mt-5 w-full"
-              onClick={() => startWorkout(nextWorkout)}
-            >
-              <Play aria-hidden="true" size={18} />
-              Iniciar treino
-            </button>
-          </div>
+          ) : (
+            <div className="mt-4 rounded-xl border border-dashed border-stone-200 p-8 text-center bg-stone-50">
+              <p className="text-sm font-semibold text-stone-500">Nenhum treino agendado.</p>
+              <p className="mt-1 text-xs text-stone-400">Entre em contato com seu treinador para planejar seu próximo treino.</p>
+            </div>
+          )}
         </section>
       </div>
 
@@ -287,21 +368,63 @@ function StudentDashboard() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 function TrainerDashboard() {
+  const user = useSessionStore((state) => state.user);
+  const isDemo = useSessionStore((state) => state.isDemo);
+  const teamId = useSessionStore((state) => state.claims.teamId);
+
+  // Firestore hooks
+  const { data: dbTeam, loading: teamLoading } = useTeam(!isDemo ? teamId : null);
+  const { data: dbStudents, loading: studentsLoading } = useStudents(!isDemo ? user?.uid : null);
+  const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
+    !isDemo && user ? { trainerId: user.uid } : {}
+  );
+
   const [calendarView, setCalendarView] = useState<CalendarView>("day");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("visual");
   const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
-  const team = sampleTeams[0];
 
-  const trainerWorkouts = useMemo(
-    () => sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana").sort((a, b) => a.startsAt.localeCompare(b.startsAt)),
-    [],
-  );
+  const defaultBranding = {
+    bannerPhotoURL: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80",
+    primaryColor: "#0f766e",
+    secondaryColor: "#f59e0b",
+    welcomeMessage: "Foco nos treinos!",
+    bio: "",
+  };
+
+  const team = isDemo 
+    ? sampleTeams[0] 
+    : (dbTeam 
+        ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } } 
+        : { name: "Meu Time", branding: defaultBranding });
+
+  const trainerWorkouts = useMemo(() => {
+    const list = isDemo 
+      ? sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana") 
+      : dbWorkoutSessions;
+    return [...list].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+  }, [isDemo, dbWorkoutSessions]);
+
+  const students = isDemo ? sampleStudents : dbStudents;
+
   const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
   const visibleWorkouts = getTrainerCalendarItems(trainerWorkouts, calendarView);
   const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
   const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
   const uniqueStudentsToday = new Set(todayWorkouts.map((w) => w.studentId)).size;
+
+  const loading = !isDemo && (teamLoading || studentsLoading || workoutsLoading);
+
+  if (loading) {
+    return (
+      <div className="flex min-h-[60vh] items-center justify-center">
+        <div className="flex flex-col items-center gap-4">
+          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+          <p className="text-sm text-stone-400">Carregando dados do treinador...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
@@ -351,7 +474,7 @@ function TrainerDashboard() {
       </div>
 
       {/* KPI Grid */}
-      <KpiGrid studentCount={sampleStudents.length} />
+      <KpiGrid studentCount={students.length} />
 
       {/* Alunos do dia */}
       <section className="mt-4 card p-5">

@@ -25,7 +25,8 @@ import {
 } from "../data/sample";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
-import type { TrainingModality } from "../types/domain";
+import type { TrainingModality, Team } from "../types/domain";
+import { useCollection } from "../lib/hooks";
 
 const STATS = [
   { icon: Users, value: "2.400+", label: "Alunos ativos" },
@@ -58,7 +59,18 @@ const FEATURES = [
 ];
 
 export function HomePage() {
-  const featured = sampleTeams[0];
+  const { data: dbTeams } = useCollection<Team>("teams");
+
+  // Se houver treinadores reais cadastrados, usamos a lista deles.
+  // Caso contrário, mantemos o fallback dos sampleTeams (apenas para a Home se manter funcional e bonita).
+  const teams = useMemo(() => {
+    return dbTeams && dbTeams.length > 0 ? dbTeams : sampleTeams;
+  }, [dbTeams]);
+
+  const featured = useMemo(() => {
+    return teams[0] || sampleTeams[0];
+  }, [teams]);
+
   const [selectedModality, setSelectedModality] = useState<TrainingModality | "Todas">("Todas");
   const [selectedGym, setSelectedGym] = useState<string>("Todos");
   const [filterHome, setFilterHome] = useState(false);
@@ -66,18 +78,18 @@ export function HomePage() {
 
   // Unique gyms present in the trainer catalog
   const availableGyms = useMemo(() => {
-    const gymIds = new Set(sampleTeams.flatMap((t) => t.worksAt.map((g) => g.id)));
+    const gymIds = new Set(teams.flatMap((t) => (t.worksAt || []).map((g) => g.id)));
     return GYM_ONLY.filter((g) => gymIds.has(g.id));
-  }, []);
+  }, [teams]);
 
-  const publicTeams = useMemo(() => sampleTeams.filter((team) => {
+  const publicTeams = useMemo(() => teams.filter((team) => {
     if (!team.publicListing) return false;
-    if (selectedModality !== "Todas" && !team.trainingModalities.includes(selectedModality)) return false;
-    if (selectedGym !== "Todos" && !team.worksAt.some((g) => g.id === selectedGym)) return false;
+    if (selectedModality !== "Todas" && !team.trainingModalities?.includes(selectedModality)) return false;
+    if (selectedGym !== "Todos" && !(team.worksAt || []).some((g) => g.id === selectedGym)) return false;
     if (filterHome && !team.acceptsHomeVisit) return false;
     if (filterCondo && !team.acceptsCondoGym) return false;
     return true;
-  }), [selectedModality, selectedGym, filterHome, filterCondo]);
+  }), [teams, selectedModality, selectedGym, filterHome, filterCondo]);
 
   return (
     <div>

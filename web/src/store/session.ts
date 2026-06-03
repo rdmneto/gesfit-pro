@@ -1,6 +1,7 @@
 import { onAuthStateChanged, signOut, type User } from "firebase/auth";
+import { doc, getDoc } from "firebase/firestore";
 import { create } from "zustand";
-import { auth } from "../lib/firebase";
+import { auth, db } from "../lib/firebase";
 import type { SessionClaims } from "../types/domain";
 
 interface SessionState {
@@ -57,11 +58,29 @@ export const useSessionStore = create<SessionState>((set) => ({
       }
 
       const token = await user.getIdTokenResult();
+      let role = token.claims.role as SessionClaims["role"];
+      let teamId = token.claims.teamId as SessionClaims["teamId"];
+
+      // Se as claims customizadas estiverem vazias (plano Spark sem Cloud Functions)
+      if (!role && db) {
+        try {
+          const userDocRef = doc(db, "users", user.uid);
+          const userDoc = await getDoc(userDocRef);
+          if (userDoc.exists()) {
+            const userData = userDoc.data();
+            role = userData.role as SessionClaims["role"];
+            teamId = userData.teamId as SessionClaims["teamId"];
+          }
+        } catch (err) {
+          console.error("Erro ao buscar dados do usuário no Firestore:", err);
+        }
+      }
+
       set({
         user,
         claims: {
-          role: token.claims.role as SessionClaims["role"],
-          teamId: token.claims.teamId as SessionClaims["teamId"],
+          role,
+          teamId,
         },
         loading: false,
         isDemo: false,
