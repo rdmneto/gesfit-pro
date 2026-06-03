@@ -49,6 +49,6 @@ jobs:
           username: ${{ secrets.FTP_USERNAME }}
           password: ${{ secrets.FTP_PASSWORD }}
           local-dir: web/dist/
-          server-dir: public_html/
+          server-dir: ./
           # Mantém os arquivos no servidor remoto que não estejam na pasta local (ex: logs, outros scripts da Hostinger)
           dangerous-clean-slate: false
