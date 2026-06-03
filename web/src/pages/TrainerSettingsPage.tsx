@@ -13,7 +13,7 @@ import {
   X,
 } from "lucide-react";
 import { useMemo, useState } from "react";
-import { GYM_CATALOG, gymTypeIcon, gymTypeLabel, searchGyms } from "../data/gyms";
+import { gymTypeIcon, searchGyms } from "../data/gyms";
 import { sampleTeams, sampleTrainerAvailability } from "../data/sample";
 import type { GymLocation, TrainerAvailabilityDay } from "../types/domain";
 
