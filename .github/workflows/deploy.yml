@@ -24,7 +24,9 @@ jobs:
 
       # 3. Instala as dependências do projeto
       - name: Install dependencies
-        run: npm install
+        run: |
+          rm -f package-lock.json
+          npm install
 
       # 4. Gera o build estático do frontend
       - name: Build Web Frontend
