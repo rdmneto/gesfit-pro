@@ -1,6 +1,5 @@
 import {
   ArrowRight,
-  Award,
   Building2,
   CalendarDays,
   CheckCircle2,
@@ -20,21 +19,12 @@ import { Link } from "react-router-dom";
 import {
   sampleClassProducts,
   samplePublicSchedule,
-  sampleTeams,
   trainingModalities,
 } from "../data/sample";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
 import { useCollection, useClassProducts } from "../lib/hooks";
-import { useSessionStore } from "../store/session";
-
-const STATS = [
-  { icon: Users, value: "2.400+", label: "Alunos ativos" },
-  { icon: Dumbbell, value: "180+", label: "Treinadores" },
-  { icon: CalendarDays, value: "18 mil", label: "Treinos/mês" },
-  { icon: Award, value: "4.9★", label: "Avaliação média" },
-];
 
 const FEATURES = [
   {
@@ -60,24 +50,19 @@ const FEATURES = [
 ];
 
 export function HomePage() {
-  const isDemo = useSessionStore((state) => state.isDemo);
   const { data: dbTeams } = useCollection<Team>("teams");
 
-  // Se for demo, usa os sampleTeams. Caso contrário (produção real), usa apenas os dbTeams reais do Firestore.
-  const teams = useMemo(() => {
-    return isDemo ? sampleTeams : (dbTeams || []);
-  }, [isDemo, dbTeams]);
+  // Usa apenas os dados reais do Firestore
+  const teams = useMemo(() => dbTeams || [], [dbTeams]);
 
-  const featured = useMemo(() => {
-    return teams[0] || null;
-  }, [teams]);
+  const featured = useMemo(() => teams[0] || null, [teams]);
 
   const [selectedModality, setSelectedModality] = useState<TrainingModality | "Todas">("Todas");
   const [selectedGym, setSelectedGym] = useState<string>("Todos");
   const [filterHome, setFilterHome] = useState(false);
   const [filterCondo, setFilterCondo] = useState(false);
 
-  // Unique gyms present in the trainer catalog
+  // Academias presentes nos treinadores cadastrados
   const availableGyms = useMemo(() => {
     const gymIds = new Set(teams.flatMap((t) => (t.worksAt || []).map((g) => g.id)));
     return GYM_ONLY.filter((g) => gymIds.has(g.id));
@@ -156,22 +141,7 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ── Stats bar ─────────────────────────────────────── */}
-      {isDemo && (
-        <section className="relative z-10 -mt-8 mx-auto max-w-5xl px-4">
-          <div className="grid grid-cols-2 divide-x divide-y divide-[var(--color-border)] overflow-hidden rounded-2xl border border-[var(--color-border)] bg-white shadow-[var(--shadow-lg)] sm:grid-cols-4 sm:divide-y-0 animate-slide-up">
-            {STATS.map(({ icon: Icon, value, label }) => (
-              <div key={label} className="flex flex-col items-center gap-1 py-5 px-4 text-center">
-                <div className="flex h-9 w-9 items-center justify-center rounded-lg bg-emerald-50">
-                  <Icon size={18} className="text-emerald-700" />
-                </div>
-                <p className="mt-1 text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>{value}</p>
-                <p className="text-xs text-stone-500">{label}</p>
-              </div>
-            ))}
-          </div>
-        </section>
-      )}
+
 
       {/* ── Features ──────────────────────────────────────── */}
       <section className="mx-auto max-w-6xl px-4 py-16" aria-labelledby="features-heading">
@@ -364,14 +334,9 @@ function InfoPill({ icon: Icon, text }: { icon: typeof Tag; text: string }) {
 }
 
 function TrainerCard({ team }: { team: Team }) {
-  const isDemo = useSessionStore((state) => state.isDemo);
-  const { data: dbProducts } = useClassProducts(!isDemo ? team.id : null);
+  const { data: dbProducts } = useClassProducts(team.id);
 
-  const products = useMemo(() => {
-    return isDemo 
-      ? sampleClassProducts.filter((p) => p.teamId === team.id && p.publicVisible)
-      : (dbProducts || []);
-  }, [isDemo, team.id, dbProducts]);
+  const products = useMemo(() => dbProducts || [], [dbProducts]);
 
   const firstPrice = useMemo(() => {
     return products.length
@@ -379,11 +344,8 @@ function TrainerCard({ team }: { team: Team }) {
       : null;
   }, [products]);
 
-  const publicSlots = useMemo(() => {
-    return isDemo 
-      ? samplePublicSchedule.filter((s) => s.teamId === team.id && s.publicVisible).slice(0, 3)
-      : [];
-  }, [isDemo, team.id]);
+  // Horários públicos virão do Firestore em versão futura
+  const publicSlots = useMemo(() => [], []);
 
   return (
     <article

@@ -20,6 +20,9 @@ export const useSessionStore = create<SessionState>((set) => ({
   isDemo: false,
 
   start: () => {
+    // Limpa qualquer resquício de sessão demo de versões anteriores do app
+    window.localStorage.removeItem("gesfit-demo-role");
+
     if (!auth) {
       set({ loading: false, isDemo: false });
       return () => undefined;
