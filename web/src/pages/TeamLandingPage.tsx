@@ -15,15 +15,15 @@ export function TeamLandingPage() {
   // Busca o time pelo slug no Firestore
   const { data: dbTeams, loading: teamsLoading } = useCollection<Team>(
     "teams",
-    slug ? [where("slug", "==", slug)] : []
+    slug ? [where("slug", "==", slug), where("publicListing", "==", true)] : [],
+    [],
+    [slug]
   );
 
   const team = useMemo(() => {
-    if (isDemo) {
-      return sampleTeams.find((candidate) => candidate.slug === slug) ?? null;
-    }
-    return dbTeams && dbTeams.length > 0 ? dbTeams[0] : null;
-  }, [isDemo, dbTeams, slug]);
+    const realTeam = dbTeams && dbTeams.length > 0 ? dbTeams[0] : null;
+    return realTeam || sampleTeams.find((candidate) => candidate.slug === slug) || null;
+  }, [dbTeams, slug]);
 
   const teamId = team?.id;
 
@@ -68,7 +68,7 @@ export function TeamLandingPage() {
       <section
         className="relative min-h-[64vh] bg-stone-950 text-white"
         style={{
-          backgroundImage: `linear-gradient(90deg, rgba(15, 18, 17, 0.88), rgba(15, 18, 17, 0.35)), url(${team.branding.bannerPhotoURL || team.branding.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"})`,
+          backgroundImage: `linear-gradient(90deg, rgba(15, 18, 17, 0.88), rgba(15, 18, 17, 0.35)), url(${team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
         }}
@@ -78,12 +78,12 @@ export function TeamLandingPage() {
             {team.name}
           </h1>
           <p className="mt-5 max-w-2xl text-lg leading-8 text-stone-100">
-            {team.branding.welcomeMessage}
+            {team.branding?.welcomeMessage || "Treino sério e acompanhamento personalizado."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
             <Link
               className="focus-ring inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-bold text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: team.branding.primaryColor || "var(--color-primary)" }}
+              style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
               to="/cadastro/aluno"
             >
               Cadastrar para contratar
@@ -103,14 +103,14 @@ export function TeamLandingPage() {
         <div className="grid gap-4 md:grid-cols-[0.8fr_1.2fr]">
           <div>
             <h2 className="text-2xl font-black" style={{ fontFamily: "var(--font-display)" }}>Perfil do treinador</h2>
-            {team.publicProfile?.showPhotos && team.branding.trainerPhotoURL ? (
+            {team.publicProfile?.showPhotos && team.branding?.trainerPhotoURL ? (
               <img
                 className="mt-4 h-36 w-36 rounded-lg object-cover"
                 src={team.branding.trainerPhotoURL}
                 alt={`Foto de ${team.name}`}
               />
             ) : null}
-            <p className="mt-2 text-stone-600 leading-relaxed text-sm">{team.branding.bio}</p>
+            <p className="mt-2 text-stone-600 leading-relaxed text-sm">{team.branding?.bio || "Sem biografia cadastrada."}</p>
             <div className="mt-4 flex flex-wrap gap-2">
               {(team.trainingModalities || []).map((modality) => (
                 <span

@@ -14,7 +14,7 @@ import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentSignupPage } from "./pages/StudentSignupPage";
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
-import { TrainerSettingsPage } from "./pages/TrainerSettingsPage";
+import { PackagesPage } from "./pages/PackagesPage";
 import { TrainerWorkspacePage } from "./pages/TrainerWorkspacePage";
 import { TrainerSignupPage } from "./pages/TrainerSignupPage";
 import { useSessionStore } from "./store/session";
@@ -61,7 +61,8 @@ export default function App() {
           <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
           <Route path="app/treinador" element={<RequireTrainer><TrainerWorkspacePage /></RequireTrainer>} />
           <Route path="app/seguranca" element={<RequireTrainer><SecurityPage /></RequireTrainer>} />
-          <Route path="app/configuracoes" element={<RequireTrainer><TrainerSettingsPage /></RequireTrainer>} />
+          <Route path="app/pacotes" element={<RequireTrainer><PackagesPage /></RequireTrainer>} />
+          <Route path="app/configuracoes" element={<Navigate to="/app/treinador" replace />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>

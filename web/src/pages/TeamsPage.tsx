@@ -6,15 +6,16 @@ import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import type { Team } from "../types/domain";
+import { where } from "firebase/firestore";
 
 export function TeamsPage() {
   const isDemo = useSessionStore((state) => state.isDemo);
-  const { data: dbTeams, loading } = useCollection<Team>("teams");
+  const { data: dbTeams, loading } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
   const [query, setQuery] = useState("");
 
   const allTeams = useMemo(() => {
-    return isDemo ? sampleTeams : (dbTeams || []);
+    return (isDemo || !dbTeams || dbTeams.length === 0) ? sampleTeams : dbTeams;
   }, [isDemo, dbTeams]);
 
   const teams = useMemo(() => {
@@ -108,7 +109,7 @@ function TrainerListItem({ team }: { team: Team }) {
     >
       <img 
         className="h-44 w-full object-cover" 
-        src={team.branding.bannerPhotoURL || team.branding.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"} 
+        src={team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"} 
         alt={`Banner de ${team.name}`} 
       />
       <div className="p-5">
@@ -117,7 +118,7 @@ function TrainerListItem({ team }: { team: Team }) {
             <span
               aria-hidden="true"
               className="h-3 w-3 rounded-full"
-              style={{ backgroundColor: team.branding.primaryColor || "var(--color-primary)" }}
+              style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
             />
             <h2 className="text-xl font-bold text-stone-950">{team.name}</h2>
           </div>
@@ -125,7 +126,7 @@ function TrainerListItem({ team }: { team: Team }) {
             {team.isSolo ? "Treinador solo" : "Equipe"}
           </span>
         </div>
-        <p className="mt-2 text-sm leading-6 text-stone-500 line-clamp-2">{team.branding.bio}</p>
+        <p className="mt-2 text-sm leading-6 text-stone-500 line-clamp-2">{team.branding?.bio || "Sem biografia cadastrada."}</p>
         <div className="mt-4 grid gap-2 sm:grid-cols-2">
           <Summary
             icon={Tag}

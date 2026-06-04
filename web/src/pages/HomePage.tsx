@@ -14,11 +14,12 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { trainingModalities } from "../data/sample";
+import { trainingModalities, sampleTeams } from "../data/sample";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
 import { useCollection, useClassProducts } from "../lib/hooks";
+import { where } from "firebase/firestore";
 
 const FEATURES = [
   {
@@ -44,10 +45,10 @@ const FEATURES = [
 ];
 
 export function HomePage() {
-  const { data: dbTeams } = useCollection<Team>("teams");
+  const { data: dbTeams } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
-  // Usa apenas os dados reais do Firestore
-  const teams = useMemo(() => dbTeams || [], [dbTeams]);
+  // Usa os dados do Firestore se houverem, senão cai de volta nos samples do time
+  const teams = useMemo(() => (dbTeams && dbTeams.length > 0) ? dbTeams : sampleTeams, [dbTeams]);
 
   const featured = useMemo(() => teams[0] || null, [teams]);
 
@@ -347,7 +348,7 @@ function TrainerCard({ team }: { team: Team }) {
       <div className="relative h-44 overflow-hidden">
         <img
           className="h-full w-full object-cover transition-transform duration-500 hover:scale-105"
-          src={team.branding.bannerPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"}
+          src={team.branding?.bannerPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"}
           alt={`Banner ${team.name}`}
           loading="lazy"
           decoding="async"
@@ -355,7 +356,7 @@ function TrainerCard({ team }: { team: Team }) {
         {/* Photo avatar */}
         <img
           className="absolute bottom-0 left-4 translate-y-1/2 h-14 w-14 rounded-full border-4 border-white object-cover shadow-md"
-          src={team.branding.trainerPhotoURL || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80"}
+          src={team.branding?.trainerPhotoURL || "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=1600&q=80"}
           alt={`Foto ${team.name}`}
           loading="lazy"
         />
@@ -382,7 +383,7 @@ function TrainerCard({ team }: { team: Team }) {
         </div>
 
         <p className="mt-3 text-sm leading-6 text-stone-500 line-clamp-2">
-          {team.branding.bio}
+          {team.branding?.bio || "Sem biografia cadastrada."}
         </p>
 
         {/* Location badges */}

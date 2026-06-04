@@ -7,7 +7,6 @@ import {
   LogOut,
   RefreshCw,
   Ruler,
-  Settings,
   ShieldCheck,
   ShoppingBag,
   UserPlus,
@@ -15,6 +14,7 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSessionStore } from "../store/session";
+import { useStudent, useTeam } from "../lib/hooks";
 
 interface NavItem {
   to: string;
@@ -30,12 +30,17 @@ export function AppFrame() {
   const isLogged = Boolean(user);
   const location = useLocation();
 
+  const { data: student } = useStudent(role === "student" ? user?.uid : null);
+  const { data: team } = useTeam(student?.assignedTo ?? null);
+
+  const trainerPath = team?.slug ? `/t/${team.slug}` : "/treinadores";
+
   const studentLinks: NavItem[] = [
     { to: "/", label: "Início", icon: House, exact: true },
     { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
     { to: "/app/minhas-aulas", label: "Aulas", icon: ShoppingBag },
     { to: "/app/medidas", label: "Medidas", icon: Ruler },
-    { to: "/t/movimento-forte", label: "Treinador", icon: BicepsFlexed },
+    { to: trainerPath, label: "Treinador", icon: BicepsFlexed },
   ];
 
   const trainerLinks: NavItem[] = [
@@ -44,7 +49,7 @@ export function AppFrame() {
     { to: "/app/aulas", label: "Agenda", icon: CalendarDays },
     { to: "/app/alunos", label: "Alunos", icon: Users },
     { to: "/app/treinador", label: "Perfil", icon: UserPlus },
-    { to: "/app/configuracoes", label: "Locais", icon: Settings },
+    { to: "/app/pacotes", label: "Pacotes", icon: ShoppingBag },
     { to: "/app/seguranca", label: "Regras", icon: ShieldCheck },
   ];
 

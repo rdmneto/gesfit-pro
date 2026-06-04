@@ -23,6 +23,7 @@ function useCollection<T>(
   collectionPath: string,
   constraints: QueryConstraint[] = [],
   fallback: T[] = [],
+  deps: any[] = [],
 ): { data: T[]; loading: boolean; error: string | null } {
   const [data, setData] = useState<T[]>([]);
   const [loading, setLoading] = useState(true);
@@ -55,7 +56,7 @@ function useCollection<T>(
 
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionPath]);
+  }, [collectionPath, ...deps]);
 
   return { data, loading, error };
 }
@@ -130,6 +131,8 @@ export function useStudents(trainerId: string | null | undefined) {
   return useCollection<Student>(
     "students",
     trainerId ? [where("assignedTo", "==", trainerId)] : [],
+    [],
+    [trainerId]
   );
 }
 
@@ -143,6 +146,8 @@ export function useMeasurements(studentId: string | null | undefined) {
   return useCollection<StudentMeasurement>(
     `students/${studentId}/measurements`,
     [orderBy("measuredAt", "asc")],
+    [],
+    [studentId]
   );
 }
 
@@ -151,6 +156,8 @@ export function usePendingMeasurements(studentId: string | null | undefined) {
   return useCollection<StudentMeasurementSubmission>(
     `students/${studentId}/measurementSubmissions`,
     [where("status", "==", "pending")],
+    [],
+    [studentId]
   );
 }
 
@@ -159,6 +166,8 @@ export function useAllPendingMeasurements(teamId: string | null | undefined) {
   return useCollection<StudentMeasurementSubmission>(
     "measurementSubmissions",
     teamId ? [where("teamId", "==", teamId), where("status", "==", "pending")] : [],
+    [],
+    [teamId]
   );
 }
 
@@ -172,7 +181,7 @@ export function useWorkoutSessions(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  return useCollection<WorkoutSession>("workoutSessions", constraints);
+  return useCollection<WorkoutSession>("workoutSessions", constraints, [], [options.studentId, options.trainerId]);
 }
 
 
@@ -186,7 +195,7 @@ export function useBookings(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  return useCollection<Booking>("bookings", constraints);
+  return useCollection<Booking>("bookings", constraints, [], [options.studentId, options.trainerId]);
 }
 
 /** Class products (packages/singles) for a team */
@@ -194,6 +203,8 @@ export function useClassProducts(teamId: string | null | undefined) {
   return useCollection<ClassProduct>(
     "classProducts",
     teamId ? [where("teamId", "==", teamId), where("active", "==", true)] : [],
+    [],
+    [teamId]
   );
 }
 
@@ -202,6 +213,8 @@ export function useStudentPurchases(studentId: string | null | undefined) {
   return useCollection<ClassPurchase>(
     "classPurchases",
     studentId ? [where("studentId", "==", studentId), orderBy("submittedAt", "desc")] : [],
+    [],
+    [studentId]
   );
 }
 
@@ -212,5 +225,7 @@ export function usePendingPurchases(teamId: string | null | undefined) {
     teamId
       ? [where("teamId", "==", teamId), where("status", "in", ["payment_submitted", "awaiting_payment"])]
       : [],
+    [],
+    [teamId]
   );
 }

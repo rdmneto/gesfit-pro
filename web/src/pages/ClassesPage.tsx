@@ -1,435 +1,776 @@
 import {
-  Banknote,
-  CalendarPlus,
+  CalendarClock,
+  CalendarDays,
   CheckCircle2,
   Clock,
-  Dumbbell,
-  FileUp,
-  Megaphone,
-  PackagePlus,
-  Send,
+  List,
+  Play,
   UserPlus,
-  Users,
-  XCircle,
+  X,
 } from "lucide-react";
-import { useState } from "react";
+import { useState, useMemo } from "react";
+import { collection, addDoc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { useSessionStore } from "../store/session";
+import { useTeam, useStudents, useWorkoutSessions } from "../lib/hooks";
 import {
-  sampleBookings,
-  sampleClassProducts,
-  samplePromotionalPackages,
-  samplePurchases,
-  sampleStudent,
+  sampleTeams,
+  sampleStudents,
+  sampleWorkoutSessions,
+  sampleTrainerAvailability,
 } from "../data/sample";
-import { moneyFromCents, shortDateTime } from "../lib/format";
-import type { ClassProductType, PurchaseStatus } from "../types/domain";
-
-const slots = [
-  { time: "06:00", capacity: 4, filled: 2 },
-  { time: "07:30", capacity: 4, filled: 4 },
-  { time: "12:00", capacity: 3, filled: 1 },
-  { time: "17:00", capacity: 5, filled: 3 },
-  { time: "19:30", capacity: 5, filled: 5 },
-];
-
-const statusLabel: Record<PurchaseStatus, string> = {
-  awaiting_payment: "Aguardando pagamento",
-  payment_submitted: "Comprovante enviado",
-  paid: "Pagamento confirmado",
-  rejected: "Pagamento recusado",
-};
+import {
+  type CalendarView,
+  type CalendarMode,
+  formatDate,
+  formatDateTime,
+  formatTime,
+  getTrainerCalendarItems,
+  isSameDay,
+  monthGridDays,
+  weekDays,
+  workoutAtSlot,
+} from "../features/dashboard/dashboardUtils";
+import type { WorkoutSession, TrainerAvailabilityDay } from "../types/domain";
 
 export function ClassesPage() {
-  const [productType, setProductType] = useState<ClassProductType>("single");
-  const activeProducts = sampleClassProducts.filter((product) => product.active);
+  const isDemo = useSessionStore((state) => state.isDemo);
+  const teamId = useSessionStore((state) => state.claims.teamId);
+  const user = useSessionStore((state) => state.user);
+
+  // Firestore hooks
+  const { data: dbTeam } = useTeam(!isDemo ? teamId : null);
+  const { data: dbStudents } = useStudents(!isDemo ? user?.uid : null);
+  const { data: dbWorkoutSessions } = useWorkoutSessions(
+    !isDemo && user ? { trainerId: user.uid } : {}
+  );
+
+  const team = isDemo ? sampleTeams[0] : (dbTeam || sampleTeams[0]);
+  const students = (isDemo || !dbStudents || dbStudents.length === 0) ? sampleStudents : dbStudents;
+  const trainerWorkouts = useMemo(() => {
+    const list = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0)
+      ? sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana") 
+      : dbWorkoutSessions;
+    return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
+  }, [isDemo, dbWorkoutSessions]);
+
+  const availability: TrainerAvailabilityDay[] = team.availability || sampleTrainerAvailability;
+
+  // Calendar states
+  const [calendarView, setCalendarView] = useState<CalendarView>("week");
+  const [calendarMode, setCalendarMode] = useState<CalendarMode>("visual");
+  const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
+  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
+
+  // Schedule class states
+  const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
+  const [scheduleDate, setScheduleDate] = useState("");
+  const [scheduleTime, setScheduleTime] = useState("");
+  const [scheduleDuration, setScheduleDuration] = useState("60");
+  const [scheduleFocus, setScheduleFocus] = useState("Musculação - Inferiores");
+
+  const [saving, setSaving] = useState(false);
+  const [message, setMessage] = useState("");
+  const [error, setError] = useState("");
+
+  const visibleWorkouts = getTrainerCalendarItems(trainerWorkouts, calendarView);
+  const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
+
+  // Highlights / statistics
+  const weeklyWorkoutsCount = useMemo(() => {
+    const today = new Date();
+    const days = weekDays(today);
+    const start = days[0];
+    const end = new Date(days[6]);
+    end.setHours(23, 59, 59);
+    return trainerWorkouts.filter((w) => {
+      const d = new Date(w.startsAt);
+      return d >= start && d <= end;
+    }).length;
+  }, [trainerWorkouts]);
+
+  const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
+  const todayDuration = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
+
+  const busiestHour = useMemo(() => {
+    if (trainerWorkouts.length === 0) return "–";
+    const counts: Record<string, number> = {};
+    trainerWorkouts.forEach((w) => {
+      const time = w.startsAt.split("T")[1]?.slice(0, 5) || "06:00";
+      counts[time] = (counts[time] || 0) + 1;
+    });
+    let maxTime = "–";
+    let maxCount = 0;
+    Object.entries(counts).forEach(([time, count]) => {
+      if (count > maxCount) {
+        maxCount = count;
+        maxTime = time;
+      }
+    });
+    return maxTime;
+  }, [trainerWorkouts]);
+
+  // Handle scheduling
+  async function handleScheduleClass() {
+    const student = students[selectedStudentIdx];
+    if (!student || !scheduleDate || !scheduleTime) {
+      setError("Por favor, preencha o aluno, data e hora do agendamento.");
+      return;
+    }
+
+    setSaving(true);
+    setError("");
+    setMessage("");
+
+    const startsAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
+    const newSession: Omit<WorkoutSession, "id"> = {
+      studentId: student.uid,
+      studentName: student.displayName,
+      trainerId: user?.uid || "trainer-ana",
+      title: `Treino de ${scheduleFocus}`,
+      modality: "Musculação",
+      startsAt,
+      address: "Academia Gesfit Pro",
+      proposedWorkout: scheduleFocus,
+      durationMinutes: parseInt(scheduleDuration, 10),
+      plannedCalories: 320,
+      status: "scheduled",
+      exercises: [scheduleFocus],
+    };
+
+    if (isDemo || !db) {
+      setTimeout(() => {
+        setSaving(false);
+        setMessage("Aula agendada com sucesso! (Modo de Demonstração)");
+        setScheduleDate("");
+        setScheduleTime("");
+      }, 800);
+      return;
+    }
+
+    try {
+      await addDoc(collection(db, "workoutSessions"), newSession);
+      setSaving(false);
+      setMessage("Aula agendada com sucesso!");
+      setScheduleDate("");
+      setScheduleTime("");
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao agendar aula: " + err.message);
+      setSaving(false);
+    }
+  }
+
+  // Calculate dynamic slots for details
+  const detailDateSlots = useMemo(() => {
+    const targetDate = selectedMonthDay || new Date();
+    const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+    const weekday = weekdays[targetDate.getDay()];
+    const dayAvail = availability.find((d) => d.weekday === weekday);
+    if (!dayAvail || !dayAvail.active) return ["08:00", "10:00", "14:00", "16:00"]; // default fallback
+    
+    return [
+      ...periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes),
+      ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
+    ];
+  }, [selectedMonthDay, availability]);
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8">
+    <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
+      {/* Header */}
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Aulas, pacotes e pagamentos
+            Agenda do Treinador
           </p>
-          <h1 className="mt-2 text-3xl font-black">Controle comercial de aulas</h1>
-          <p className="mt-2 max-w-3xl leading-7 text-stone-600">
-            O treinador define valores de aulas avulsas, pacotes regulares e promocoes. O aluno
-            confirma pagamento, anexa comprovante quando quiser e o professor valida antes de
-            liberar os creditos.
+          <h1 className="text-3xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
+            Controle de Grade e Agendamentos
+          </h1>
+          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-500">
+            Gerencie seus compromissos, visualize horários livres e marque novos atendimentos para seus alunos.
           </p>
         </div>
-        <button
-          type="button"
-          className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white hover:bg-emerald-700"
-        >
-          <CalendarPlus aria-hidden="true" size={18} />
-          Nova aula
-        </button>
       </div>
 
-      <div className="mt-6 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <div className="flex items-center gap-2">
-            <PackagePlus aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Cadastrar aula ou pacote</h2>
-          </div>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">Tipo de venda</span>
-              <select
-                className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3"
-                value={productType}
-                onChange={(event) => setProductType(event.target.value as ClassProductType)}
-              >
-                <option value="single">Aula avulsa</option>
-                <option value="package">Pacote de aulas</option>
-              </select>
-            </label>
-            <Field
-              label="Nome"
-              placeholder={productType === "single" ? "Aula avulsa funcional" : "Pacote 8 aulas"}
-            />
-            <Field label="Valor em reais" placeholder={productType === "single" ? "65,00" : "440,00"} />
-            <Field
-              label="Quantidade de aulas"
-              placeholder={productType === "single" ? "1" : "8"}
-              type="number"
-            />
-            <Field label="Orientador responsavel" placeholder="Ana Beatriz" />
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">Descricao</span>
-              <textarea
-                className="focus-ring mt-2 min-h-24 w-full rounded-md border border-stone-300 px-3 py-2"
-                placeholder="Explique regras de uso, validade combinada e diferenciais do pacote."
-              />
-            </label>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white hover:bg-emerald-700"
-            >
-              <Banknote aria-hidden="true" size={18} />
-              Salvar oferta
-            </button>
-            <button
-              type="button"
-              className="focus-ring inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-5 text-sm font-bold text-stone-800 hover:bg-stone-100"
-            >
-              Ocultar da area publica
-            </button>
-          </div>
-        </section>
+      {message && (
+        <div className="mt-4 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-sm font-semibold text-emerald-800 animate-slide-up">
+          {message}
+        </div>
+      )}
+      {error && (
+        <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-sm font-semibold text-rose-800 animate-slide-up">
+          {error}
+        </div>
+      )}
 
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Dumbbell aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Ofertas cadastradas</h2>
-          </div>
-          <div className="mt-4 grid gap-3 sm:grid-cols-2">
-            {activeProducts.map((product) => (
-              <article key={product.id} className="rounded-md border border-stone-200 p-4">
-                <div className="flex items-start justify-between gap-3">
-                  <div>
-                    <p className="font-bold">{product.name}</p>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {product.classesCount} aula{product.classesCount > 1 ? "s" : ""}
-                    </p>
-                  </div>
-                  <span className="rounded-md bg-emerald-50 px-2 py-1 text-xs font-bold text-emerald-900">
-                    {product.type === "single" ? "Avulsa" : "Pacote"}
-                  </span>
-                </div>
-                <p className="mt-3 text-2xl font-black">{moneyFromCents(product.priceCents)}</p>
-                <p className="mt-2 text-sm leading-6 text-stone-600">{product.description}</p>
-                <p className="mt-3 text-xs font-bold text-stone-500">
-                  {product.publicVisible ? "Visivel para novos alunos" : "Somente alunos ativos"}
-                </p>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Megaphone aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Pacote promocional</h2>
-          </div>
-          <p className="mt-2 text-sm leading-6 text-stone-600">
-            A promocao fica disponivel ate o treinador remover ou ate esgotar a quantidade
-            ofertada.
-          </p>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Nome da promocao" placeholder="Junho em movimento" />
-            <Field label="Valor promocional" placeholder="299,00" />
-            <Field label="Quantidade de aulas" placeholder="6" type="number" />
-            <Field label="Pacotes ofertados" placeholder="20" type="number" />
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">Publico</span>
-              <select className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3">
-                <option>Enviar para todos os alunos</option>
-                <option>Direcionar para alunos selecionados</option>
-              </select>
-            </label>
-          </div>
-          <button
-            type="button"
-            className="focus-ring mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white hover:bg-emerald-700"
-          >
-            <Send aria-hidden="true" size={18} />
-            Criar e enviar promocao
-          </button>
-        </section>
-
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <Users aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Promocoes ativas</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {samplePromotionalPackages.map((promo) => {
-              const remaining = Math.max(promo.offeredQuantity - promo.soldQuantity, 0);
-              return (
-                <article
-                  key={promo.id}
-                  className="grid gap-3 rounded-md border border-stone-200 p-4 sm:grid-cols-[1fr_auto]"
-                >
-                  <div>
-                    <p className="font-bold">{promo.name}</p>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {promo.classesCount} aulas por {moneyFromCents(promo.priceCents)}
-                    </p>
-                    <p className="mt-2 text-sm text-stone-600">
-                      {promo.audience === "all_students"
-                        ? "Enviada para todos os alunos"
-                        : "Direcionada para alunos selecionados"}
-                    </p>
-                  </div>
-                  <div className="text-left sm:text-right">
-                    <p className="text-sm font-bold text-emerald-800">{remaining} restantes</p>
-                    <button
-                      type="button"
-                      className="focus-ring mt-2 inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-bold text-stone-800 hover:bg-stone-100"
-                    >
-                      <XCircle aria-hidden="true" size={15} />
-                      Remover
-                    </button>
-                  </div>
-                </article>
-              );
-            })}
-          </div>
-        </section>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <FileUp aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Contratacao pelo aluno</h2>
-          </div>
-          <div className="mt-4 rounded-md border border-stone-200 bg-stone-50 p-4">
-            <p className="text-sm font-semibold text-stone-600">Aluno</p>
-            <p className="text-lg font-black">{sampleStudent.displayName}</p>
-          </div>
-          <div className="mt-4 grid gap-4 sm:grid-cols-2">
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">Escolher aula ou pacote</span>
-              <select className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3">
-                {activeProducts.map((product) => (
-                  <option key={product.id}>
-                    {product.name} - {moneyFromCents(product.priceCents)}
-                  </option>
-                ))}
-              </select>
-            </label>
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">
-                Anexar comprovante opcional
-              </span>
-              <input
-                className="focus-ring mt-2 w-full rounded-md border border-stone-300 bg-white px-3 py-2 text-sm"
-                type="file"
-              />
-            </label>
-          </div>
-          <button
-            type="button"
-            className="focus-ring mt-5 inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white hover:bg-emerald-700"
-          >
-            <CheckCircle2 aria-hidden="true" size={18} />
-            Confirmar pagamento
-          </button>
-        </section>
-
-        <section className="rounded-lg border border-stone-200 bg-white p-5">
-          <div className="flex items-center gap-2">
-            <CheckCircle2 aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Conferencia do professor</h2>
-          </div>
-          <div className="mt-4 space-y-3">
-            {samplePurchases.map((purchase) => (
-              <article
-                key={purchase.id}
-                className="grid gap-3 rounded-md border border-stone-200 p-4 sm:grid-cols-[1fr_auto]"
-              >
-                <div>
-                  <p className="font-bold">{purchase.productName}</p>
-                  <p className="mt-1 text-sm text-stone-600">
-                    {purchase.classesCount} aula{purchase.classesCount > 1 ? "s" : ""} -{" "}
-                    {moneyFromCents(purchase.amountCents)}
-                  </p>
-                  <p className="mt-2 text-sm text-stone-600">
-                    {purchase.proofFileName
-                      ? `Comprovante: ${purchase.proofFileName}`
-                      : "Sem comprovante anexado"}
-                  </p>
-                  <span className="mt-3 inline-flex rounded-md bg-stone-100 px-2 py-1 text-xs font-bold text-stone-700">
-                    {statusLabel[purchase.status]}
-                  </span>
-                </div>
-                <div className="flex flex-wrap items-start gap-2 sm:justify-end">
-                  <button
-                    type="button"
-                    className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md bg-emerald-800 px-3 text-xs font-bold text-white hover:bg-emerald-700"
-                  >
-                    <CheckCircle2 aria-hidden="true" size={15} />
-                    Confirmar
-                  </button>
-                  <button
-                    type="button"
-                    className="focus-ring inline-flex h-9 items-center justify-center gap-2 rounded-md border border-stone-300 px-3 text-xs font-bold text-stone-800 hover:bg-stone-100"
-                  >
-                    <XCircle aria-hidden="true" size={15} />
-                    Recusar
-                  </button>
-                </div>
-              </article>
-            ))}
-          </div>
-        </section>
-      </div>
-
-      <div className="mt-4 grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-        <form className="rounded-lg border border-stone-200 bg-white p-5 shadow-sm">
-          <h2 className="text-xl font-black">Cadastrar horario de aula</h2>
-          <div className="mt-5 grid gap-4 sm:grid-cols-2">
-            <Field label="Aluno/paciente" placeholder={sampleStudent.displayName} />
-            <Field label="Orientador" placeholder="Ana Beatriz" />
-            <Field label="Data" type="date" placeholder="2026-06-02" />
-            <Field label="Hora inicio" type="time" placeholder="17:00" />
-            <Field label="Duracao (min)" type="number" placeholder="60" />
-            <Field label="Capacidade" type="number" placeholder="1" />
-            <label className="block sm:col-span-2">
-              <span className="text-sm font-semibold text-stone-700">Foco do treino</span>
-              <select className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3">
-                <option>Membros inferiores</option>
-                <option>Peito e ombros</option>
-                <option>Costas e biceps</option>
-                <option>Full body</option>
-              </select>
-            </label>
-          </div>
-          <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="focus-ring inline-flex h-11 items-center justify-center gap-2 rounded-md bg-emerald-800 px-5 text-sm font-bold text-white hover:bg-emerald-700"
-            >
-              <UserPlus aria-hidden="true" size={18} />
-              Agendar
-            </button>
-            <button
-              type="button"
-              className="focus-ring inline-flex h-11 items-center justify-center rounded-md border border-stone-300 px-5 text-sm font-bold text-stone-800 hover:bg-stone-100"
-            >
-              Registrar no-show
-            </button>
-          </div>
-        </form>
-
-        <div className="grid gap-4">
-          <section className="rounded-lg border border-stone-200 bg-white p-5">
-            <div className="flex items-center gap-2">
-              <Clock aria-hidden="true" className="text-emerald-800" size={22} />
-              <h2 className="text-xl font-black">Grade de hoje</h2>
+      {/* Main Grid: Agenda vs Sidebar */}
+      <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
+        
+        {/* COLUNA ESQUERDA: Calendário Visual */}
+        <section className="card p-5">
+          <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
+            <div>
+              <h2 className="text-lg font-black text-stone-950">Visualização da Grade</h2>
+              <p className="mt-0.5 text-xs text-stone-500">Monitore sua disponibilidade semanal e mensal.</p>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2">
-              {slots.map((slot) => {
-                const full = slot.filled >= slot.capacity;
-                return (
-                  <article
-                    key={slot.time}
+            <div className="flex flex-wrap gap-2">
+              <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-1">
+                {(["day", "week", "month"] as const).map((view) => (
+                  <button
+                    key={view}
+                    type="button"
                     className={[
-                      "rounded-md border p-4",
-                      full ? "border-red-200 bg-red-50" : "border-emerald-200 bg-emerald-50",
+                      "focus-ring h-8 rounded-md px-3 text-xs font-semibold transition-all",
+                      calendarView === view ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500",
                     ].join(" ")}
+                    onClick={() => { setCalendarView(view); setSelectedMonthDay(null); }}
                   >
-                    <p className="text-lg font-black">{slot.time}</p>
-                    <p className="mt-1 text-sm text-stone-700">
-                      {slot.filled}/{slot.capacity} vagas
-                    </p>
-                    <p
-                      className={
-                        full
-                          ? "mt-3 text-sm font-bold text-red-800"
-                          : "mt-3 text-sm font-bold text-emerald-800"
-                      }
-                    >
-                      {full ? "Ocupado" : "Livre para agendar"}
-                    </p>
-                  </article>
-                );
-              })}
+                    {view === "day" ? "Dia" : view === "week" ? "Semana" : "Mês"}
+                  </button>
+                ))}
+              </div>
+              <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-1">
+                {(["visual", "list"] as const).map((mode) => (
+                  <button
+                    key={mode}
+                    type="button"
+                    className={[
+                      "focus-ring inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-all",
+                      calendarMode === mode ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500",
+                    ].join(" ")}
+                    onClick={() => setCalendarMode(mode)}
+                  >
+                    {mode === "visual" ? <CalendarDays size={13} /> : <List size={13} />}
+                    {mode === "visual" ? "Visual" : "Lista"}
+                  </button>
+                ))}
+              </div>
+            </div>
+          </div>
+
+          {calendarMode === "visual" ? (
+            <TrainerCalendarVisual
+              selectedMonthDay={selectedMonthDay}
+              view={calendarView}
+              workouts={trainerWorkouts}
+              activeWorkoutId={activeWorkout?.id}
+              availability={availability}
+              detailSlots={detailDateSlots}
+              onCloseMonthDay={() => setSelectedMonthDay(null)}
+              onFinish={() => setActiveWorkout(null)}
+              onSelectMonthDay={setSelectedMonthDay}
+              onStart={setActiveWorkout}
+            />
+          ) : (
+            <div className="mt-4 overflow-x-auto">
+              <table className="w-full min-w-[700px] border-separate border-spacing-0 text-left text-sm">
+                <thead>
+                  <tr>
+                    <th className="border-b border-stone-200 pb-3 font-bold text-stone-500 text-xs uppercase tracking-wider">Horário</th>
+                    <th className="border-b border-stone-200 pb-3 font-bold text-stone-500 text-xs uppercase tracking-wider">Aluno</th>
+                    <th className="border-b border-stone-200 pb-3 font-bold text-stone-500 text-xs uppercase tracking-wider">Local</th>
+                    <th className="border-b border-stone-200 pb-3 font-bold text-stone-500 text-xs uppercase tracking-wider">Treino</th>
+                    <th className="border-b border-stone-200 pb-3 font-bold text-stone-500 text-xs uppercase tracking-wider">Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {visibleWorkouts.map((workout) => (
+                    <tr key={workout.id}>
+                      <td className="border-b border-stone-100 py-3.5 text-xs font-semibold text-stone-700">{formatDateTime(workout.startsAt)}</td>
+                      <td className="border-b border-stone-100 py-3.5 text-sm font-bold text-stone-900">{workout.studentName}</td>
+                      <td className="border-b border-stone-100 py-3.5 text-xs text-stone-600 truncate max-w-48">{workout.address}</td>
+                      <td className="border-b border-stone-100 py-3.5 text-xs font-medium text-stone-700">{workout.proposedWorkout ?? workout.title}</td>
+                      <td className="border-b border-stone-100 py-3.5">
+                        <button
+                          type="button"
+                          className={[
+                            "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-2xs font-bold text-white transition-colors",
+                            activeWorkout?.id === workout.id ? "bg-stone-950" : "bg-emerald-750 hover:bg-emerald-750",
+                          ].join(" ")}
+                          onClick={() => activeWorkout?.id === workout.id ? setActiveWorkout(null) : setActiveWorkout(workout)}
+                        >
+                          {activeWorkout?.id === workout.id ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                          {activeWorkout?.id === workout.id ? "Finalizar" : "Iniciar"}
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                  {visibleWorkouts.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-8 text-center text-sm text-stone-400 italic">
+                        Nenhum compromisso agendado para este período.
+                      </td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          )}
+
+          {/* Active Workout Row */}
+          {activeWorkout && (
+            <section className="mt-6 rounded-xl border border-emerald-250 bg-emerald-50/70 p-4 animate-slide-up">
+              <div className="grid gap-4 sm:grid-cols-[1fr_auto] items-center">
+                <div>
+                  <p className="text-2xs font-bold uppercase tracking-wider text-emerald-800">Aula Iniciada</p>
+                  <h3 className="mt-0.5 text-lg font-black text-stone-950">{activeWorkout.studentName}</h3>
+                  <p className="text-xs text-stone-600 mt-1">
+                    {activeWorkout.proposedWorkout ?? activeWorkout.title} · {formatDateTime(activeWorkout.startsAt)}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="focus-ring inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-stone-950 px-5 text-xs font-bold text-white shadow"
+                  onClick={() => setActiveWorkout(null)}
+                >
+                  <CheckCircle2 size={16} />
+                  Finalizar aula
+                </button>
+              </div>
+            </section>
+          )}
+        </section>
+
+        {/* COLUNA DIREITA: Destaques & Agendamento */}
+        <div className="space-y-4">
+          
+          {/* Destaques da Agenda */}
+          <section className="card p-5">
+            <div className="flex items-center gap-2">
+              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50">
+                <CalendarClock aria-hidden="true" className="text-amber-700" size={16} />
+              </div>
+              <h2 className="text-sm font-black text-stone-950 uppercase tracking-wider">Destaques da Agenda</h2>
+            </div>
+            <div className="mt-4 grid gap-3 grid-cols-2">
+              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                <p className="text-2xs font-semibold text-stone-500 uppercase">Aulas na Semana</p>
+                <p className="mt-1 text-xl font-black text-stone-950">{weeklyWorkoutsCount}</p>
+                <p className="text-2xs text-stone-400 mt-0.5">agendadas</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                <p className="text-2xs font-semibold text-stone-500 uppercase">Carga Hoje</p>
+                <p className="mt-1 text-xl font-black text-stone-950">{todayDuration} min</p>
+                <p className="text-2xs text-stone-400 mt-0.5">de atendimento</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                <p className="text-2xs font-semibold text-stone-500 uppercase">Horário de Pico</p>
+                <p className="mt-1 text-base font-black text-stone-950">{busiestHour}</p>
+                <p className="text-2xs text-stone-400 mt-1">mais concorrido</p>
+              </div>
+              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
+                <p className="text-2xs font-semibold text-stone-500 uppercase">Próximo Aluno</p>
+                <p className="mt-1 text-xs font-black text-stone-950 truncate">
+                  {nextWorkouts[0] ? nextWorkouts[0].studentName : "Sem treinos"}
+                </p>
+                <p className="text-2xs text-stone-400 mt-1 truncate">
+                  {nextWorkouts[0] ? formatTime(nextWorkouts[0].startsAt) : "–"}
+                </p>
+              </div>
             </div>
           </section>
 
-          <section className="rounded-lg border border-stone-200 bg-white p-5">
+          {/* Agendar Horário de Aula */}
+          <section className="card p-5">
             <div className="flex items-center gap-2">
-              <Dumbbell aria-hidden="true" className="text-emerald-800" size={22} />
-              <h2 className="text-xl font-black">Aulas cadastradas</h2>
+              <UserPlus aria-hidden="true" className="text-emerald-800" size={18} />
+              <h2 className="text-base font-black text-stone-950">Agendar horário de aula</h2>
             </div>
-            <div className="mt-4 space-y-3">
-              {sampleBookings.map((booking) => (
-                <article
-                  key={booking.id}
-                  className="grid gap-3 rounded-md border border-stone-200 p-4 sm:grid-cols-[1fr_auto]"
+            <div className="mt-4 grid gap-3">
+              <label className="block">
+                <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Aluno</span>
+                <select
+                  className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-xs"
+                  value={selectedStudentIdx}
+                  onChange={(e) => setSelectedStudentIdx(parseInt(e.target.value, 10))}
                 >
-                  <div>
-                    <p className="font-bold">{sampleStudent.displayName}</p>
-                    <p className="text-sm text-stone-600">
-                      {booking.focus} - {shortDateTime(booking.startsAt.toDate())}
-                    </p>
+                  {students.map((std, idx) => (
+                    <option key={std.uid} value={idx}>
+                      {std.displayName}
+                    </option>
+                  ))}
+                </select>
+              </label>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Data</span>
+                  <input
+                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
+                    type="date"
+                    value={scheduleDate}
+                    onChange={(e) => setScheduleDate(e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Hora início</span>
+                  <input
+                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
+                    type="time"
+                    value={scheduleTime}
+                    onChange={(e) => setScheduleTime(e.target.value)}
+                  />
+                </label>
+              </div>
+
+              <div className="grid grid-cols-2 gap-3">
+                <label className="block">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Duração (min)</span>
+                  <input
+                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs text-center"
+                    type="number"
+                    value={scheduleDuration}
+                    onChange={(e) => setScheduleDuration(e.target.value)}
+                  />
+                </label>
+                <label className="block">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Foco do treino</span>
+                  <input
+                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
+                    placeholder="ex: Membros Inferiores"
+                    value={scheduleFocus}
+                    onChange={(e) => setScheduleFocus(e.target.value)}
+                  />
+                </label>
+              </div>
+            </div>
+
+            <button
+              type="button"
+              className="focus-ring btn btn-primary mt-4 w-full h-10 text-xs font-bold"
+              disabled={saving}
+              onClick={handleScheduleClass}
+            >
+              <UserPlus aria-hidden="true" size={14} />
+              {saving ? "Agendando..." : "Confirmar Agendamento"}
+            </button>
+          </section>
+
+          {/* Próximos Compromissos */}
+          <section className="card p-5">
+            <div className="flex items-center gap-2">
+              <Clock aria-hidden="true" className="text-emerald-800" size={18} />
+              <h2 className="text-base font-black text-stone-950">Próximos compromissos</h2>
+            </div>
+            <div className="mt-4 space-y-3 max-h-[300px] overflow-y-auto pr-1">
+              {nextWorkouts.map((workout) => (
+                <article key={workout.id} className="rounded-xl border border-stone-200 p-3 bg-stone-50/50">
+                  <div className="flex items-start justify-between gap-2">
+                    <p className="font-bold text-xs text-stone-950">{workout.studentName}</p>
+                    <span className="rounded bg-stone-200 px-2 py-0.5 text-3xs font-bold text-stone-700 uppercase">
+                      {workout.modality}
+                    </span>
                   </div>
-                  <span className="max-w-max rounded-md bg-stone-100 px-2 py-1 text-xs font-bold text-stone-700">
-                    {booking.status}
-                  </span>
+                  <p className="mt-1 text-3xs font-semibold text-stone-500">{formatDateTime(workout.startsAt)}</p>
+                  <p className="mt-1.5 text-2xs font-bold text-stone-700">{workout.proposedWorkout ?? workout.title}</p>
+                  <p className="mt-0.5 text-3xs text-stone-400 truncate">{workout.address}</p>
                 </article>
               ))}
+              {nextWorkouts.length === 0 && (
+                <p className="text-xs text-stone-400 italic text-center py-6">Nenhum compromisso futuro.</p>
+              )}
             </div>
           </section>
         </div>
+
       </div>
     </section>
   );
 }
 
-function Field({
-  label,
-  placeholder,
-  type = "text",
-}: {
-  label: string;
-  placeholder: string;
-  type?: string;
-}) {
+// ── Sub-componentes do Calendário ───────────────────────────────────────────
+
+interface CalendarVisualProps {
+  view: CalendarView;
+  workouts: WorkoutSession[];
+  selectedMonthDay: Date | null;
+  activeWorkoutId?: string;
+  availability: TrainerAvailabilityDay[];
+  detailSlots: string[];
+  onCloseMonthDay: () => void;
+  onFinish: () => void;
+  onSelectMonthDay: (d: Date) => void;
+  onStart: (w: WorkoutSession) => void;
+}
+
+function TrainerCalendarVisual({
+  view,
+  workouts,
+  selectedMonthDay,
+  activeWorkoutId,
+  availability,
+  detailSlots,
+  onCloseMonthDay,
+  onFinish,
+  onSelectMonthDay,
+  onStart,
+}: CalendarVisualProps) {
+  
+  if (view === "week") {
+    const days = weekDays(new Date());
+    return (
+      <div className="mt-4 overflow-x-auto">
+        <div className="grid min-w-[760px] grid-cols-7 gap-2">
+          {days.map((day) => {
+            const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
+            return (
+              <section key={day.toISOString()} className="min-h-64 rounded-xl border border-stone-200 bg-stone-50 p-2">
+                <div className="rounded-lg bg-white p-2 text-center shadow-2xs">
+                  <p className="text-3xs font-bold uppercase text-emerald-800">
+                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}
+                  </p>
+                  <p className="text-xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
+                </div>
+                <div className="mt-2 space-y-2">
+                  {dayWorkouts.length ? (
+                    dayWorkouts.map((workout) => {
+                      const isActive = activeWorkoutId === workout.id;
+                      return (
+                        <article key={workout.id} className="rounded-xl border border-stone-250 bg-white p-2 text-3xs hover:shadow-2xs transition-shadow">
+                          <div className="flex items-center justify-between gap-1">
+                            <strong className="text-stone-900">{formatTime(workout.startsAt)}</strong>
+                            <span className="rounded bg-emerald-50 px-1 py-0.5 text-4xs font-bold text-emerald-800 uppercase">
+                              {workout.modality}
+                            </span>
+                          </div>
+                          <p className="mt-1.5 font-black text-stone-900">{workout.studentName}</p>
+                          <p className="mt-1 line-clamp-2 text-stone-500 font-medium">
+                            {workout.proposedWorkout ?? workout.title}
+                          </p>
+                          <button
+                            type="button"
+                            className={[
+                              "focus-ring mt-2 inline-flex h-6 w-full items-center justify-center gap-1 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
+                              isActive ? "bg-stone-950 hover:bg-stone-900" : "",
+                            ].join(" ")}
+                            onClick={() => isActive ? onFinish() : onStart(workout)}
+                          >
+                            {isActive ? <CheckCircle2 size={9} /> : <Play size={9} />}
+                            {isActive ? "Finalizar" : "Iniciar"}
+                          </button>
+                        </article>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2 text-center text-3xs font-bold text-emerald-850">
+                      Livre
+                    </div>
+                  )}
+                </div>
+              </section>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  if (view === "month") {
+    const today = new Date();
+    const days = monthGridDays(today);
+    const WEEK_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
+
+    if (selectedMonthDay) {
+      const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, selectedMonthDay));
+      return (
+        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 animate-slide-up">
+          <div className="flex items-start justify-between gap-3 border-b border-stone-150 pb-3">
+            <div>
+              <p className="text-2xs font-bold uppercase tracking-wider text-emerald-800">Grade de horários do dia</p>
+              <h3 className="mt-0.5 text-xl font-black text-stone-950">{formatDate(selectedMonthDay.toISOString())}</h3>
+            </div>
+            <button
+              type="button"
+              aria-label="Fechar"
+              className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-stone-50"
+              onClick={onCloseMonthDay}
+            >
+              <X size={15} />
+            </button>
+          </div>
+          
+          <div className="mt-4 grid gap-2.5">
+            {detailSlots.map((slot) => {
+              const workout = workoutAtSlot(dayWorkouts, slot);
+              const isActive = activeWorkoutId === workout?.id;
+              return (
+                <article
+                  key={slot}
+                  className={[
+                    "grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[5rem_1fr_auto] items-center",
+                    workout ? "border-amber-200 bg-amber-50/40" : "border-emerald-250 bg-emerald-50/45",
+                  ].join(" ")}
+                >
+                  <p className={["font-black text-sm", workout ? "text-amber-800" : "text-emerald-850"].join(" ")}>
+                    {slot}
+                  </p>
+                  {workout ? (
+                    <div>
+                      <p className="font-bold text-sm text-stone-950">{workout.studentName}</p>
+                      <p className="mt-0.5 text-xs text-stone-600 font-medium">
+                        {workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min
+                      </p>
+                    </div>
+                  ) : (
+                    <p className="font-bold text-xs text-emerald-800">Horário livre para novos alunos</p>
+                  )}
+                  {workout && (
+                    <button
+                      type="button"
+                      className={[
+                        "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
+                        isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
+                      ].join(" ")}
+                      onClick={() => isActive ? onFinish() : onStart(workout)}
+                    >
+                      {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                      {isActive ? "Finalizar" : "Iniciar"}
+                    </button>
+                  )}
+                </article>
+              );
+            })}
+            {detailSlots.length === 0 && (
+              <p className="text-center text-xs text-stone-400 italic py-6 bg-white border border-stone-200 rounded-xl">
+                Você não tem horários de atendimento ativos configurados para este dia da semana.
+              </p>
+            )}
+          </div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="mt-4">
+        <div className="grid grid-cols-7 gap-1">
+          {WEEK_LABELS.map((d) => (
+            <p key={d} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{d}</p>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {days.map((day) => {
+            const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
+            const inCurrentMonth = day.getMonth() === today.getMonth();
+            
+            // Calculate slots for dot grid
+            const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+            const weekday = weekdays[day.getDay()];
+            const dayAvail = availability.find((d) => d.weekday === weekday);
+            const activeSlots = dayAvail && dayAvail.active 
+              ? [
+                  ...periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes),
+                  ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
+                ]
+              : [];
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                className={[
+                  "focus-ring min-h-20 rounded-xl border p-2 text-left transition-all hover:bg-stone-50/50 flex flex-col justify-between",
+                  inCurrentMonth
+                    ? "border-stone-200 bg-white hover:border-emerald-500"
+                    : "border-stone-150 bg-stone-50 opacity-40",
+                ].join(" ")}
+                onClick={() => onSelectMonthDay(day)}
+              >
+                <span className="text-xs font-black text-stone-800">{day.getDate()}</span>
+                <div className="mt-2 grid grid-cols-4 gap-0.5 w-full">
+                  {activeSlots.slice(0, 8).map((slot) => {
+                    const occupied = Boolean(workoutAtSlot(dayWorkouts, slot));
+                    return (
+                      <span
+                        key={slot}
+                        className={[
+                          "block h-2 rounded-xs",
+                          occupied ? "bg-red-400" : "bg-emerald-350",
+                        ].join(" ")}
+                        title={`${slot} ${occupied ? "ocupado" : "vago"}`}
+                      />
+                    );
+                  })}
+                  {activeSlots.length === 0 && (
+                    <span className="col-span-full h-1 w-full bg-stone-200 rounded-sm opacity-50" title="Sem expediente" />
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
+      </div>
+    );
+  }
+
+  // Day view
+  const dayWorkouts = getTrainerCalendarItems(workouts, "day");
   return (
-    <label className="block">
-      <span className="text-sm font-semibold text-stone-700">{label}</span>
-      <input
-        className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-        placeholder={placeholder}
-        type={type}
-      />
-    </label>
+    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+      {dayWorkouts.map((workout) => (
+        <article
+          key={workout.id}
+          className={[
+            "rounded-xl border border-stone-200 p-4 bg-white hover:shadow-sm transition-all flex flex-col justify-between min-h-36",
+            activeWorkoutId === workout.id ? "border-emerald-400 bg-emerald-50/10" : "",
+          ].join(" ")}
+        >
+          <div>
+            <div className="flex items-start justify-between gap-2">
+              <strong className="text-sm font-black text-stone-900">{formatTime(workout.startsAt)}</strong>
+              <span className="rounded bg-emerald-50 px-2 py-0.5 text-4xs font-bold text-emerald-800 uppercase border border-emerald-100">
+                {workout.modality}
+              </span>
+            </div>
+            <p className="mt-2 font-bold text-sm text-stone-950">{workout.studentName}</p>
+            <p className="mt-1 text-xs text-stone-500 font-medium leading-5">{workout.proposedWorkout ?? workout.title}</p>
+          </div>
+          <button
+            type="button"
+            className={[
+              "focus-ring mt-4 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-2xs bg-emerald-700 hover:bg-emerald-650",
+              activeWorkoutId === workout.id ? "bg-stone-950 hover:bg-stone-900" : "",
+            ].join(" ")}
+            onClick={() => activeWorkoutId === workout.id ? onFinish() : onStart(workout)}
+          >
+            {activeWorkoutId === workout.id ? <CheckCircle2 size={13} /> : <Play size={13} />}
+            {activeWorkoutId === workout.id ? "Finalizar" : "Iniciar Atendimento"}
+          </button>
+        </article>
+      ))}
+      {dayWorkouts.length === 0 && (
+        <p className="col-span-full py-8 text-center text-sm text-stone-400 italic">
+          Nenhum atendimento agendado para hoje.
+        </p>
+      )}
+    </div>
   );
+}
+
+// Helper slots parsing
+function periodSlots(startTime: string | undefined | null, endTime: string | undefined | null, durationMinutes: number | undefined | null) {
+  if (!startTime || !endTime || !durationMinutes || durationMinutes <= 0) return [];
+  const start = minutesFromTime(startTime);
+  const end = minutesFromTime(endTime);
+  const slots: string[] = [];
+
+  for (let cursor = start; cursor + durationMinutes <= end; cursor += durationMinutes) {
+    slots.push(timeFromMinutes(cursor));
+  }
+
+  return slots;
+}
+
+function minutesFromTime(value: string | undefined | null) {
+  if (!value) return 0;
+  const parts = value.split(":");
+  if (parts.length < 2) return 0;
+  const [hours, minutes] = parts.map(Number);
+  if (isNaN(hours) || isNaN(minutes)) return 0;
+  return hours * 60 + minutes;
+}
+
+function timeFromMinutes(value: number) {
+  const hours = Math.floor(value / 60);
+  const minutes = value % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}`;
 }

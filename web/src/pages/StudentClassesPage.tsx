@@ -18,6 +18,7 @@ import { Button } from "../components/ui/Button";
 import { useClassProducts, useStudentPurchases, useStudent, useTeam } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import { useSessionStore } from "../store/session";
+import { sampleStudent, sampleClassProducts, samplePurchases, sampleTeams } from "../data/sample";
 import type { ClassProduct, PurchaseStatus } from "../types/domain";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
@@ -33,10 +34,17 @@ export function StudentClassesPage() {
   const teamId = claims.teamId ?? null;
 
   // Firestore hooks
-  const { data: student } = useStudent(user?.uid ?? null);
-  const { data: purchases = [], loading: purchasesLoading } = useStudentPurchases(user?.uid ?? null);
-  const { data: products = [], loading: productsLoading } = useClassProducts(teamId);
-  const { data: team } = useTeam(teamId);
+  const { data: dbStudent } = useStudent(user?.uid ?? null);
+  const { data: dbPurchases = [], loading: purchasesLoading } = useStudentPurchases(user?.uid ?? null);
+  const { data: dbProducts = [], loading: productsLoading } = useClassProducts(teamId);
+  const { data: dbTeam } = useTeam(teamId);
+
+  const student = dbStudent || sampleStudent;
+  const team = dbTeam || sampleTeams[0];
+  const purchases = (dbPurchases && dbPurchases.length > 0) ? dbPurchases : samplePurchases;
+  const products = (dbProducts && dbProducts.length > 0)
+    ? dbProducts
+    : sampleClassProducts.filter((p) => p.teamId === (teamId || sampleTeams[0].id));
 
   const [showBuyForm, setShowBuyForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ClassProduct | null>(null);

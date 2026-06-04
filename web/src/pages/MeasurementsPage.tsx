@@ -35,6 +35,7 @@ import {
   useStudents,
 } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
+import { sampleStudents, sampleMeasurements, samplePendingMeasurements } from "../data/sample";
 import type { Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
 export function MeasurementsPage() {
@@ -54,9 +55,13 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const { data: allStudents, loading: studentsLoading } = useStudents(trainerId);
   const [query, setQuery] = useState("");
 
+  const studentsList = useMemo(() => {
+    return (allStudents && allStudents.length > 0) ? allStudents : sampleStudents;
+  }, [allStudents]);
+
   const sortedStudents = useMemo(
-    () => [...(allStudents || [])].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
-    [allStudents],
+    () => [...studentsList].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
+    [studentsList],
   );
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
@@ -72,6 +77,20 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
 
   const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
   const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
+
+  const measurements = useMemo(() => {
+    if (!selectedMeasurements || selectedMeasurements.length === 0) {
+      return sampleMeasurements.filter((m) => m.studentId === effectiveSelectedId);
+    }
+    return selectedMeasurements;
+  }, [selectedMeasurements, effectiveSelectedId]);
+
+  const pending = useMemo(() => {
+    if (!selectedPending || selectedPending.length === 0) {
+      return samplePendingMeasurements.filter((m) => m.studentId === effectiveSelectedId);
+    }
+    return selectedPending;
+  }, [selectedPending, effectiveSelectedId]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -171,8 +190,8 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
             {selectedStudent ? (
               <>
                 <StudentProfileSummary
-                  measurements={selectedMeasurements}
-                  pendingCount={selectedPending.length}
+                  measurements={measurements}
+                  pendingCount={pending.length}
                   student={selectedStudent}
                 />
 
@@ -226,13 +245,13 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                   </button>
                 </form>
 
-                <TrainerMeasurementsHistory measurements={selectedMeasurements} />
+                <TrainerMeasurementsHistory measurements={measurements} />
 
-                {selectedPending.length > 0 && (
+                {pending.length > 0 && (
                   <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
                     <h2 className="text-xl font-black">Aguardando confirmacao</h2>
                     <div className="mt-4 grid gap-3">
-                      {selectedPending.map((measurement) => (
+                      {pending.map((measurement) => (
                         <MeasurementReviewCard key={measurement.id} measurement={measurement} />
                       ))}
                     </div>
@@ -258,9 +277,17 @@ function StudentMeasurementsPage({
   const { data: allMeasurements = [] } = useMeasurements(studentId);
   const { data: pendingMeasurements = [] } = usePendingMeasurements(studentId);
 
+  const effectiveMeasurements = useMemo(() => {
+    return (!allMeasurements || allMeasurements.length === 0) ? sampleMeasurements : allMeasurements;
+  }, [allMeasurements]);
+
+  const effectivePending = useMemo(() => {
+    return (!pendingMeasurements || pendingMeasurements.length === 0) ? samplePendingMeasurements : pendingMeasurements;
+  }, [pendingMeasurements]);
+
   const sortedMeasurements = useMemo(
-    () => [...allMeasurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)),
-    [allMeasurements],
+    () => [...effectiveMeasurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)),
+    [effectiveMeasurements],
   );
 
   const first = sortedMeasurements[0];
@@ -324,7 +351,7 @@ function StudentMeasurementsPage({
         </div>
       </div>
 
-      {pendingMeasurements.length > 0 ? (
+      {effectivePending.length > 0 ? (
         <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-center gap-2">
             <CheckCircle2 aria-hidden="true" className="text-amber-800" size={22} />
@@ -335,7 +362,7 @@ function StudentMeasurementsPage({
             seu historico e no grafico.
           </p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
-            {pendingMeasurements.map((measurement) => (
+            {effectivePending.map((measurement) => (
               <article key={measurement.id} className="rounded-md border border-amber-200 bg-white p-4">
                 <MeasurementReviewCard measurement={measurement} />
                 <div className="mt-4 flex flex-wrap gap-2">
@@ -384,11 +411,11 @@ function StudentMeasurementsPage({
           <div className="mt-4 grid gap-3">
             <div className="rounded-md bg-stone-100 p-4">
               <p className="text-sm text-stone-600">Registros confirmados</p>
-              <p className="mt-1 text-2xl font-black">{allMeasurements.length}</p>
+              <p className="mt-1 text-2xl font-black">{effectiveMeasurements.length}</p>
             </div>
             <div className="rounded-md bg-amber-50 p-4">
               <p className="text-sm text-amber-900">Aguardando confirmacao</p>
-              <p className="mt-1 text-2xl font-black text-amber-950">{pendingMeasurements.length}</p>
+              <p className="mt-1 text-2xl font-black text-amber-950">{effectivePending.length}</p>
             </div>
           </div>
         </section>

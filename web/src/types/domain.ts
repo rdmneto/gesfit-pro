@@ -82,6 +82,8 @@ export interface Team {
   acceptsHomeVisit: boolean;
   /** Aceita academia de condomínio */
   acceptsCondoGym: boolean;
+  /** Grade de horários do treinador */
+  availability?: TrainerAvailabilityDay[];
 }
 
 export interface Plan {

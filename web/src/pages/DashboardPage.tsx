@@ -1,18 +1,14 @@
 import {
   CalendarClock,
-  CalendarDays,
   CheckCircle2,
   Clock,
   Flame,
-  List,
   Play,
   Ruler,
   Share2,
   Timer,
   Users,
-  X,
 } from "lucide-react";
-import type { ReactNode } from "react";
 import { useMemo, useState } from "react";
 import {
   Area,
@@ -32,6 +28,8 @@ import {
   sampleStudents,
   sampleTeams,
   sampleWorkoutSessions,
+  sampleBookings,
+  samplePlans,
 } from "../data/sample";
 import { bmi } from "../lib/format";
 import { useSessionStore } from "../store/session";
@@ -40,18 +38,11 @@ import { KpiGrid } from "../features/dashboard/KpiGrid";
 import { TrainerWorkoutCard } from "../features/dashboard/TrainerWorkoutCard";
 import {
   type CalendarView,
-  type CalendarMode,
   formatDate,
   formatDateTime,
   formatShortDate,
-  formatTime,
-  getTrainerCalendarItems,
   isSameDay,
-  monthGridDays,
   monthItems,
-  trainerDaySlots,
-  weekDays,
-  workoutAtSlot,
 } from "../features/dashboard/dashboardUtils";
 import {
   useTeam,
@@ -59,6 +50,7 @@ import {
   useMeasurements,
   useWorkoutSessions,
   useStudents,
+  useBookings,
 } from "../lib/hooks";
 import { Navigate } from "react-router-dom";
 
@@ -127,14 +119,14 @@ function StudentDashboard() {
         ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } } 
         : { name: "Sem Treinador Vinculado", branding: defaultBranding });
 
-  const measurements = isDemo ? sampleMeasurements : dbMeasurements;
-  const workouts = isDemo ? sampleWorkoutSessions : dbWorkoutSessions;
+  const measurements = (isDemo || !dbMeasurements || dbMeasurements.length === 0) ? sampleMeasurements : dbMeasurements;
+  const workouts = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0) ? sampleWorkoutSessions : dbWorkoutSessions;
 
   const nextWorkout = workouts && workouts.length > 0 ? workouts[0] : null;
   const currentMeasure = measurements && measurements.length > 0 ? measurements.at(-1) : null;
   const alturaCm = student.physiological?.alturaCm || 175;
   const currentBmi = currentMeasure ? bmi(currentMeasure.weightKg, alturaCm) : null;
-  const calendarItems = calendarView === "week" ? workouts : monthItems(workouts);
+  const calendarItems = (calendarView === "week" ? workouts : monthItems(workouts)) || [];
 
   const measureChart = useMemo(
     () => measurements.map((m) => ({
@@ -378,10 +370,8 @@ function TrainerDashboard() {
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
     !isDemo && user ? { trainerId: user.uid } : {}
   );
+  const { data: dbBookings } = useBookings(!isDemo && user ? { trainerId: user.uid } : {});
 
-  const [calendarView, setCalendarView] = useState<CalendarView>("day");
-  const [calendarMode, setCalendarMode] = useState<CalendarMode>("visual");
-  const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
 
   const defaultBranding = {
@@ -399,19 +389,50 @@ function TrainerDashboard() {
         : { name: "Meu Time", branding: defaultBranding });
 
   const trainerWorkouts = useMemo(() => {
-    const list = isDemo 
+    const list = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0)
       ? sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana") 
       : dbWorkoutSessions;
-    return [...list].sort((a, b) => a.startsAt.localeCompare(b.startsAt));
+    return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
   }, [isDemo, dbWorkoutSessions]);
 
-  const students = isDemo ? sampleStudents : dbStudents;
+  const students = (isDemo || !dbStudents || dbStudents.length === 0) ? sampleStudents : dbStudents;
+  const bookings = (isDemo || !dbBookings || dbBookings.length === 0) ? sampleBookings : dbBookings;
 
   const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
-  const visibleWorkouts = getTrainerCalendarItems(trainerWorkouts, calendarView);
   const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
   const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
   const uniqueStudentsToday = new Set(todayWorkouts.map((w) => w.studentId)).size;
+
+  // Dynamic KPI calculations
+  const estimatedRevenue = useMemo(() => {
+    return students
+      .filter((s) => s.status === "active")
+      .reduce((sum, student) => {
+        const plan = samplePlans.find((p) => p.id === student.planId);
+        return sum + (plan ? plan.priceCents / 100 : 350);
+      }, 0);
+  }, [students]);
+
+  const presenceRate = useMemo(() => {
+    const pastBookings = bookings.filter((b) => b.status === "attended" || b.status === "no_show");
+    if (pastBookings.length === 0) return 100;
+    const attended = pastBookings.filter((b) => b.status === "attended").length;
+    return Math.round((attended / pastBookings.length) * 100);
+  }, [bookings]);
+
+  const noShowCount = useMemo(() => {
+    return bookings.filter((b) => b.status === "no_show").length;
+  }, [bookings]);
+
+  const expiringCount = useMemo(() => {
+    return students.filter((s) => {
+      if (s.status !== "active") return false;
+      const quota = s.classesQuotaMonth ?? 0;
+      const used = s.classesUsedMonth ?? 0;
+      const remaining = quota - used;
+      return remaining >= 0 && remaining <= 2;
+    }).length;
+  }, [students]);
 
   const loading = !isDemo && (teamLoading || studentsLoading || workoutsLoading);
 
@@ -474,7 +495,13 @@ function TrainerDashboard() {
       </div>
 
       {/* KPI Grid */}
-      <KpiGrid studentCount={students.length} />
+      <KpiGrid
+        studentCount={students.length}
+        estimatedRevenue={estimatedRevenue}
+        presenceRate={presenceRate}
+        noShowCount={noShowCount}
+        expiringCount={expiringCount}
+      />
 
       {/* Alunos do dia */}
       <section className="mt-4 card p-5">
@@ -521,86 +548,6 @@ function TrainerDashboard() {
           </div>
         </section>
       )}
-
-      {/* Calendar */}
-      <section className="mt-4 card p-5">
-        <div className="flex flex-col justify-between gap-3 lg:flex-row lg:items-center">
-          <div>
-            <h2 className="text-lg font-black text-stone-950">Agenda do treinador</h2>
-            <p className="mt-1 text-sm text-stone-500">Alterne entre dia, semana e mês, em cards visuais ou lista.</p>
-          </div>
-          <div className="flex flex-wrap gap-2">
-            <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-stone-100 p-1">
-              {(["day", "week", "month"] as const).map((view) => (
-                <button
-                  key={view}
-                  type="button"
-                  className={["focus-ring h-8 rounded-md px-3 text-sm font-semibold transition-all", calendarView === view ? "bg-white text-emerald-900 shadow-sm" : "text-stone-500"].join(" ")}
-                  onClick={() => { setCalendarView(view); setSelectedMonthDay(null); }}
-                >
-                  {view === "day" ? "Dia" : view === "week" ? "Semana" : "Mês"}
-                </button>
-              ))}
-            </div>
-            <div className="inline-flex rounded-lg border border-[var(--color-border)] bg-stone-100 p-1">
-              {(["visual", "list"] as const).map((mode) => (
-                <button
-                  key={mode}
-                  type="button"
-                  className={["focus-ring inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-sm font-semibold transition-all", calendarMode === mode ? "bg-white text-emerald-900 shadow-sm" : "text-stone-500"].join(" ")}
-                  onClick={() => setCalendarMode(mode)}
-                >
-                  {mode === "visual" ? <CalendarDays size={14} /> : <List size={14} />}
-                  {mode === "visual" ? "Visual" : "Lista"}
-                </button>
-              ))}
-            </div>
-          </div>
-        </div>
-
-        {calendarMode === "visual" ? (
-          <TrainerCalendarVisual
-            selectedMonthDay={selectedMonthDay}
-            view={calendarView}
-            workouts={trainerWorkouts}
-            activeWorkoutId={activeWorkout?.id}
-            onCloseMonthDay={() => setSelectedMonthDay(null)}
-            onFinish={() => setActiveWorkout(null)}
-            onSelectMonthDay={setSelectedMonthDay}
-            onStart={setActiveWorkout}
-          />
-        ) : (
-          <div className="mt-4 overflow-x-auto">
-            <table className="w-full min-w-[860px] border-separate border-spacing-0 text-left text-sm">
-              <thead>
-                <tr>
-                  <Th>Horário</Th><Th>Aluno</Th><Th>Endereço</Th><Th>Treino proposto</Th><Th>Ação</Th>
-                </tr>
-              </thead>
-              <tbody>
-                {visibleWorkouts.map((workout) => (
-                  <tr key={workout.id}>
-                    <Td>{formatDateTime(workout.startsAt)}</Td>
-                    <Td>{workout.studentName}</Td>
-                    <Td>{workout.address}</Td>
-                    <Td>{workout.proposedWorkout ?? workout.title}</Td>
-                    <Td>
-                      <button
-                        type="button"
-                        className={["focus-ring inline-flex h-8 items-center gap-2 rounded-lg px-3 text-xs font-bold text-white", activeWorkout?.id === workout.id ? "bg-stone-950" : "bg-emerald-700"].join(" ")}
-                        onClick={() => activeWorkout?.id === workout.id ? setActiveWorkout(null) : setActiveWorkout(workout)}
-                      >
-                        {activeWorkout?.id === workout.id ? <CheckCircle2 size={13} /> : <Play size={13} />}
-                        {activeWorkout?.id === workout.id ? "Finalizar" : "Iniciar"}
-                      </button>
-                    </Td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </section>
 
       {/* Next workouts list */}
       <section className="mt-4 card p-5">
@@ -684,162 +631,4 @@ function WorkoutSummaryCard({ workout, durationMinutes, calories }: { workout: W
   );
 }
 
-// Calendar visual (week/month/day views) — kept inline as it's tightly coupled to the dashboard state
-function TrainerCalendarVisual({
-  view, workouts, selectedMonthDay, activeWorkoutId,
-  onCloseMonthDay, onFinish, onSelectMonthDay, onStart,
-}: {
-  view: CalendarView; workouts: WorkoutSession[]; selectedMonthDay: Date | null;
-  activeWorkoutId?: string; onCloseMonthDay: () => void; onFinish: () => void;
-  onSelectMonthDay: (d: Date) => void; onStart: (w: WorkoutSession) => void;
-}) {
-  if (view === "week") {
-    const days = weekDays(new Date());
-    return (
-      <div className="mt-4 overflow-x-auto">
-        <div className="grid min-w-[980px] grid-cols-7 gap-2">
-          {days.map((day) => {
-            const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
-            return (
-              <section key={day.toISOString()} className="min-h-64 rounded-xl border border-[var(--color-border)] bg-stone-50 p-2">
-                <div className="rounded-lg bg-white p-2 text-center">
-                  <p className="text-xs font-bold uppercase text-emerald-700">{new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}</p>
-                  <p className="text-2xl font-black text-stone-950">{day.getDate()}</p>
-                </div>
-                <div className="mt-2 space-y-2">
-                  {dayWorkouts.length ? dayWorkouts.map((workout) => {
-                    const isActive = activeWorkoutId === workout.id;
-                    return (
-                      <article key={workout.id} className="rounded-lg border border-[var(--color-border)] bg-white p-2 text-xs">
-                        <div className="flex items-center justify-between gap-1">
-                          <strong>{formatTime(workout.startsAt)}</strong>
-                          <span className="badge badge-green">{workout.modality}</span>
-                        </div>
-                        <p className="mt-1.5 font-bold text-stone-950">{workout.studentName}</p>
-                        <p className="mt-1 line-clamp-2 text-stone-500">{workout.proposedWorkout ?? workout.title}</p>
-                        <button
-                          type="button"
-                          className={["focus-ring mt-2 inline-flex h-7 w-full items-center justify-center gap-1 rounded-lg text-xs font-bold text-white", isActive ? "bg-stone-950" : "bg-emerald-700"].join(" ")}
-                          onClick={() => isActive ? onFinish() : onStart(workout)}
-                        >
-                          {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                          {isActive ? "Finalizar" : "Iniciar"}
-                        </button>
-                      </article>
-                    );
-                  }) : (
-                    <div className="rounded-lg border border-emerald-100 bg-emerald-50 p-2 text-center text-xs font-semibold text-emerald-700">Livre</div>
-                  )}
-                </div>
-              </section>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
 
-  if (view === "month") {
-    const today = new Date();
-    const days = monthGridDays(today);
-    const WEEK_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-
-    if (selectedMonthDay) {
-      const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, selectedMonthDay));
-      return (
-        <div className="mt-4 rounded-xl border border-[var(--color-border)] bg-stone-50 p-4">
-          <div className="flex items-start justify-between gap-3">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Agenda do dia</p>
-              <h3 className="mt-1 text-2xl font-black text-stone-950">{formatDate(selectedMonthDay.toISOString())}</h3>
-            </div>
-            <button type="button" aria-label="Fechar" className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg border border-[var(--color-border)] bg-white" onClick={onCloseMonthDay}>
-              <X size={16} />
-            </button>
-          </div>
-          <div className="mt-4 grid gap-2">
-            {trainerDaySlots.map((slot) => {
-              const workout = workoutAtSlot(dayWorkouts, slot);
-              const isActive = activeWorkoutId === workout?.id;
-              return (
-                <article key={slot} className={["grid gap-3 rounded-xl border p-3 sm:grid-cols-[5rem_1fr_auto]", workout ? "border-red-100 bg-red-50" : "border-emerald-100 bg-emerald-50"].join(" ")}>
-                  <p className={["font-black", workout ? "text-red-800" : "text-emerald-800"].join(" ")}>{slot}</p>
-                  {workout ? (
-                    <div>
-                      <p className="font-black text-stone-950">{workout.studentName}</p>
-                      <p className="mt-1 text-sm text-stone-600">{workout.proposedWorkout ?? workout.title}</p>
-                    </div>
-                  ) : <p className="font-semibold text-emerald-700">Horário vago</p>}
-                  {workout && (
-                    <button
-                      type="button"
-                      className={["focus-ring inline-flex h-9 items-center gap-2 rounded-lg px-3 text-xs font-bold text-white", isActive ? "bg-stone-950" : "bg-emerald-700"].join(" ")}
-                      onClick={() => isActive ? onFinish() : onStart(workout)}
-                    >
-                      {isActive ? <CheckCircle2 size={14} /> : <Play size={14} />}
-                      {isActive ? "Finalizar" : "Iniciar"}
-                    </button>
-                  )}
-                </article>
-              );
-            })}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-4">
-        <div className="grid grid-cols-7 gap-1">
-          {WEEK_LABELS.map((d) => (
-            <p key={d} className="py-2 text-center text-xs font-bold text-stone-400">{d}</p>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((day) => {
-            const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
-            const inCurrentMonth = day.getMonth() === today.getMonth();
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                className={["focus-ring min-h-20 rounded-lg border p-1 text-left transition-all", inCurrentMonth ? "border-[var(--color-border)] bg-white hover:border-emerald-500" : "border-[var(--color-border-subtle)] bg-stone-50 opacity-50"].join(" ")}
-                onClick={() => onSelectMonthDay(day)}
-              >
-                <span className="text-xs font-black text-stone-700">{day.getDate()}</span>
-                <div className="mt-1 space-y-0.5">
-                  {trainerDaySlots.map((slot) => {
-                    const occupied = Boolean(workoutAtSlot(dayWorkouts, slot));
-                    return <span key={slot} className={["block h-2.5 rounded-sm", occupied ? "bg-red-400" : "bg-emerald-300"].join(" ")} title={`${slot} ${occupied ? "ocupado" : "vago"}`} />;
-                  })}
-                </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
-
-  // Day view
-  return (
-    <div className="mt-4 grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-      {getTrainerCalendarItems(workouts, "day").map((workout) => (
-        <TrainerWorkoutCard
-          activeWorkoutId={activeWorkoutId}
-          key={workout.id}
-          onFinish={onFinish}
-          onStart={onStart}
-          workout={workout}
-        />
-      ))}
-    </div>
-  );
-}
-
-function Th({ children }: { children: ReactNode }) {
-  return <th className="border-b border-stone-200 px-3 py-3 text-left text-xs font-bold uppercase tracking-wider text-stone-500">{children}</th>;
-}
-function Td({ children }: { children: ReactNode }) {
-  return <td className="border-b border-stone-100 px-3 py-3.5 align-top text-sm text-stone-700">{children}</td>;
-}
