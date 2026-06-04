@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { doc, setDoc } from "firebase/firestore";
+import { collection, doc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
@@ -48,10 +48,30 @@ export function OnboardingPage() {
     setLoading(true);
 
     try {
+      // 0. Se o aluno veio da vitrine de um treinador, vincula a ele já na
+      //    criação (as regras só permitem definir assignedTo na criação).
+      const pendingSlug = window.sessionStorage.getItem("gesfit-pending-trainer");
+      let trainerId = "";
+      if (pendingSlug) {
+        try {
+          const snap = await getDocs(
+            query(
+              collection(db, "teams"),
+              where("slug", "==", pendingSlug),
+              where("publicListing", "==", true),
+              limit(1),
+            ),
+          );
+          if (!snap.empty) trainerId = snap.docs[0].id;
+        } catch (resolveErr) {
+          console.error("Falha ao resolver treinador da vitrine:", resolveErr);
+        }
+      }
+
       // 1. Criar perfil de usuário geral
       await setDoc(doc(db, "users", user.uid), {
         role: "student",
-        teamId: null,
+        teamId: trainerId || null,
         email: user.email,
         name: user.displayName || "Aluno",
         contractAcceptedAt: new Date().toISOString(),
@@ -63,7 +83,7 @@ export function OnboardingPage() {
         uid: user.uid,
         displayName: user.displayName || "Aluno",
         status: "pending",
-        assignedTo: "", // Inicia sem treinador vinculado
+        assignedTo: trainerId, // vinculado ao treinador escolhido (ou "" se nenhum)
         onboarding: {
           birthDate: studentBirthDate,
           email: user.email,
@@ -77,11 +97,13 @@ export function OnboardingPage() {
         createdAt: new Date().toISOString(),
       });
 
+      window.sessionStorage.removeItem("gesfit-pending-trainer");
+
       // 3. Atualizar store global para destravar dashboard
       useSessionStore.setState({
         claims: {
           role: "student",
-          teamId: undefined,
+          teamId: trainerId || undefined,
         },
       });
     } catch (err: unknown) {

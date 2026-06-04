@@ -11,12 +11,10 @@ import { MeasurementsPage } from "./pages/MeasurementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { SecurityPage } from "./pages/SecurityPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
-import { StudentSignupPage } from "./pages/StudentSignupPage";
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { PackagesPage } from "./pages/PackagesPage";
 import { TrainerWorkspacePage } from "./pages/TrainerWorkspacePage";
-import { TrainerSignupPage } from "./pages/TrainerSignupPage";
 import { useSessionStore } from "./store/session";
 
 export default function App() {
@@ -31,8 +29,10 @@ export default function App() {
           <Route index element={<HomePage />} />
           <Route path="login" element={<LoginPage />} />
           <Route path="treinadores" element={<TeamsPage />} />
-          <Route path="cadastro/aluno" element={<StudentSignupPage />} />
-          <Route path="cadastro/treinador" element={<TrainerSignupPage />} />
+          {/* Cadastro real acontece em /login (criar conta) + /app/onboarding.
+              Rotas antigas redirecionam para não quebrar links existentes. */}
+          <Route path="cadastro/aluno" element={<Navigate to="/login?signup=1" replace />} />
+          <Route path="cadastro/treinador" element={<Navigate to="/login?signup=1" replace />} />
           <Route path="t/:slug" element={<TeamLandingPage />} />
 
           {/* Onboarding — autenticado mas sem role definida ainda */}

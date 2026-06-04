@@ -1,13 +1,17 @@
 import { useMemo } from "react";
 import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag } from "lucide-react";
-import { Link, Navigate, useParams } from "react-router-dom";
+import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
+import { useSessionStore } from "../store/session";
 import { where } from "firebase/firestore";
 import type { PublicScheduleSlot, Team } from "../types/domain";
 
 export function TeamLandingPage() {
   const { slug } = useParams();
+  const navigate = useNavigate();
+  const user = useSessionStore((state) => state.user);
+  const role = useSessionStore((state) => state.claims.role);
 
   // Busca o time pelo slug no Firestore
   const { data: dbTeams, loading: teamsLoading } = useCollection<Team>(
@@ -47,6 +51,30 @@ export function TeamLandingPage() {
     return <Navigate to="/treinadores" replace />;
   }
 
+  // Ação de "Contratar" ciente do estado de login:
+  // - visitante → cria conta (já marcando este treinador)
+  // - logado sem perfil → completa o cadastro (onboarding)
+  // - aluno → vai para a área de compra de aulas
+  // - treinador → volta ao painel
+  function handleContract() {
+    if (team?.slug) {
+      window.sessionStorage.setItem("gesfit-pending-trainer", team.slug);
+    }
+    if (!user) {
+      navigate(`/login?signup=1&treinador=${team?.slug ?? ""}`);
+      return;
+    }
+    if (!role) {
+      navigate("/app/onboarding");
+      return;
+    }
+    if (role === "trainer") {
+      navigate("/app");
+      return;
+    }
+    navigate("/app/minhas-aulas");
+  }
+
   return (
     <div>
       <section
@@ -65,20 +93,23 @@ export function TeamLandingPage() {
             {team.branding?.welcomeMessage || "Treino sério e acompanhamento personalizado."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <Link
+            <button
+              type="button"
               className="focus-ring inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-bold text-white hover:opacity-90 transition-opacity"
               style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
-              to="/cadastro/aluno"
+              onClick={handleContract}
             >
-              Cadastrar para contratar
+              Contratar {team.name}
               <ArrowRight aria-hidden="true" size={18} />
-            </Link>
-            <Link
-              className="focus-ring inline-flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-stone-950 hover:bg-stone-100 transition-colors"
-              to="/login"
-            >
-              Já sou aluno
-            </Link>
+            </button>
+            {!user && (
+              <Link
+                className="focus-ring inline-flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-stone-950 hover:bg-stone-100 transition-colors"
+                to="/login"
+              >
+                Já sou aluno
+              </Link>
+            )}
           </div>
         </div>
       </section>
@@ -138,13 +169,14 @@ export function TeamLandingPage() {
                       </li>
                     </ul>
                   </div>
-                  <Link
+                  <button
+                    type="button"
                     className="focus-ring mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-800 px-4 text-xs font-bold text-white hover:bg-emerald-700 w-full transition-colors"
-                    to="/cadastro/aluno"
+                    onClick={handleContract}
                   >
                     Quero contratar
                     <ArrowRight aria-hidden="true" size={15} />
-                  </Link>
+                  </button>
                 </article>
               ))
             ) : (

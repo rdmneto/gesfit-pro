@@ -296,7 +296,7 @@ export function HomePage() {
               <div className="mt-8 flex flex-wrap gap-3">
                 <Link
                   className="focus-ring inline-flex h-12 items-center gap-2 rounded-xl bg-white px-6 text-sm font-bold text-emerald-800 transition hover:bg-emerald-50"
-                  to="/cadastro/treinador"
+                  to="/login?signup=1"
                   id="cta-trainer-signup"
                 >
                   Criar minha vitrine grátis

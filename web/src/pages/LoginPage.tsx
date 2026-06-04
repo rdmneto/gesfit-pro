@@ -9,7 +9,7 @@ import {
 import { useState, useEffect } from "react";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import { createAccount, loginWithEmail, loginWithGoogle, resetPassword } from "../lib/auth";
 import { firebaseConfigured } from "../lib/firebase";
 import { Button } from "../components/ui/Button";
@@ -21,6 +21,7 @@ type LoginMode = "login" | "signup" | "reset";
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const sessionUser = useSessionStore((state) => state.user);
   const sessionLoading = useSessionStore((state) => state.loading);
 
@@ -39,6 +40,15 @@ export function LoginPage() {
       navigate("/app", { replace: true });
     }
   }, [sessionUser, sessionLoading, navigate]);
+
+  // Vindo da vitrine de um treinador (/login?signup=1&treinador=slug):
+  // abre direto a aba de criar conta e guarda o treinador para vincular
+  // o aluno ao concluir o onboarding.
+  useEffect(() => {
+    const trainer = searchParams.get("treinador");
+    if (trainer) window.sessionStorage.setItem("gesfit-pending-trainer", trainer);
+    if (searchParams.get("signup") === "1") setMode("signup");
+  }, [searchParams]);
 
   if (sessionLoading) {
     return (
