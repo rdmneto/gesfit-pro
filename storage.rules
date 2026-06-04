@@ -6,12 +6,11 @@ service firebase.storage {
       return request.auth != null;
     }
 
-    function hasTeamClaim(teamId) {
-      return signedIn() && request.auth.token.teamId == teamId;
-    }
-
-    function isTrainer(teamId) {
-      return hasTeamClaim(teamId) && request.auth.token.role == 'trainer';
+    // No plano Spark (sem Cloud Functions definindo custom claims), o id do
+    // time é o próprio uid do treinador dono — definido no onboarding.
+    // Por isso a posse é verificada pelo uid, e não por claims de token.
+    function isTeamOwner(teamId) {
+      return signedIn() && request.auth.uid == teamId;
     }
 
     function validImage() {
@@ -21,12 +20,12 @@ service firebase.storage {
 
     match /teams/{teamId}/branding/{fileName} {
       allow read: if true;
-      allow write: if isTrainer(teamId) && validImage();
+      allow write: if isTeamOwner(teamId) && validImage();
     }
 
     match /teams/{teamId}/profiles/{uid}/{fileName} {
-      allow read: if hasTeamClaim(teamId);
-      allow write: if hasTeamClaim(teamId)
+      allow read: if signedIn();
+      allow write: if signedIn()
         && request.auth.uid == uid
         && validImage();
     }

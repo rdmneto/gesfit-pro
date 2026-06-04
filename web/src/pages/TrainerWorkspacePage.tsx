@@ -159,10 +159,19 @@ export function TrainerWorkspacePage() {
     if (!db || !storage || !teamId) return;
     try {
       setSaving(true);
-      const fileRef = ref(storage, `teams/${teamId}/${type}_${Date.now()}_${file.name}`);
-      const snapshot = await uploadBytes(fileRef, file);
+      setSaveError("");
+      // Caminho dentro de `branding/` para casar com as Storage Rules.
+      const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
+      const fileRef = ref(storage, `teams/${teamId}/branding/${type}_${Date.now()}_${safeName}`);
+      // Corre contra um timeout para o botão nunca ficar preso em "Salvando…"
+      // caso o upload trave (ex.: CORS do bucket não liberado para o domínio).
+      const snapshot = await withTimeout(
+        uploadBytes(fileRef, file),
+        30000,
+        "Tempo esgotado ao enviar a imagem. Verifique a configuração de CORS do Storage.",
+      );
       const url = await getDownloadURL(snapshot.ref);
-      
+
       if (type === "trainer") {
         setTrainerPhotoURL(url);
         await updateDoc(doc(db, "teams", teamId), {
@@ -695,7 +704,7 @@ export function TrainerWorkspacePage() {
       )}
 
       {/* Floating Save Button */}
-      <div className="sticky bottom-4 mt-6 flex justify-end">
+      <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
         <button
           type="button"
           disabled={saving}
@@ -1021,6 +1030,14 @@ function TimeField({
 }
 
 // ── Helpers ──────────────────────────────────────────────────────────
+
+/** Rejeita a promise se ela não resolver dentro de `ms` milissegundos. */
+function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
+  return Promise.race([
+    promise,
+    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
+  ]);
+}
 
 function previewSlots(day: TrainerAvailabilityDay) {
   return [

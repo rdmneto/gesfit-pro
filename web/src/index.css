@@ -395,3 +395,12 @@ h1, h2, h3 {
     padding-bottom: 5rem;
   }
 }
+
+/* A barra inferior é exclusiva do mobile. Como estas regras não estão em
+   uma @layer, elas têm prioridade sobre o utilitário `md:hidden` (que fica
+   na layer `utilities` do Tailwind) — por isso o ocultamento é feito aqui. */
+@media (min-width: 768px) {
+  .bottom-nav {
+    display: none;
+  }
+}
