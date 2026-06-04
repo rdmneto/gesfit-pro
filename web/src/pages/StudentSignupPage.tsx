@@ -1,8 +1,17 @@
 import { CheckCircle2, HeartPulse, Ruler, Users } from "lucide-react";
 import { Link } from "react-router-dom";
-import { sampleTeams } from "../data/sample";
+import { where } from "firebase/firestore";
+import { useCollection } from "../lib/hooks";
+import type { Team } from "../types/domain";
 
 export function StudentSignupPage() {
+  const { data: teams } = useCollection<Team>(
+    "teams",
+    [where("publicListing", "==", true)],
+    [],
+    [],
+  );
+
   return (
     <section className="mx-auto max-w-6xl px-4 py-8">
       <div className="grid gap-6 lg:grid-cols-[0.8fr_1.2fr]">
@@ -34,21 +43,21 @@ export function StudentSignupPage() {
               <span className="text-sm font-semibold text-stone-700">Treinador ou equipe</span>
               <select className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3">
                 <option>Escolher depois</option>
-                {sampleTeams.map((team) => (
+                {teams.map((team) => (
                   <option key={team.id}>{team.name}</option>
                 ))}
               </select>
             </label>
-            <Field label="Nome completo" placeholder="Marina Souza" />
-            <Field label="E-mail" placeholder="marina@email.com" type="email" />
-            <Field label="Celular" placeholder="+55 85 99999-9999" />
+            <Field label="Nome completo" placeholder="Seu nome completo" />
+            <Field label="E-mail" placeholder="seu@email.com" type="email" />
+            <Field label="Celular" placeholder="+55 00 00000-0000" />
             <Field label="Senha" placeholder="Minimo 8 caracteres" type="password" />
-            <Field label="Data de nascimento" placeholder="1994-06-03" type="date" />
-            <Field label="Genero" placeholder="Feminino" />
-            <Field label="Altura (cm)" placeholder="168" type="number" />
-            <Field label="Peso inicial (kg)" placeholder="72" type="number" />
-            <Field label="Meta principal" placeholder="Reduzir abdomen" />
-            <Field label="Prazo da meta" placeholder="2026-09-30" type="date" />
+            <Field label="Data de nascimento" placeholder="" type="date" />
+            <Field label="Genero" placeholder="Selecione" />
+            <Field label="Altura (cm)" placeholder="Ex: 170" type="number" />
+            <Field label="Peso inicial (kg)" placeholder="Ex: 70" type="number" />
+            <Field label="Meta principal" placeholder="Ex: Ganho de massa" />
+            <Field label="Prazo da meta" placeholder="" type="date" />
           </div>
 
           <div className="mt-5 grid gap-3 sm:grid-cols-3">

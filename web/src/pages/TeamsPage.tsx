@@ -1,22 +1,17 @@
 import { CalendarDays, Search, Tag } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { sampleClassProducts, samplePublicSchedule, sampleTeams } from "../data/sample";
 import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
-import { useSessionStore } from "../store/session";
 import type { Team } from "../types/domain";
 import { where } from "firebase/firestore";
 
 export function TeamsPage() {
-  const isDemo = useSessionStore((state) => state.isDemo);
   const { data: dbTeams, loading } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
   const [query, setQuery] = useState("");
 
-  const allTeams = useMemo(() => {
-    return (isDemo || !dbTeams || dbTeams.length === 0) ? sampleTeams : dbTeams;
-  }, [isDemo, dbTeams]);
+  const allTeams = useMemo(() => dbTeams ?? [], [dbTeams]);
 
   const teams = useMemo(() => {
     const normalized = query.trim().toLowerCase();
@@ -31,7 +26,7 @@ export function TeamsPage() {
     });
   }, [allTeams, query]);
 
-  if (loading && !isDemo) {
+  if (loading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">
@@ -84,20 +79,12 @@ export function TeamsPage() {
 }
 
 function TrainerListItem({ team }: { team: Team }) {
-  const isDemo = useSessionStore((state) => state.isDemo);
-  const { data: dbProducts } = useClassProducts(!isDemo ? team.id : null);
+  const { data: dbProducts } = useClassProducts(team.id);
 
-  const products = useMemo(() => {
-    return isDemo 
-      ? sampleClassProducts.filter((p) => p.teamId === team.id && p.publicVisible)
-      : (dbProducts || []).filter((p) => p.active && p.publicVisible);
-  }, [isDemo, team.id, dbProducts]);
-
-  const slots = useMemo(() => {
-    return isDemo 
-      ? samplePublicSchedule.filter((s) => s.teamId === team.id && s.publicVisible)
-      : [];
-  }, [isDemo, team.id]);
+  const products = useMemo(
+    () => (dbProducts || []).filter((p) => p.active && p.publicVisible),
+    [dbProducts],
+  );
 
   const single = useMemo(() => products.find((product) => product.type === "single"), [products]);
   const packages = useMemo(() => products.filter((product) => product.type === "package"), [products]);
@@ -136,7 +123,7 @@ function TrainerListItem({ team }: { team: Team }) {
           <Summary
             icon={CalendarDays}
             label="Horários visíveis"
-            value={isDemo ? `${slots.filter((slot) => slot.available > 0).length} com vaga` : "Disponível"}
+            value="Disponível"
           />
         </div>
         <div className="mt-4 flex flex-wrap gap-2">

@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
-import { trainingModalities, sampleTeams } from "../data/sample";
+import { trainingModalities } from "../data/catalog";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
@@ -47,8 +47,7 @@ const FEATURES = [
 export function HomePage() {
   const { data: dbTeams } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
-  // Usa os dados do Firestore se houverem, senão cai de volta nos samples do time
-  const teams = useMemo(() => (dbTeams && dbTeams.length > 0) ? dbTeams : sampleTeams, [dbTeams]);
+  const teams = useMemo(() => dbTeams ?? [], [dbTeams]);
 
   const featured = useMemo(() => teams[0] || null, [teams]);
 
@@ -116,10 +115,10 @@ export function HomePage() {
               </Link>
               <Link
                 className="focus-ring inline-flex h-13 items-center gap-2 rounded-xl border border-white/20 bg-white/10 px-6 text-sm font-bold text-white backdrop-blur-sm transition hover:bg-white/20"
-                to="/t/movimento-forte"
+                to="/treinadores"
                 id="hero-cta-example"
               >
-                Ver exemplo de vitrine
+                Explorar treinadores
               </Link>
             </div>
 
@@ -305,10 +304,10 @@ export function HomePage() {
                 </Link>
                 <Link
                   className="focus-ring inline-flex h-12 items-center gap-2 rounded-xl border border-white/30 px-6 text-sm font-bold text-white transition hover:bg-white/10"
-                  to="/t/movimento-forte"
+                  to="/treinadores"
                   id="cta-see-example"
                 >
-                  Ver exemplo
+                  Ver treinadores
                 </Link>
               </div>
             </div>

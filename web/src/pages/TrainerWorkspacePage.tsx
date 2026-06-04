@@ -24,9 +24,15 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam } from "../lib/hooks";
-import { sampleTeams, sampleTrainerAvailability, trainingModalities } from "../data/sample";
+import { DEFAULT_AVAILABILITY, trainingModalities } from "../data/catalog";
 import { gymTypeIcon, searchGyms } from "../data/gyms";
 import type { GymLocation, TrainerAvailabilityDay } from "../types/domain";
+
+/** Banner padrão exibido na prévia enquanto o treinador não envia uma imagem própria. */
+const DEFAULT_BANNER_URL =
+  "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80";
+const DEFAULT_PHOTO_URL =
+  "https://images.unsplash.com/photo-1571019613454-1cb2f99b2d8b?auto=format&fit=crop&w=900&q=80";
 
 const WEEKDAY_LABELS: Record<TrainerAvailabilityDay["weekday"], string> = {
   segunda: "Segunda-feira",
@@ -57,11 +63,21 @@ function locationTypeColor(type: GymLocation["type"]) {
 }
 
 export function TrainerWorkspacePage() {
-  const isDemo = useSessionStore((state) => state.isDemo);
   const teamId = useSessionStore((state) => state.claims.teamId);
-  const { data: dbTeam, loading: teamLoading } = useTeam(!isDemo ? teamId : null);
+  const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
 
-  const team = isDemo ? sampleTeams[0] : (dbTeam || sampleTeams[0]);
+  // Time padrão (treinador sem perfil salvo ainda) — apenas defaults editáveis.
+  const team = dbTeam ?? {
+    name: "",
+    branding: {
+      primaryColor: "#0f766e",
+      secondaryColor: "#f59e0b",
+      welcomeMessage: "",
+      bio: "",
+      bannerPhotoURL: DEFAULT_BANNER_URL,
+      trainerPhotoURL: DEFAULT_PHOTO_URL,
+    },
+  };
 
   // Sub-tab state
   const [activeSubTab, setActiveSubTab] = useState<"perfil" | "locais" | "agenda">("perfil");
@@ -88,7 +104,7 @@ export function TrainerWorkspacePage() {
 
   // Availability state (includes travelMinutes)
   const [availability, setAvailability] = useState<TrainerAvailabilityDay[]>(
-    sampleTrainerAvailability,
+    DEFAULT_AVAILABILITY,
   );
 
   const [saving, setSaving] = useState(false);
@@ -96,28 +112,27 @@ export function TrainerWorkspacePage() {
   const [saveError, setSaveError] = useState("");
 
   useEffect(() => {
-    if (team) {
-      setName(team.name || "");
-      setWelcomeMessage(team.branding?.welcomeMessage || "");
-      setPrimaryColor(team.branding?.primaryColor || "#0f766e");
-      setSecondaryColor(team.branding?.secondaryColor || "#f59e0b");
-      setBio(team.branding?.bio || "");
-      setShowAgenda(team.publicProfile?.showAgenda ?? true);
-      setShowPrices(team.publicProfile?.showPrices ?? true);
-      setShowPhotos(team.publicProfile?.showPhotos ?? true);
-      setModalities(team.trainingModalities || []);
-      setTrainerPhotoURL(team.branding?.trainerPhotoURL || "");
-      setBannerPhotoURL(team.branding?.bannerPhotoURL || "");
+    if (!dbTeam) return;
+    setName(dbTeam.name || "");
+    setWelcomeMessage(dbTeam.branding?.welcomeMessage || "");
+    setPrimaryColor(dbTeam.branding?.primaryColor || "#0f766e");
+    setSecondaryColor(dbTeam.branding?.secondaryColor || "#f59e0b");
+    setBio(dbTeam.branding?.bio || "");
+    setShowAgenda(dbTeam.publicProfile?.showAgenda ?? true);
+    setShowPrices(dbTeam.publicProfile?.showPrices ?? true);
+    setShowPhotos(dbTeam.publicProfile?.showPhotos ?? true);
+    setModalities(dbTeam.trainingModalities || []);
+    setTrainerPhotoURL(dbTeam.branding?.trainerPhotoURL || "");
+    setBannerPhotoURL(dbTeam.branding?.bannerPhotoURL || "");
 
-      // Load locations
-      setSelectedGyms(team.worksAt || []);
-      setAcceptsHome(team.acceptsHomeVisit ?? false);
-      setAcceptsCondo(team.acceptsCondoGym ?? false);
+    // Load locations
+    setSelectedGyms(dbTeam.worksAt || []);
+    setAcceptsHome(dbTeam.acceptsHomeVisit ?? false);
+    setAcceptsCondo(dbTeam.acceptsCondoGym ?? false);
 
-      // Load availability (fall back to sample if not set in DB yet)
-      setAvailability(team.availability || sampleTrainerAvailability);
-    }
-  }, [dbTeam, isDemo]);
+    // Load availability (fall back to default template if not set in DB yet)
+    setAvailability(dbTeam.availability || DEFAULT_AVAILABILITY);
+  }, [dbTeam]);
 
   // Gym Search Memo
   const filteredGyms = useMemo(() => searchGyms(gymSearch).filter((g) => g.type === "gym"), [gymSearch]);
@@ -178,7 +193,7 @@ export function TrainerWorkspacePage() {
     const file = event.target.files?.[0];
     if (!file) return;
 
-    if (isDemo || !storage || !teamId) {
+    if (!storage || !teamId) {
       const reader = new FileReader();
       reader.onload = (e) => {
         const url = e.target?.result as string;
@@ -199,13 +214,9 @@ export function TrainerWorkspacePage() {
   };
 
   async function handleSave() {
-    if (isDemo || !db || !teamId) {
-      setSaving(true);
-      setTimeout(() => {
-        setSaving(false);
-        setSaveSuccess(true);
-        setTimeout(() => setSaveSuccess(false), 3000);
-      }, 800);
+    if (!db || !teamId) {
+      setSaveError("Não foi possível salvar agora. Tente novamente mais tarde.");
+      setTimeout(() => setSaveError(""), 5000);
       return;
     }
 
@@ -246,7 +257,7 @@ export function TrainerWorkspacePage() {
     }
   }
 
-  if (!isDemo && teamLoading) {
+  if (teamLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">

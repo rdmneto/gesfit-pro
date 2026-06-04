@@ -1,6 +1,6 @@
 import { Building2, Palette, UserRoundCheck } from "lucide-react";
 import { Link } from "react-router-dom";
-import { trainingModalities } from "../data/sample";
+import { trainingModalities } from "../data/catalog";
 
 export function TrainerSignupPage() {
   return (

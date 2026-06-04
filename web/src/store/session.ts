@@ -8,7 +8,6 @@ interface SessionState {
   user: User | null;
   claims: SessionClaims;
   loading: boolean;
-  isDemo: boolean;
   start: () => () => void;
   logout: () => Promise<void>;
 }
@@ -17,21 +16,17 @@ export const useSessionStore = create<SessionState>((set) => ({
   user: null,
   claims: {},
   loading: true,
-  isDemo: false,
 
   start: () => {
-    // Limpa qualquer resquício de sessão demo de versões anteriores do app
-    window.localStorage.removeItem("gesfit-demo-role");
-
     if (!auth) {
-      set({ loading: false, isDemo: false });
+      set({ loading: false });
       return () => undefined;
     }
 
     // Real Firebase Auth listener
     return onAuthStateChanged(auth, async (user) => {
       if (!user) {
-        set({ user: null, claims: {}, loading: false, isDemo: false });
+        set({ user: null, claims: {}, loading: false });
         return;
       }
 
@@ -62,13 +57,12 @@ export const useSessionStore = create<SessionState>((set) => ({
           teamId,
         },
         loading: false,
-        isDemo: false,
       });
     });
   },
 
   logout: async () => {
     if (auth) await signOut(auth);
-    set({ user: null, claims: {}, loading: false, isDemo: false });
+    set({ user: null, claims: {}, loading: false });
   },
 }));

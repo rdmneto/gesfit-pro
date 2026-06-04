@@ -1,9 +1,8 @@
 /**
- * Firestore data hooks — with graceful fallback to sample data
- * when Firebase is not configured (demo / dev mode).
+ * Firestore data hooks — return empty data when Firebase is not
+ * configured, and stream live updates via onSnapshot otherwise.
  *
- * Each hook returns { data, loading, error } and uses onSnapshot
- * for real-time updates when connected to Firestore.
+ * Each hook returns { data, loading, error }.
  */
 
 import {

@@ -1,16 +1,13 @@
 import { useMemo } from "react";
 import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag } from "lucide-react";
 import { Link, Navigate, useParams } from "react-router-dom";
-import { sampleClassProducts, samplePublicSchedule, sampleTeams } from "../data/sample";
 import { moneyFromCents } from "../lib/format";
-import { useSessionStore } from "../store/session";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import { where } from "firebase/firestore";
-import type { Team } from "../types/domain";
+import type { PublicScheduleSlot, Team } from "../types/domain";
 
 export function TeamLandingPage() {
   const { slug } = useParams();
-  const isDemo = useSessionStore((state) => state.isDemo);
 
   // Busca o time pelo slug no Firestore
   const { data: dbTeams, loading: teamsLoading } = useCollection<Team>(
@@ -20,35 +17,22 @@ export function TeamLandingPage() {
     [slug]
   );
 
-  const team = useMemo(() => {
-    const realTeam = dbTeams && dbTeams.length > 0 ? dbTeams[0] : null;
-    return realTeam || sampleTeams.find((candidate) => candidate.slug === slug) || null;
-  }, [dbTeams, slug]);
+  const team = useMemo(() => (dbTeams && dbTeams.length > 0 ? dbTeams[0] : null), [dbTeams]);
 
   const teamId = team?.id;
 
   // Busca os planos e pacotes do time
-  const { data: dbProducts, loading: productsLoading } = useClassProducts(!isDemo && teamId ? teamId : null);
+  const { data: dbProducts, loading: productsLoading } = useClassProducts(teamId ?? null);
 
-  const products = useMemo(() => {
-    if (isDemo) {
-      return sampleClassProducts.filter(
-        (product) => product.teamId === teamId && product.active && product.publicVisible
-      );
-    }
-    return (dbProducts || []).filter((p) => p.active && p.publicVisible);
-  }, [isDemo, teamId, dbProducts]);
+  const products = useMemo(
+    () => (dbProducts || []).filter((p) => p.active && p.publicVisible),
+    [dbProducts],
+  );
 
-  const publicSlots = useMemo(() => {
-    if (isDemo) {
-      return samplePublicSchedule.filter(
-        (slot) => slot.teamId === teamId && slot.publicVisible
-      );
-    }
-    return [];
-  }, [isDemo, teamId]);
+  // Agenda pública divulgada — aguardando fonte de dados real no Firestore.
+  const publicSlots: PublicScheduleSlot[] = [];
 
-  if (teamsLoading || (productsLoading && !isDemo)) {
+  if (teamsLoading || productsLoading) {
     return (
       <div className="flex min-h-[60vh] items-center justify-center">
         <div className="flex flex-col items-center gap-4">

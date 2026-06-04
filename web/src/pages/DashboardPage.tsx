@@ -22,15 +22,6 @@ import {
   YAxis,
 } from "recharts";
 import { Link } from "react-router-dom";
-import {
-  sampleMeasurements,
-  sampleStudent,
-  sampleStudents,
-  sampleTeams,
-  sampleWorkoutSessions,
-  sampleBookings,
-  samplePlans,
-} from "../data/sample";
 import { bmi } from "../lib/format";
 import { useSessionStore } from "../store/session";
 import type { WorkoutSession } from "../types/domain";
@@ -82,18 +73,17 @@ export function DashboardPage() {
 
 function StudentDashboard() {
   const user = useSessionStore((state) => state.user);
-  const isDemo = useSessionStore((state) => state.isDemo);
   const teamIdLocal = useSessionStore((state) => state.claims.teamId);
 
-  // Firestore hooks (só consultam se não for demo)
-  const { data: dbStudent, loading: studentLoading } = useStudent(!isDemo && user ? user.uid : null);
-  const { data: dbMeasurements, loading: measureLoading } = useMeasurements(!isDemo && user ? user.uid : null);
+  // Firestore hooks
+  const { data: dbStudent, loading: studentLoading } = useStudent(user ? user.uid : null);
+  const { data: dbMeasurements, loading: measureLoading } = useMeasurements(user ? user.uid : null);
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
-    !isDemo && user ? { studentId: user.uid } : {}
+    user ? { studentId: user.uid } : {}
   );
-  
+
   const studentAssignedTeamId = dbStudent?.assignedTo || teamIdLocal;
-  const { data: dbTeam } = useTeam(!isDemo ? studentAssignedTeamId : null);
+  const { data: dbTeam } = useTeam(studentAssignedTeamId);
 
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
@@ -109,18 +99,18 @@ function StudentDashboard() {
     bio: "",
   };
 
-  const student = isDemo 
-    ? sampleStudent 
-    : (dbStudent || { uid: user?.uid || "", displayName: user?.displayName || "Aluno", physiological: { alturaCm: 175 } });
-  
-  const team = isDemo 
-    ? sampleTeams[0] 
-    : (dbTeam 
-        ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } } 
-        : { name: "Sem Treinador Vinculado", branding: defaultBranding });
+  const student = dbStudent || {
+    uid: user?.uid || "",
+    displayName: user?.displayName || "Aluno",
+    physiological: { alturaCm: 175 },
+  };
 
-  const measurements = (isDemo || !dbMeasurements || dbMeasurements.length === 0) ? sampleMeasurements : dbMeasurements;
-  const workouts = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0) ? sampleWorkoutSessions : dbWorkoutSessions;
+  const team = dbTeam
+    ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } }
+    : { name: "Sem Treinador Vinculado", branding: defaultBranding };
+
+  const measurements = dbMeasurements ?? [];
+  const workouts = dbWorkoutSessions ?? [];
 
   const nextWorkout = workouts && workouts.length > 0 ? workouts[0] : null;
   const currentMeasure = measurements && measurements.length > 0 ? measurements.at(-1) : null;
@@ -138,7 +128,7 @@ function StudentDashboard() {
     [measurements],
   );
 
-  const loading = !isDemo && (studentLoading || measureLoading || workoutsLoading);
+  const loading = studentLoading || measureLoading || workoutsLoading;
 
   if (loading) {
     return (
@@ -361,16 +351,15 @@ function StudentDashboard() {
 
 function TrainerDashboard() {
   const user = useSessionStore((state) => state.user);
-  const isDemo = useSessionStore((state) => state.isDemo);
   const teamId = useSessionStore((state) => state.claims.teamId);
 
   // Firestore hooks
-  const { data: dbTeam, loading: teamLoading } = useTeam(!isDemo ? teamId : null);
-  const { data: dbStudents, loading: studentsLoading } = useStudents(!isDemo ? user?.uid : null);
+  const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
+  const { data: dbStudents, loading: studentsLoading } = useStudents(user?.uid);
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
-    !isDemo && user ? { trainerId: user.uid } : {}
+    user ? { trainerId: user.uid } : {}
   );
-  const { data: dbBookings } = useBookings(!isDemo && user ? { trainerId: user.uid } : {});
+  const { data: dbBookings } = useBookings(user ? { trainerId: user.uid } : {});
 
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
 
@@ -382,35 +371,27 @@ function TrainerDashboard() {
     bio: "",
   };
 
-  const team = isDemo 
-    ? sampleTeams[0] 
-    : (dbTeam 
-        ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } } 
-        : { name: "Meu Time", branding: defaultBranding });
+  const team = dbTeam
+    ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } }
+    : { name: "Meu Time", branding: defaultBranding };
 
   const trainerWorkouts = useMemo(() => {
-    const list = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0)
-      ? sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana") 
-      : dbWorkoutSessions;
+    const list = dbWorkoutSessions ?? [];
     return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
-  }, [isDemo, dbWorkoutSessions]);
+  }, [dbWorkoutSessions]);
 
-  const students = (isDemo || !dbStudents || dbStudents.length === 0) ? sampleStudents : dbStudents;
-  const bookings = (isDemo || !dbBookings || dbBookings.length === 0) ? sampleBookings : dbBookings;
+  const students = dbStudents ?? [];
+  const bookings = dbBookings ?? [];
 
   const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
   const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
   const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
   const uniqueStudentsToday = new Set(todayWorkouts.map((w) => w.studentId)).size;
 
-  // Dynamic KPI calculations
+  // Estimativa de faturamento por ticket médio (ajustar quando houver coleção de planos com preço).
+  const AVERAGE_TICKET = 350;
   const estimatedRevenue = useMemo(() => {
-    return students
-      .filter((s) => s.status === "active")
-      .reduce((sum, student) => {
-        const plan = samplePlans.find((p) => p.id === student.planId);
-        return sum + (plan ? plan.priceCents / 100 : 350);
-      }, 0);
+    return students.filter((s) => s.status === "active").length * AVERAGE_TICKET;
   }, [students]);
 
   const presenceRate = useMemo(() => {
@@ -434,7 +415,7 @@ function TrainerDashboard() {
     }).length;
   }, [students]);
 
-  const loading = !isDemo && (teamLoading || studentsLoading || workoutsLoading);
+  const loading = teamLoading || studentsLoading || workoutsLoading;
 
   if (loading) {
     return (

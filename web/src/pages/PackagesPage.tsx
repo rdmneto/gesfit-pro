@@ -2,7 +2,6 @@ import {
   Banknote,
   CheckCircle2,
   Dumbbell,
-  FileUp,
   Megaphone,
   PackagePlus,
   Send,
@@ -12,13 +11,7 @@ import { useState, useEffect } from "react";
 import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useClassProducts, usePendingPurchases, useStudents } from "../lib/hooks";
-import {
-  sampleClassProducts,
-  samplePurchases,
-  sampleStudent,
-  sampleStudents,
-} from "../data/sample";
+import { useClassProducts, usePendingPurchases } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import type { ClassProductType, PurchaseStatus, ClassProduct, PromotionalPackage } from "../types/domain";
 
@@ -30,19 +23,14 @@ const statusLabel: Record<PurchaseStatus, string> = {
 };
 
 export function PackagesPage() {
-  const isDemo = useSessionStore((state) => state.isDemo);
   const teamId = useSessionStore((state) => state.claims.teamId);
   const user = useSessionStore((state) => state.user);
 
-  // Load from DB if not demo
-  const { data: dbProducts, loading: loadingProducts } = useClassProducts(!isDemo ? teamId : null);
-  const { data: dbPurchases, loading: loadingPurchases } = usePendingPurchases(!isDemo ? teamId : null);
+  const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
+  const { data: dbPurchases, loading: loadingPurchases } = usePendingPurchases(teamId);
 
-  const { data: dbStudents } = useStudents(!isDemo ? user?.uid : null);
-  const students = (isDemo || !dbStudents || dbStudents.length === 0) ? sampleStudents : dbStudents;
-
-  const activeProducts = (isDemo || !dbProducts || dbProducts.length === 0) ? sampleClassProducts.filter(p => p.active) : dbProducts;
-  const purchases = (isDemo || !dbPurchases || dbPurchases.length === 0) ? samplePurchases : dbPurchases;
+  const activeProducts = dbProducts ?? [];
+  const purchases = dbPurchases ?? [];
 
   // Form states for new offer
   const [productType, setProductType] = useState<ClassProductType>("single");
@@ -59,21 +47,11 @@ export function PackagesPage() {
   const [promoQty, setPromoQty] = useState("");
   const [promos, setPromos] = useState<PromotionalPackage[]>([]);
 
-  // Simulated purchase state
-  const [simulatedProductIdx, setSimulatedProductIdx] = useState(0);
-  const [simulatedStudentId, setSimulatedStudentId] = useState("");
-
   useEffect(() => {
     if (user?.displayName && !orientador) {
       setOrientador(user.displayName);
     }
   }, [user, orientador]);
-
-  useEffect(() => {
-    if (students.length > 0 && !simulatedStudentId) {
-      setSimulatedStudentId(students[0].uid);
-    }
-  }, [students, simulatedStudentId]);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -96,8 +74,8 @@ export function PackagesPage() {
     setMessage("");
 
     const newProduct: Omit<ClassProduct, "id"> = {
-      teamId: teamId || "team-movimento",
-      trainerId: user?.uid || "trainer-ana",
+      teamId: teamId || "",
+      trainerId: user?.uid || "",
       name,
       type: productType,
       classesCount: parseInt(classesCount, 10),
@@ -107,16 +85,9 @@ export function PackagesPage() {
       description,
     };
 
-    if (isDemo || !db) {
-      // Simulate saving in demo mode
-      setTimeout(() => {
-        setSaving(false);
-        setMessage("Oferta cadastrada com sucesso! (Modo de Demonstração)");
-        setName("");
-        setPrice("");
-        setClassesCount("");
-        setDescription("");
-      }, 800);
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
+      setSaving(false);
       return;
     }
 
@@ -149,8 +120,8 @@ export function PackagesPage() {
 
     const newPromo = {
       id: `promo-${Date.now()}`,
-      teamId: teamId || "team-movimento",
-      trainerId: user?.uid || "trainer-ana",
+      teamId: teamId || "",
+      trainerId: user?.uid || "",
       name: promoName,
       type: "package" as const,
       classesCount: parseInt(promoClasses, 10),
@@ -181,9 +152,8 @@ export function PackagesPage() {
   }
 
   async function handleReviewPurchase(purchaseId: string, status: "paid" | "rejected") {
-    if (isDemo || !db) {
-      setMessage(`Compra ${status === "paid" ? "confirmada" : "recusada"} com sucesso! (Modo Demo)`);
-      setTimeout(() => setMessage(""), 3000);
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
       return;
     }
 
@@ -192,48 +162,13 @@ export function PackagesPage() {
       await updateDoc(ref, {
         status,
         reviewedAt: new Date().toISOString(),
-        reviewedBy: user?.uid || "trainer-ana",
+        reviewedBy: user?.uid || "",
       });
       setMessage(`Compra ${status === "paid" ? "confirmada" : "recusada"}!`);
       setTimeout(() => setMessage(""), 3000);
     } catch (err: any) {
       console.error(err);
       setError("Erro ao revisar compra: " + err.message);
-    }
-  }
-
-  async function handleSimulatePurchase() {
-    const selectedProduct = activeProducts[simulatedProductIdx];
-    if (!selectedProduct) return;
-
-    const student = students.find((s) => s.uid === simulatedStudentId) || sampleStudent;
-    const newPurchase = {
-      studentId: student.uid,
-      studentName: student.displayName,
-      productId: selectedProduct.id,
-      productName: selectedProduct.name,
-      classesCount: selectedProduct.classesCount,
-      amountCents: selectedProduct.priceCents,
-      status: "payment_submitted" as const,
-      submittedAt: new Date().toISOString().split("T")[0],
-      proofFileName: "comprovante_pix_simulado.pdf",
-    };
-
-    if (isDemo || !db) {
-      setMessage("Simulação: Comprovante de pagamento enviado pelo aluno!");
-      setTimeout(() => setMessage(""), 3000);
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "classPurchases"), {
-        ...newPurchase,
-        teamId: teamId || "team-movimento",
-      });
-      setMessage("Simulação: Compra enviada! Verifique na conferência ao lado.");
-      setTimeout(() => setMessage(""), 4000);
-    } catch (err: any) {
-      setError("Erro na simulação: " + err.message);
     }
   }
 
@@ -486,62 +421,8 @@ export function PackagesPage() {
         </section>
       </div>
 
-      {/* Grid: Conferência e Simulação de Compra */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="card p-5">
-          <div className="flex items-center gap-2">
-            <FileUp aria-hidden="true" className="text-emerald-800" size={20} />
-            <h2 className="text-lg font-black text-stone-950">Simulador de compra (Aluno)</h2>
-          </div>
-          <p className="mt-1 text-xs text-stone-400">
-            Use esta ferramenta para simular que o aluno enviou o comprovante de PIX do pacote escolhido.
-          </p>
-          <div className="mt-4 grid gap-4">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Aluno Simulado</span>
-              <select
-                className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
-                value={simulatedStudentId}
-                onChange={(e) => setSimulatedStudentId(e.target.value)}
-              >
-                {students.map((s) => (
-                  <option key={s.uid} value={s.uid}>
-                    {s.displayName}
-                  </option>
-                ))}
-                {students.length === 0 && (
-                  <option value="">Nenhum aluno disponível</option>
-                )}
-              </select>
-            </label>
-          </div>
-          <div className="mt-4 grid gap-4">
-            <label className="block">
-              <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Escolher pacote comercial</span>
-              <select
-                className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
-                value={simulatedProductIdx}
-                onChange={(e) => setSimulatedProductIdx(parseInt(e.target.value, 10))}
-              >
-                {activeProducts.map((product, idx) => (
-                  <option key={product.id} value={idx}>
-                    {product.name} - {moneyFromCents(product.priceCents)}
-                  </option>
-                ))}
-              </select>
-            </label>
-          </div>
-          <button
-            type="button"
-            className="focus-ring btn btn-primary mt-5 px-5 h-11"
-            onClick={handleSimulatePurchase}
-            disabled={activeProducts.length === 0}
-          >
-            <CheckCircle2 aria-hidden="true" size={16} />
-            Simular envio de PIX
-          </button>
-        </section>
-
+      {/* Conferência de comprovantes enviados pelos alunos */}
+      <div className="mt-6">
         <section className="card p-5">
           <div className="flex items-center gap-2">
             <CheckCircle2 aria-hidden="true" className="text-emerald-800" size={20} />

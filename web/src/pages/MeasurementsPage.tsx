@@ -35,7 +35,6 @@ import {
   useStudents,
 } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
-import { sampleStudents, sampleMeasurements, samplePendingMeasurements } from "../data/sample";
 import type { Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
 export function MeasurementsPage() {
@@ -55,9 +54,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const { data: allStudents, loading: studentsLoading } = useStudents(trainerId);
   const [query, setQuery] = useState("");
 
-  const studentsList = useMemo(() => {
-    return (allStudents && allStudents.length > 0) ? allStudents : sampleStudents;
-  }, [allStudents]);
+  const studentsList = useMemo(() => allStudents ?? [], [allStudents]);
 
   const sortedStudents = useMemo(
     () => [...studentsList].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
@@ -78,19 +75,9 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
   const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
 
-  const measurements = useMemo(() => {
-    if (!selectedMeasurements || selectedMeasurements.length === 0) {
-      return sampleMeasurements.filter((m) => m.studentId === effectiveSelectedId);
-    }
-    return selectedMeasurements;
-  }, [selectedMeasurements, effectiveSelectedId]);
+  const measurements = useMemo(() => selectedMeasurements ?? [], [selectedMeasurements]);
 
-  const pending = useMemo(() => {
-    if (!selectedPending || selectedPending.length === 0) {
-      return samplePendingMeasurements.filter((m) => m.studentId === effectiveSelectedId);
-    }
-    return selectedPending;
-  }, [selectedPending, effectiveSelectedId]);
+  const pending = useMemo(() => selectedPending ?? [], [selectedPending]);
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -277,13 +264,9 @@ function StudentMeasurementsPage({
   const { data: allMeasurements = [] } = useMeasurements(studentId);
   const { data: pendingMeasurements = [] } = usePendingMeasurements(studentId);
 
-  const effectiveMeasurements = useMemo(() => {
-    return (!allMeasurements || allMeasurements.length === 0) ? sampleMeasurements : allMeasurements;
-  }, [allMeasurements]);
+  const effectiveMeasurements = useMemo(() => allMeasurements ?? [], [allMeasurements]);
 
-  const effectivePending = useMemo(() => {
-    return (!pendingMeasurements || pendingMeasurements.length === 0) ? samplePendingMeasurements : pendingMeasurements;
-  }, [pendingMeasurements]);
+  const effectivePending = useMemo(() => pendingMeasurements ?? [], [pendingMeasurements]);
 
   const sortedMeasurements = useMemo(
     () => [...effectiveMeasurements].sort((a, b) => a.measuredAt.localeCompare(b.measuredAt)),

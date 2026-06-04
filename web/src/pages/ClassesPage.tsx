@@ -13,12 +13,7 @@ import { collection, addDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam, useStudents, useWorkoutSessions } from "../lib/hooks";
-import {
-  sampleTeams,
-  sampleStudents,
-  sampleWorkoutSessions,
-  sampleTrainerAvailability,
-} from "../data/sample";
+import { DEFAULT_AVAILABILITY } from "../data/catalog";
 import {
   type CalendarView,
   type CalendarMode,
@@ -34,27 +29,23 @@ import {
 import type { WorkoutSession, TrainerAvailabilityDay } from "../types/domain";
 
 export function ClassesPage() {
-  const isDemo = useSessionStore((state) => state.isDemo);
   const teamId = useSessionStore((state) => state.claims.teamId);
   const user = useSessionStore((state) => state.user);
 
   // Firestore hooks
-  const { data: dbTeam } = useTeam(!isDemo ? teamId : null);
-  const { data: dbStudents } = useStudents(!isDemo ? user?.uid : null);
+  const { data: dbTeam } = useTeam(teamId);
+  const { data: dbStudents } = useStudents(user?.uid);
   const { data: dbWorkoutSessions } = useWorkoutSessions(
-    !isDemo && user ? { trainerId: user.uid } : {}
+    user ? { trainerId: user.uid } : {}
   );
 
-  const team = isDemo ? sampleTeams[0] : (dbTeam || sampleTeams[0]);
-  const students = (isDemo || !dbStudents || dbStudents.length === 0) ? sampleStudents : dbStudents;
+  const students = dbStudents ?? [];
   const trainerWorkouts = useMemo(() => {
-    const list = (isDemo || !dbWorkoutSessions || dbWorkoutSessions.length === 0)
-      ? sampleWorkoutSessions.filter((w) => w.trainerId === "trainer-ana") 
-      : dbWorkoutSessions;
+    const list = dbWorkoutSessions ?? [];
     return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
-  }, [isDemo, dbWorkoutSessions]);
+  }, [dbWorkoutSessions]);
 
-  const availability: TrainerAvailabilityDay[] = team.availability || sampleTrainerAvailability;
+  const availability: TrainerAvailabilityDay[] = dbTeam?.availability || DEFAULT_AVAILABILITY;
 
   // Calendar states
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
@@ -126,11 +117,11 @@ export function ClassesPage() {
     const newSession: Omit<WorkoutSession, "id"> = {
       studentId: student.uid,
       studentName: student.displayName,
-      trainerId: user?.uid || "trainer-ana",
+      trainerId: user?.uid || "",
       title: `Treino de ${scheduleFocus}`,
       modality: "Musculação",
       startsAt,
-      address: "Academia Gesfit Pro",
+      address: "",
       proposedWorkout: scheduleFocus,
       durationMinutes: parseInt(scheduleDuration, 10),
       plannedCalories: 320,
@@ -138,13 +129,9 @@ export function ClassesPage() {
       exercises: [scheduleFocus],
     };
 
-    if (isDemo || !db) {
-      setTimeout(() => {
-        setSaving(false);
-        setMessage("Aula agendada com sucesso! (Modo de Demonstração)");
-        setScheduleDate("");
-        setScheduleTime("");
-      }, 800);
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
+      setSaving(false);
       return;
     }
 
