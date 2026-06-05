@@ -109,6 +109,10 @@ function StudentDashboard() {
     ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } }
     : { name: "Sem Treinador Vinculado", branding: defaultBranding };
 
+  // O painel do aluno "veste" a marca do treinador ativo.
+  const primary = team.branding.primaryColor || "#0f766e";
+  const secondary = team.branding.secondaryColor || "#f59e0b";
+
   const measurements = dbMeasurements ?? [];
   const workouts = (dbWorkoutSessions ?? []).filter(
     (w) => !activeTrainerId || w.trainerId === activeTrainerId,
@@ -160,15 +164,19 @@ function StudentDashboard() {
       {/* Hero */}
       <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
         <section
-          className="overflow-hidden rounded-xl border border-stone-200 bg-stone-950 text-white"
+          className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-950 text-white"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(12,19,16,0.92), rgba(12,19,16,0.5)), url(${team.branding.bannerPhotoURL})`,
+            backgroundImage: `linear-gradient(90deg, ${primary}F2, ${primary}66), url(${team.branding.bannerPhotoURL})`,
             backgroundPosition: "center",
             backgroundSize: "cover",
           }}
         >
+          <span className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: secondary }} />
           <div className="p-6 sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Painel do aluno</p>
+            <p className="flex items-center gap-1.5 text-xs font-bold uppercase tracking-widest text-white/80">
+              <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: secondary }} />
+              Painel do aluno
+            </p>
             <h1 className="mt-2 text-3xl font-black sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>Hoje e sua rotina</h1>
             <p className="mt-3 max-w-2xl leading-7 text-stone-200">
               {student.displayName}, seu próximo treino está pronto com {team.name}.
@@ -189,8 +197,11 @@ function StudentDashboard() {
             <h2 className="text-lg font-black text-stone-950">Próximo treino</h2>
           </div>
           {nextWorkout ? (
-            <div className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{nextWorkout.modality}</p>
+            <div
+              className="mt-4 rounded-xl border p-5"
+              style={{ borderColor: `${primary}40`, backgroundColor: `${primary}12` }}
+            >
+              <p className="text-xs font-bold uppercase tracking-wider" style={{ color: primary }}>{nextWorkout.modality}</p>
               <h3 className="mt-1 text-2xl font-black text-stone-950">{nextWorkout.title}</h3>
               <p className="mt-2 text-sm text-stone-600">{formatDateTime(nextWorkout.startsAt)}</p>
               <div className="mt-4 flex flex-wrap gap-2">
@@ -200,7 +211,8 @@ function StudentDashboard() {
               </div>
               <button
                 type="button"
-                className="focus-ring btn btn-primary mt-5 w-full"
+                className="focus-ring btn mt-5 w-full text-white hover:opacity-90"
+                style={{ backgroundColor: primary }}
                 onClick={() => startWorkout(nextWorkout)}
               >
                 <Play aria-hidden="true" size={18} />

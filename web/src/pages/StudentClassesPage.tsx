@@ -50,6 +50,7 @@ export function StudentClassesPage() {
   );
   const products = dbProducts;
   const canBuy = activeEnrollment?.status === "active";
+  const brandPrimary = team?.branding?.primaryColor || "#0f766e";
 
   const [showBuyForm, setShowBuyForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ClassProduct | null>(null);
@@ -167,8 +168,8 @@ export function StudentClassesPage() {
           ) : (
             <>
               <p
-                className={["mt-1 text-5xl font-black", isLow ? "text-amber-700" : "text-emerald-800"].join(" ")}
-                style={{ fontFamily: "var(--font-display)" }}
+                className={["mt-1 text-5xl font-black", isLow ? "text-amber-700" : ""].join(" ")}
+                style={{ fontFamily: "var(--font-display)", color: isLow ? undefined : brandPrimary }}
               >
                 {remainingClasses}
               </p>
