@@ -5,6 +5,7 @@ export type StudentStatus = "pending" | "active" | "blocked" | "inactive";
 export type BookingStatus = "scheduled" | "attended" | "no_show" | "cancelled";
 export type ClassProductType = "single" | "package";
 export type PurchaseStatus = "awaiting_payment" | "payment_submitted" | "paid" | "rejected";
+export type EnrollmentStatus = "pending" | "active" | "paused" | "cancelled";
 export type TrainingModality =
   | "Musculação"
   | "Funcional"
@@ -143,9 +144,29 @@ export interface Student {
   contractVersion?: string;
 }
 
+/**
+ * Vínculo entre um aluno e um treinador. Um aluno pode ter vários vínculos
+ * (vários treinadores) e alternar entre eles. Cada vínculo tem o próprio
+ * saldo de aulas e ciclo de aprovação.
+ */
+export interface Enrollment {
+  id: string; // `${studentId}__${trainerId}`
+  studentId: string;
+  studentName: string;
+  trainerId: string; // == teamId do treinador
+  teamName?: string; // denormalizado para listagem do aluno
+  status: EnrollmentStatus;
+  classesQuota: number; // saldo de aulas com ESTE treinador
+  classesUsed: number;
+  createdAt: string;
+  approvedAt?: string;
+}
+
 export interface ClassPurchase {
   id: string;
   studentId: string;
+  trainerId?: string;
+  teamId?: string;
   productId: string;
   productName: string;
   classesCount: number;

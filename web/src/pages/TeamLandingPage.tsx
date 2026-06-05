@@ -4,6 +4,9 @@ import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
+import { useActiveTrainer } from "../lib/activeTrainer";
+import { requestEnrollment } from "../lib/enrollments";
+import { db } from "../lib/firebase";
 import { where } from "firebase/firestore";
 import type { PublicScheduleSlot, Team } from "../types/domain";
 
@@ -12,6 +15,7 @@ export function TeamLandingPage() {
   const navigate = useNavigate();
   const user = useSessionStore((state) => state.user);
   const role = useSessionStore((state) => state.claims.role);
+  const setActiveTrainer = useActiveTrainer((state) => state.setActiveTrainer);
 
   // Busca o time pelo slug no Firestore
   const { data: dbTeams, loading: teamsLoading } = useCollection<Team>(
@@ -54,9 +58,9 @@ export function TeamLandingPage() {
   // Ação de "Contratar" ciente do estado de login:
   // - visitante → cria conta (já marcando este treinador)
   // - logado sem perfil → completa o cadastro (onboarding)
-  // - aluno → vai para a área de compra de aulas
+  // - aluno → solicita vínculo com este treinador (pending) e o torna ativo
   // - treinador → volta ao painel
-  function handleContract() {
+  async function handleContract() {
     if (team?.slug) {
       window.sessionStorage.setItem("gesfit-pending-trainer", team.slug);
     }
@@ -72,7 +76,20 @@ export function TeamLandingPage() {
       navigate("/app");
       return;
     }
-    navigate("/app/minhas-aulas");
+    if (db && team?.id) {
+      try {
+        await requestEnrollment(db, {
+          studentId: user.uid,
+          studentName: user.displayName || "Aluno",
+          trainerId: team.id,
+          teamName: team.name,
+        });
+        setActiveTrainer(team.id);
+      } catch (err) {
+        console.error("Erro ao solicitar vínculo com o treinador:", err);
+      }
+    }
+    navigate("/app/meus-treinadores");
   }
 
   return (

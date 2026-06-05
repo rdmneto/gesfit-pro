@@ -32,10 +32,13 @@ import {
   useMeasurements,
   usePendingMeasurements,
   useStudent,
-  useStudents,
+  useTrainerStudents,
 } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
-import type { Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
+import { approveEnrollment } from "../lib/enrollments";
+import type { Enrollment, Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
+
+type StudentWithEnrollment = Student & { enrollment: Enrollment };
 
 export function MeasurementsPage() {
   const role = useSessionStore((state) => state.claims.role);
@@ -51,15 +54,35 @@ export function MeasurementsPage() {
 
 function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const user = useSessionStore((state) => state.user);
-  const { data: allStudents, loading: studentsLoading } = useStudents(trainerId);
+  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
   const [query, setQuery] = useState("");
 
-  const studentsList = useMemo(() => allStudents ?? [], [allStudents]);
+  const studentsList = useMemo<StudentWithEnrollment[]>(() => allStudents ?? [], [allStudents]);
 
-  const sortedStudents = useMemo(
-    () => [...studentsList].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
+  // Solicitações de vínculo aguardando aprovação do treinador.
+  const pendingRequests = useMemo(
+    () => studentsList.filter((s) => s.enrollment?.status === "pending"),
     [studentsList],
   );
+
+  const activeStudents = useMemo(
+    () => studentsList.filter((s) => s.enrollment?.status !== "pending"),
+    [studentsList],
+  );
+
+  const sortedStudents = useMemo(
+    () => [...activeStudents].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
+    [activeStudents],
+  );
+
+  async function handleApprove(enrollmentId: string) {
+    if (!db) return;
+    try {
+      await approveEnrollment(db, enrollmentId);
+    } catch (err) {
+      console.error("Erro ao aprovar vínculo:", err);
+    }
+  }
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
 
@@ -110,12 +133,12 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
       <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Alunos e metricas
+            Alunos e métricas
           </p>
           <h1 className="mt-2 text-3xl font-black">Lista de alunos</h1>
           <p className="mt-2 max-w-3xl leading-7 text-stone-600">
-            Busque alunos em ordem alfabetica, selecione um perfil e lance metricas. Elas ficam
-            pendentes ate o aluno confirmar no proprio perfil.
+            Busque alunos em ordem alfabética, selecione um perfil e lance métricas. Elas ficam
+            pendentes até o aluno confirmar no próprio perfil.
           </p>
         </div>
         <label className="relative block lg:w-80">
@@ -134,13 +157,47 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
         </label>
       </div>
 
+      {/* Solicitações de vínculo pendentes */}
+      {pendingRequests.length > 0 && (
+        <section className="mt-6 rounded-2xl border border-amber-200 bg-amber-50 p-5">
+          <h2 className="text-lg font-black text-amber-900">
+            Solicitações de vínculo ({pendingRequests.length})
+          </h2>
+          <p className="mt-1 text-sm text-amber-800">
+            Alunos que pediram para treinar com você. Aprove para liberar a compra de aulas.
+          </p>
+          <div className="mt-4 grid gap-3">
+            {pendingRequests.map((student) => (
+              <article
+                key={student.uid}
+                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-4"
+              >
+                <div>
+                  <p className="font-black text-stone-950">{student.displayName}</p>
+                  <p className="mt-0.5 text-sm text-stone-500">
+                    {student.onboarding?.email ?? "Sem e-mail"}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="focus-ring btn btn-primary btn-sm"
+                  onClick={() => handleApprove(student.enrollment.id)}
+                >
+                  <CheckCircle2 size={15} /> Aprovar
+                </button>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
+
       {studentsLoading ? (
         <div className="mt-8 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" /></div>
       ) : sortedStudents.length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-stone-200 bg-stone-50 py-16 text-center">
           <Users className="mx-auto mb-4 text-stone-300" size={40} />
-          <p className="font-semibold text-stone-500">Nenhum aluno cadastrado ainda</p>
-          <p className="mt-1 text-sm text-stone-400">Os alunos que se vincularem a você aparecerão aqui.</p>
+          <p className="font-semibold text-stone-500">Nenhum aluno ativo ainda</p>
+          <p className="mt-1 text-sm text-stone-400">Os alunos que você aprovar aparecerão aqui.</p>
         </div>
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
@@ -236,7 +293,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
 
                 {pending.length > 0 && (
                   <section className="rounded-lg border border-amber-200 bg-amber-50 p-5">
-                    <h2 className="text-xl font-black">Aguardando confirmacao</h2>
+                    <h2 className="text-xl font-black">Aguardando confirmação</h2>
                     <div className="mt-4 grid gap-3">
                       {pending.map((measurement) => (
                         <MeasurementReviewCard key={measurement.id} measurement={measurement} />
@@ -320,12 +377,12 @@ function StudentMeasurementsPage({
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Medidas e evolucao
+            Medidas e evolução
           </p>
           <h1 className="mt-2 text-3xl font-black">Acompanhamento do aluno</h1>
           <p className="mt-2 max-w-3xl leading-7 text-stone-600">
             Registre suas próprias medidas ou confirme as lançadas pelo seu personal.
-            Apenas medidas confirmadas entram no grafico de evolucao.
+            Apenas medidas confirmadas entram no gráfico de evolução.
           </p>
         </div>
         <div className="rounded-lg border border-stone-200 bg-white px-4 py-3">
@@ -338,11 +395,11 @@ function StudentMeasurementsPage({
         <section className="mt-6 rounded-lg border border-amber-200 bg-amber-50 p-5">
           <div className="flex items-center gap-2">
             <CheckCircle2 aria-hidden="true" className="text-amber-800" size={22} />
-            <h2 className="text-xl font-black">Metricas para confirmar</h2>
+            <h2 className="text-xl font-black">Métricas para confirmar</h2>
           </div>
           <p className="mt-2 text-sm leading-6 text-amber-950">
-            Confirme apenas se os dados estiverem corretos. Depois da confirmacao, eles entram no
-            seu historico e no grafico.
+            Confirme apenas se os dados estiverem corretos. Depois da confirmação, eles entram no
+            seu histórico e no gráfico.
           </p>
           <div className="mt-4 grid gap-3 lg:grid-cols-2">
             {effectivePending.map((measurement) => (
@@ -355,7 +412,7 @@ function StudentMeasurementsPage({
                     onClick={() => handleAccept(measurement)}
                   >
                     <CheckCircle2 aria-hidden="true" size={17} />
-                    Confirmar metricas
+                    Confirmar métricas
                   </button>
                   <button
                     type="button"
@@ -379,7 +436,7 @@ function StudentMeasurementsPage({
         <Metric icon={Activity} label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
         <Metric
           icon={TrendingDown}
-          label="Variacao desde inicio"
+          label="Variação desde início"
           value={`${weightChange > 0 ? "+" : ""}${weightChange} kg`}
         />
         <Metric icon={Ruler} label="IMC atual" value={currentBmi ? `${currentBmi}` : "-"} />
@@ -389,7 +446,7 @@ function StudentMeasurementsPage({
         <section className="rounded-lg border border-stone-200 bg-white p-5">
           <div className="flex items-center gap-2">
             <UserRound aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Status das metricas</h2>
+            <h2 className="text-xl font-black">Status das métricas</h2>
           </div>
           <div className="mt-4 grid gap-3">
             <div className="rounded-md bg-stone-100 p-4">
@@ -397,7 +454,7 @@ function StudentMeasurementsPage({
               <p className="mt-1 text-2xl font-black">{effectiveMeasurements.length}</p>
             </div>
             <div className="rounded-md bg-amber-50 p-4">
-              <p className="text-sm text-amber-900">Aguardando confirmacao</p>
+              <p className="text-sm text-amber-900">Aguardando confirmação</p>
               <p className="mt-1 text-2xl font-black text-amber-950">{effectivePending.length}</p>
             </div>
           </div>
@@ -406,13 +463,13 @@ function StudentMeasurementsPage({
         <section className="rounded-lg border border-stone-200 bg-white p-5">
           <div className="flex items-center gap-2">
             <Activity aria-hidden="true" className="text-emerald-800" size={22} />
-            <h2 className="text-xl font-black">Grafico de evolucao</h2>
+            <h2 className="text-xl font-black">Gráfico de evolução</h2>
           </div>
           <MeasurementChart measurements={sortedMeasurements} />
         </section>
       </div>
 
-      <MeasurementsHistory measurements={sortedMeasurements} title="Historico salvo" />
+      <MeasurementsHistory measurements={sortedMeasurements} title="Histórico salvo" />
     </section>
   );
 }
@@ -485,7 +542,7 @@ function SelfMeasurementForm({
           <div>
             <p className="font-black text-emerald-900">Registrar minhas medidas</p>
             <p className="text-sm text-emerald-700">
-              Medidas registradas por voc\u00ea s\u00e3o confirmadas automaticamente
+              Medidas registradas por você são confirmadas automaticamente
             </p>
           </div>
         </div>
@@ -511,26 +568,26 @@ function SelfMeasurementForm({
             <Field label="Peso (kg)" name="weightKg" placeholder="68.7" type="number" step="0.1" required />
             <Field label="Cintura (cm)" name="waistCm" placeholder="80" type="number" step="0.1" required />
             <Field label="Quadril (cm)" name="hipCm" placeholder="100" type="number" step="0.1" required />
-            <Field label="T\u00f3rax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
+            <Field label="Tórax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
             <Field label="Gordura corporal (%)" name="bodyFatPercent" placeholder="27.9" type="number" step="0.1" />
           </div>
 
           <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">
-            Circunfer\u00eancias adicionais{" "}
+            Circunferências adicionais{" "}
             <span className="normal-case font-normal text-stone-300">(opcional)</span>
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <Field label="Bra\u00e7o dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
+            <Field label="Braço dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
             <Field label="Coxa (cm)" name="thighCm" placeholder="55" type="number" step="0.1" />
             <Field label="Panturrilha (cm)" name="calfCm" placeholder="37" type="number" step="0.1" />
           </div>
 
           <label className="mt-5 block">
-            <span className="text-sm font-semibold text-stone-700">Observa\u00e7\u00f5es</span>
+            <span className="text-sm font-semibold text-stone-700">Observações</span>
             <textarea
               className="focus-ring mt-2 min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
               name="notes"
-              placeholder="Ex: medida feita em jejum, logo pela manh\u00e3..."
+              placeholder="Ex: medida feita em jejum, logo pela manhã..."
             />
           </label>
 
@@ -554,7 +611,7 @@ function SelfMeasurementForm({
               ) : (
                 <Plus aria-hidden="true" size={16} />
               )}
-              {saving ? "Salvando\u2026" : "Salvar minhas medidas"}
+              {saving ? "Salvando…" : "Salvar minhas medidas"}
             </button>
             <button
               type="button"
@@ -684,9 +741,9 @@ function TrainerMeasurementsHistory({ measurements }: { measurements: StudentMea
       <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
         <div>
           <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Historico grafico
+            Histórico gráfico
           </p>
-          <h2 className="mt-1 text-xl font-black">Evolucao do aluno</h2>
+          <h2 className="mt-1 text-xl font-black">Evolução do aluno</h2>
         </div>
         <span className="rounded-md bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700">
           {sortedMeasurements.length} registros aceitos
@@ -817,8 +874,8 @@ function TrainerMeasurementsHistory({ measurements }: { measurements: StudentMea
         </>
       ) : (
         <div className="mt-5 rounded-md border border-dashed border-stone-300 bg-stone-50 p-5 text-sm leading-6 text-stone-600">
-          Nenhuma metrica aceita ainda. Assim que o aluno confirmar uma avaliacao, o historico
-          grafico aparecera aqui.
+          Nenhuma métrica aceita ainda. Assim que o aluno confirmar uma avaliacao, o histórico
+          gráfico aparecerá aqui.
         </div>
       )}
     </section>
@@ -837,7 +894,7 @@ function TrendMetric({
   unit: string;
 }) {
   const deltaText =
-    delta === null ? "Sem comparativo" : `${delta > 0 ? "+" : ""}${delta} ${unit} desde o ultimo`;
+    delta === null ? "Sem comparativo" : `${delta > 0 ? "+" : ""}${delta} ${unit} desde o último`;
   const positive = delta !== null && delta <= 0;
 
   return (
@@ -875,7 +932,7 @@ function MeasurementsHistory({
               <Th>Quadril</Th>
               <Th>Torax</Th>
               <Th>Gordura</Th>
-              <Th>Observacoes</Th>
+              <Th>Observações</Th>
             </tr>
           </thead>
           <tbody>

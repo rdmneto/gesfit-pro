@@ -3,12 +3,15 @@ import { collection, doc, getDocs, limit, query, setDoc, where } from "firebase/
 import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
+import { useActiveTrainer } from "../lib/activeTrainer";
+import { requestEnrollment } from "../lib/enrollments";
 import { Button } from "../components/ui/Button";
 
 type Step = "role-select" | "contract" | "details-student" | "details-trainer";
 
 export function OnboardingPage() {
   const user = useSessionStore((state) => state.user);
+  const setActiveTrainer = useActiveTrainer((state) => state.setActiveTrainer);
   const [step, setStep] = useState<Step>("role-select");
   const [pendingRole, setPendingRole] = useState<"student" | "trainer" | null>(null);
   const [contractAccepted, setContractAccepted] = useState(false);
@@ -48,10 +51,11 @@ export function OnboardingPage() {
     setLoading(true);
 
     try {
-      // 0. Se o aluno veio da vitrine de um treinador, vincula a ele já na
-      //    criação (as regras só permitem definir assignedTo na criação).
+      // 0. Se o aluno veio da vitrine de um treinador, resolve o treinador
+      //    para criar o vínculo logo após o cadastro.
       const pendingSlug = window.sessionStorage.getItem("gesfit-pending-trainer");
       let trainerId = "";
+      let trainerName = "";
       if (pendingSlug) {
         try {
           const snap = await getDocs(
@@ -62,28 +66,33 @@ export function OnboardingPage() {
               limit(1),
             ),
           );
-          if (!snap.empty) trainerId = snap.docs[0].id;
+          if (!snap.empty) {
+            trainerId = snap.docs[0].id;
+            trainerName = snap.docs[0].data().name || "";
+          }
         } catch (resolveErr) {
           console.error("Falha ao resolver treinador da vitrine:", resolveErr);
         }
       }
 
+      const displayName = user.displayName || "Aluno";
+
       // 1. Criar perfil de usuário geral
       await setDoc(doc(db, "users", user.uid), {
         role: "student",
-        teamId: trainerId || null,
+        teamId: null, // aluno pode ter vários treinadores — vínculos em /enrollments
         email: user.email,
-        name: user.displayName || "Aluno",
+        name: displayName,
         contractAcceptedAt: new Date().toISOString(),
         createdAt: new Date().toISOString(),
       });
 
-      // 2. Criar cadastro de aluno com dados físicos estruturados
+      // 2. Criar cadastro de aluno (dados pessoais/físicos, globais ao aluno)
       await setDoc(doc(db, "students", user.uid), {
         uid: user.uid,
-        displayName: user.displayName || "Aluno",
+        displayName,
         status: "pending",
-        assignedTo: trainerId, // vinculado ao treinador escolhido (ou "" se nenhum)
+        assignedTo: "", // descontinuado — o vínculo agora vive em /enrollments
         onboarding: {
           birthDate: studentBirthDate,
           email: user.email,
@@ -97,13 +106,28 @@ export function OnboardingPage() {
         createdAt: new Date().toISOString(),
       });
 
+      // 3. Criar o vínculo (pending) com o treinador escolhido na vitrine
+      if (trainerId) {
+        try {
+          await requestEnrollment(db, {
+            studentId: user.uid,
+            studentName: displayName,
+            trainerId,
+            teamName: trainerName,
+          });
+          setActiveTrainer(trainerId);
+        } catch (enrollErr) {
+          console.error("Falha ao criar vínculo com o treinador:", enrollErr);
+        }
+      }
+
       window.sessionStorage.removeItem("gesfit-pending-trainer");
 
-      // 3. Atualizar store global para destravar dashboard
+      // 4. Atualizar store global para destravar dashboard
       useSessionStore.setState({
         claims: {
           role: "student",
-          teamId: trainerId || undefined,
+          teamId: undefined,
         },
       });
     } catch (err: unknown) {

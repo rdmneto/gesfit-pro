@@ -16,6 +16,7 @@ import {
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
 import { db } from "./firebase";
+import { useActiveTrainer } from "./activeTrainer";
 
 /** Generic real-time collection hook */
 function useCollection<T>(
@@ -113,6 +114,7 @@ import type {
   Booking,
   ClassProduct,
   ClassPurchase,
+  Enrollment,
   Student,
   StudentMeasurement,
   StudentMeasurementSubmission,
@@ -123,6 +125,101 @@ import type {
 /** Team document by teamId */
 export function useTeam(teamId: string | null | undefined) {
   return useDocument<Team>("teams", teamId, null);
+}
+
+/** Vínculos (treinadores) de um aluno */
+export function useStudentEnrollments(studentId: string | null | undefined) {
+  return useCollection<Enrollment>(
+    "enrollments",
+    studentId ? [where("studentId", "==", studentId)] : [],
+    [],
+    [studentId],
+  );
+}
+
+/**
+ * Garante que sempre haja um treinador ativo selecionado para o aluno:
+ * se nenhum estiver ativo (ou o ativo deixou de existir/ficou inativo),
+ * seleciona o primeiro vínculo ativo. Use uma vez por sessão do aluno.
+ */
+export function useEnsureActiveTrainer(studentId: string | null | undefined) {
+  const { data: enrollments } = useStudentEnrollments(studentId);
+  const activeTrainerId = useActiveTrainer((s) => s.activeTrainerId);
+  const setActiveTrainer = useActiveTrainer((s) => s.setActiveTrainer);
+
+  useEffect(() => {
+    const actives = enrollments.filter((e) => e.status === "active");
+    if (actives.length === 0) return;
+    const stillValid = activeTrainerId && actives.some((e) => e.trainerId === activeTrainerId);
+    if (!stillValid) setActiveTrainer(actives[0].trainerId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [enrollments.map((e) => `${e.trainerId}:${e.status}`).join(","), activeTrainerId]);
+}
+
+/** Vínculos (alunos) de um treinador */
+export function useTrainerEnrollments(trainerId: string | null | undefined) {
+  return useCollection<Enrollment>(
+    "enrollments",
+    trainerId ? [where("trainerId", "==", trainerId)] : [],
+    [],
+    [trainerId],
+  );
+}
+
+/**
+ * Alunos de um treinador, derivados dos vínculos (enrollments) + o documento
+ * completo de cada aluno. Retorna objetos no formato Student com o vínculo
+ * anexado. Exclui vínculos cancelados.
+ */
+export function useTrainerStudents(trainerId: string | null | undefined) {
+  const { data: enrollments, loading } = useTrainerEnrollments(trainerId);
+  const relevant = enrollments.filter((e) => e.status !== "cancelled");
+  const idsKey = relevant
+    .map((e) => e.studentId)
+    .sort()
+    .join(",");
+
+  const [studentDocs, setStudentDocs] = useState<Record<string, Student>>({});
+
+  useEffect(() => {
+    if (!db || !idsKey) {
+      setStudentDocs({});
+      return;
+    }
+    const ids = idsKey.split(",");
+    const unsubs = ids.map((id) =>
+      onSnapshot(doc(db!, "students", id), (snap) => {
+        setStudentDocs((prev) => ({
+          ...prev,
+          [id]: snap.exists()
+            ? ({ uid: id, ...snap.data() } as Student)
+            : ({ uid: id } as Student),
+        }));
+      }),
+    );
+    return () => unsubs.forEach((u) => u());
+  }, [idsKey]);
+
+  const data: (Student & { enrollment: Enrollment })[] = relevant.map((e) => {
+    const base =
+      studentDocs[e.studentId] ??
+      ({
+        uid: e.studentId,
+        displayName: e.studentName,
+        status: "pending",
+        assignedTo: e.trainerId,
+        onboarding: {},
+        physiological: {},
+      } as Student);
+    return {
+      ...base,
+      uid: e.studentId,
+      displayName: base.displayName || e.studentName,
+      enrollment: e,
+    };
+  });
+
+  return { data, loading };
 }
 
 /** All students assigned to a trainer */

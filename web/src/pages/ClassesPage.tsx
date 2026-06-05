@@ -12,7 +12,7 @@ import { useState, useMemo } from "react";
 import { collection, addDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useTeam, useStudents, useWorkoutSessions } from "../lib/hooks";
+import { useTeam, useTrainerStudents, useWorkoutSessions } from "../lib/hooks";
 import { DEFAULT_AVAILABILITY } from "../data/catalog";
 import {
   type CalendarView,
@@ -34,12 +34,12 @@ export function ClassesPage() {
 
   // Firestore hooks
   const { data: dbTeam } = useTeam(teamId);
-  const { data: dbStudents } = useStudents(user?.uid);
+  const { data: dbStudents } = useTrainerStudents(user?.uid);
   const { data: dbWorkoutSessions } = useWorkoutSessions(
     user ? { trainerId: user.uid } : {}
   );
 
-  const students = dbStudents ?? [];
+  const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
   const trainerWorkouts = useMemo(() => {
     const list = dbWorkoutSessions ?? [];
     return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));

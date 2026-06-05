@@ -14,7 +14,7 @@ import {
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSessionStore } from "../store/session";
-import { useStudent, useTeam } from "../lib/hooks";
+import { useEnsureActiveTrainer } from "../lib/hooks";
 
 interface NavItem {
   to: string;
@@ -30,17 +30,15 @@ export function AppFrame() {
   const isLogged = Boolean(user);
   const location = useLocation();
 
-  const { data: student } = useStudent(role === "student" ? user?.uid : null);
-  const { data: team } = useTeam(student?.assignedTo ?? null);
-
-  const trainerPath = team?.slug ? `/t/${team.slug}` : "/treinadores";
+  // Mantém um treinador ativo selecionado para o aluno.
+  useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
 
   const studentLinks: NavItem[] = [
     { to: "/", label: "Início", icon: House, exact: true },
     { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
     { to: "/app/minhas-aulas", label: "Aulas", icon: ShoppingBag },
     { to: "/app/medidas", label: "Medidas", icon: Ruler },
-    { to: trainerPath, label: "Treinador", icon: BicepsFlexed },
+    { to: "/app/meus-treinadores", label: "Treinadores", icon: BicepsFlexed },
   ];
 
   const trainerLinks: NavItem[] = [

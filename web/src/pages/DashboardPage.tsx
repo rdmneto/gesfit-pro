@@ -24,6 +24,7 @@ import {
 import { Link } from "react-router-dom";
 import { bmi } from "../lib/format";
 import { useSessionStore } from "../store/session";
+import { useActiveTrainer } from "../lib/activeTrainer";
 import type { WorkoutSession } from "../types/domain";
 import { KpiGrid } from "../features/dashboard/KpiGrid";
 import { TrainerWorkoutCard } from "../features/dashboard/TrainerWorkoutCard";
@@ -40,7 +41,7 @@ import {
   useStudent,
   useMeasurements,
   useWorkoutSessions,
-  useStudents,
+  useTrainerStudents,
   useBookings,
 } from "../lib/hooks";
 import { Navigate } from "react-router-dom";
@@ -73,7 +74,7 @@ export function DashboardPage() {
 
 function StudentDashboard() {
   const user = useSessionStore((state) => state.user);
-  const teamIdLocal = useSessionStore((state) => state.claims.teamId);
+  const activeTrainerId = useActiveTrainer((state) => state.activeTrainerId);
 
   // Firestore hooks
   const { data: dbStudent, loading: studentLoading } = useStudent(user ? user.uid : null);
@@ -82,8 +83,7 @@ function StudentDashboard() {
     user ? { studentId: user.uid } : {}
   );
 
-  const studentAssignedTeamId = dbStudent?.assignedTo || teamIdLocal;
-  const { data: dbTeam } = useTeam(studentAssignedTeamId);
+  const { data: dbTeam } = useTeam(activeTrainerId);
 
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
@@ -110,7 +110,9 @@ function StudentDashboard() {
     : { name: "Sem Treinador Vinculado", branding: defaultBranding };
 
   const measurements = dbMeasurements ?? [];
-  const workouts = dbWorkoutSessions ?? [];
+  const workouts = (dbWorkoutSessions ?? []).filter(
+    (w) => !activeTrainerId || w.trainerId === activeTrainerId,
+  );
 
   const nextWorkout = workouts && workouts.length > 0 ? workouts[0] : null;
   const currentMeasure = measurements && measurements.length > 0 ? measurements.at(-1) : null;
@@ -355,7 +357,7 @@ function TrainerDashboard() {
 
   // Firestore hooks
   const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
-  const { data: dbStudents, loading: studentsLoading } = useStudents(user?.uid);
+  const { data: dbStudents, loading: studentsLoading } = useTrainerStudents(user?.uid);
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
     user ? { trainerId: user.uid } : {}
   );
@@ -383,6 +385,16 @@ function TrainerDashboard() {
   const students = dbStudents ?? [];
   const bookings = dbBookings ?? [];
 
+  // Alunos com vínculo ativo (a aprovação é por vínculo, não pelo doc do aluno).
+  const activeStudents = useMemo(
+    () => students.filter((s) => s.enrollment?.status === "active"),
+    [students],
+  );
+  const pendingRequestCount = useMemo(
+    () => students.filter((s) => s.enrollment?.status === "pending").length,
+    [students],
+  );
+
   const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
   const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
   const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
@@ -390,9 +402,10 @@ function TrainerDashboard() {
 
   // Estimativa de faturamento por ticket médio (ajustar quando houver coleção de planos com preço).
   const AVERAGE_TICKET = 350;
-  const estimatedRevenue = useMemo(() => {
-    return students.filter((s) => s.status === "active").length * AVERAGE_TICKET;
-  }, [students]);
+  const estimatedRevenue = useMemo(
+    () => activeStudents.length * AVERAGE_TICKET,
+    [activeStudents],
+  );
 
   const presenceRate = useMemo(() => {
     const pastBookings = bookings.filter((b) => b.status === "attended" || b.status === "no_show");
@@ -406,14 +419,13 @@ function TrainerDashboard() {
   }, [bookings]);
 
   const expiringCount = useMemo(() => {
-    return students.filter((s) => {
-      if (s.status !== "active") return false;
-      const quota = s.classesQuotaMonth ?? 0;
-      const used = s.classesUsedMonth ?? 0;
+    return activeStudents.filter((s) => {
+      const quota = s.enrollment?.classesQuota ?? 0;
+      const used = s.enrollment?.classesUsed ?? 0;
       const remaining = quota - used;
       return remaining >= 0 && remaining <= 2;
     }).length;
-  }, [students]);
+  }, [activeStudents]);
 
   const loading = teamLoading || studentsLoading || workoutsLoading;
 
@@ -475,9 +487,22 @@ function TrainerDashboard() {
         </section>
       </div>
 
+      {/* Solicitações de vínculo pendentes */}
+      {pendingRequestCount > 0 && (
+        <Link
+          to="/app/alunos"
+          className="focus-ring mt-4 flex items-center justify-between gap-3 rounded-xl border border-amber-200 bg-amber-50 p-4 transition-colors hover:bg-amber-100"
+        >
+          <p className="text-sm font-semibold text-amber-800">
+            {pendingRequestCount} alun{pendingRequestCount > 1 ? "os" : "o"} aguardando sua aprovação.
+          </p>
+          <span className="text-sm font-bold text-amber-900">Revisar →</span>
+        </Link>
+      )}
+
       {/* KPI Grid */}
       <KpiGrid
-        studentCount={students.length}
+        studentCount={activeStudents.length}
         estimatedRevenue={estimatedRevenue}
         presenceRate={presenceRate}
         noShowCount={noShowCount}

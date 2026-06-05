@@ -9,15 +9,16 @@ import {
   XCircle,
   Zap,
 } from "lucide-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
-import { useClassProducts, useStudentPurchases, useStudent, useTeam } from "../lib/hooks";
+import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import { useSessionStore } from "../store/session";
+import { useActiveTrainer } from "../lib/activeTrainer";
 import type { ClassProduct, PurchaseStatus } from "../types/domain";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
@@ -29,19 +30,26 @@ const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "am
 
 export function StudentClassesPage() {
   const user = useSessionStore((state) => state.user);
-  const claims = useSessionStore((state) => state.claims);
-  const teamId = claims.teamId ?? null;
+  const activeTrainerId = useActiveTrainer((state) => state.activeTrainerId);
+  const teamId = activeTrainerId;
 
-  // Firestore hooks
-  const { data: dbStudent } = useStudent(user?.uid ?? null);
+  // Firestore hooks (no contexto do treinador ativo)
+  const { data: enrollments } = useStudentEnrollments(user?.uid ?? null);
+  const activeEnrollment = useMemo(
+    () => enrollments.find((e) => e.trainerId === activeTrainerId) ?? null,
+    [enrollments, activeTrainerId],
+  );
   const { data: dbPurchases = [], loading: purchasesLoading } = useStudentPurchases(user?.uid ?? null);
   const { data: dbProducts = [], loading: productsLoading } = useClassProducts(teamId);
   const { data: dbTeam } = useTeam(teamId);
 
-  const student = dbStudent;
   const team = dbTeam;
-  const purchases = dbPurchases;
+  const purchases = useMemo(
+    () => (dbPurchases ?? []).filter((p) => !p.trainerId || p.trainerId === activeTrainerId),
+    [dbPurchases, activeTrainerId],
+  );
   const products = dbProducts;
+  const canBuy = activeEnrollment?.status === "active";
 
   const [showBuyForm, setShowBuyForm] = useState(false);
   const [selectedProduct, setSelectedProduct] = useState<ClassProduct | null>(null);
@@ -50,8 +58,8 @@ export function StudentClassesPage() {
   const [submitting, setSubmitting] = useState(false);
   const [submitted, setSubmitted] = useState(false);
 
-  const totalClasses = student?.classesQuotaMonth ?? 0;
-  const usedClasses = student?.classesUsedMonth ?? 0;
+  const totalClasses = activeEnrollment?.classesQuota ?? 0;
+  const usedClasses = activeEnrollment?.classesUsed ?? 0;
   const remainingClasses = Math.max(0, totalClasses - usedClasses);
   const usagePercent = totalClasses > 0 ? (usedClasses / totalClasses) * 100 : 0;
   const isLow = remainingClasses <= 2 && totalClasses > 0;
@@ -67,13 +75,14 @@ export function StudentClassesPage() {
   const teamSlug = team?.slug ?? teamId ?? "";
 
   async function handleBuy() {
-    if (!selectedProduct || !user || !db) return;
+    if (!selectedProduct || !user || !db || !canBuy) return;
     setSubmitting(true);
     try {
       await addDoc(collection(db, "classPurchases"), {
         studentId: user.uid,
         studentName: user.displayName ?? "Aluno",
         teamId: teamId ?? "",
+        trainerId: teamId ?? "",
         productId: selectedProduct.id,
         productName: selectedProduct.name,
         classesCount: selectedProduct.classesCount,
@@ -105,6 +114,33 @@ export function StudentClassesPage() {
         title="Minhas aulas"
         description="Acompanhe seu saldo, histórico de compras e adquira mais aulas quando precisar."
       />
+
+      {/* ── Contexto do treinador ativo ──────────────────── */}
+      {!activeTrainerId ? (
+        <div className="mt-4 flex flex-col gap-2 rounded-xl border border-amber-200 bg-amber-50 p-4 sm:flex-row sm:items-center sm:justify-between">
+          <p className="text-sm font-semibold text-amber-800">
+            Selecione um treinador ativo para ver aulas e saldo.
+          </p>
+          <Link to="/app/meus-treinadores" className="btn btn-primary btn-sm focus-ring">
+            Meus treinadores <ArrowRight size={15} />
+          </Link>
+        </div>
+      ) : activeEnrollment && activeEnrollment.status !== "active" ? (
+        <div className="mt-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+          <p className="text-sm font-semibold text-amber-800">
+            Seu vínculo com {team?.name ?? "este treinador"} está{" "}
+            {activeEnrollment.status === "pending" ? "aguardando aprovação" : "pausado"}. A compra de
+            aulas é liberada quando o vínculo estiver ativo.
+          </p>
+        </div>
+      ) : team?.name ? (
+        <p className="mt-4 text-sm text-stone-500">
+          Treinador ativo: <span className="font-bold text-stone-800">{team.name}</span> ·{" "}
+          <Link to="/app/meus-treinadores" className="font-semibold text-emerald-700 hover:underline">
+            trocar
+          </Link>
+        </p>
+      ) : null}
 
       {/* ── Saldo de aulas ───────────────────────────────── */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
@@ -305,7 +341,7 @@ export function StudentClassesPage() {
                 <div className="flex gap-3">
                   <Button
                     variant="primary"
-                    disabled={!selectedProduct || submitting}
+                    disabled={!selectedProduct || submitting || !canBuy}
                     icon={submitting ? undefined : <CheckCircle2 size={18} />}
                     onClick={handleBuy}
                     className="flex-1"
