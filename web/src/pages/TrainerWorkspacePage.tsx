@@ -304,31 +304,52 @@ export function TrainerWorkspacePage() {
         </div>
       </div>
 
-      {/* Visual Public Banner Preview */}
+      {/* Visual Public Banner Preview — reflete a paleta escolhida ao vivo */}
       <section className="mt-6 overflow-hidden rounded-xl border border-stone-200 bg-white">
         <div
           className="relative h-56 bg-stone-900"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(12, 19, 16, 0.8), rgba(12, 19, 16, 0.2)), url(${bannerPhotoURL || team.branding.bannerPhotoURL})`,
+            backgroundImage: `linear-gradient(90deg, ${primaryColor || "#0f766e"}F0, ${primaryColor || "#0f766e"}55), url(${bannerPhotoURL || team.branding.bannerPhotoURL})`,
             backgroundPosition: "center",
             backgroundSize: "cover",
           }}
         >
-          <div className="absolute bottom-5 left-5 flex items-end gap-4">
-            <img
-              className="h-24 w-24 rounded-xl border-4 border-white object-cover shadow-lg"
-              src={trainerPhotoURL || team.branding.trainerPhotoURL}
-              alt=""
-            />
-            <div className="pb-1 text-white">
-              <p className="text-2xs font-bold uppercase tracking-widest text-emerald-300">
-                Prévia pública
-              </p>
-              <h2 className="text-3xl font-black">{name || team.name}</h2>
+          {/* faixa de destaque na cor secundária */}
+          <span
+            className="absolute left-0 top-0 h-full w-1.5"
+            style={{ backgroundColor: secondaryColor || "#f59e0b" }}
+          />
+          <div className="absolute bottom-5 left-5 right-5 flex items-end justify-between gap-4">
+            <div className="flex items-end gap-4">
+              <img
+                className="h-24 w-24 rounded-xl border-4 border-white object-cover shadow-lg"
+                src={trainerPhotoURL || team.branding.trainerPhotoURL}
+                alt=""
+              />
+              <div className="pb-1 text-white">
+                <p className="flex items-center gap-1.5 text-2xs font-bold uppercase tracking-widest text-white/80">
+                  <span
+                    className="inline-block h-2 w-2 rounded-full"
+                    style={{ backgroundColor: secondaryColor || "#f59e0b" }}
+                  />
+                  Prévia pública
+                </p>
+                <h2 className="text-3xl font-black">{name || team.name}</h2>
+              </div>
             </div>
+            {/* botão de exemplo na cor primária (igual ao da vitrine) */}
+            <span
+              className="hidden h-10 items-center rounded-md px-4 text-sm font-bold text-white shadow sm:inline-flex"
+              style={{ backgroundColor: primaryColor || "#0f766e" }}
+            >
+              Contratar
+            </span>
           </div>
         </div>
       </section>
+      <p className="mt-2 text-xs text-stone-400">
+        As cores acima são aplicadas na sua vitrine pública (banner, botões e destaques).
+      </p>
 
       {/* Sub-tabs Navigation */}
       <div className="mt-6 flex border-b border-stone-200">

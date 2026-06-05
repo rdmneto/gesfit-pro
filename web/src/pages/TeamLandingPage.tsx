@@ -95,16 +95,23 @@ export function TeamLandingPage() {
     navigate("/app/meus-treinadores");
   }
 
+  const primary = team.branding?.primaryColor || "#0f766e";
+  const secondary = team.branding?.secondaryColor || "#f59e0b";
+
   return (
     <div>
       <section
         className="relative min-h-[64vh] bg-stone-950 text-white"
         style={{
-          backgroundImage: `linear-gradient(90deg, rgba(15, 18, 17, 0.88), rgba(15, 18, 17, 0.35)), url(${team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"})`,
+          backgroundImage: `linear-gradient(90deg, ${primary}F0, ${primary}55), url(${team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"})`,
           backgroundPosition: "center",
           backgroundSize: "cover",
         }}
       >
+        <span
+          className="absolute left-0 top-0 h-full w-2"
+          style={{ backgroundColor: secondary }}
+        />
         <div className="mx-auto flex min-h-[64vh] max-w-6xl flex-col justify-center px-4 py-16">
           <h1 className="max-w-3xl text-4xl font-black leading-tight sm:text-5xl" style={{ fontFamily: "var(--font-display)" }}>
             {team.name}
@@ -153,7 +160,8 @@ export function TeamLandingPage() {
               {(team.trainingModalities || []).map((modality) => (
                 <span
                   key={modality}
-                  className="rounded-md bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-700"
+                  className="rounded-md border-l-2 bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-700"
+                  style={{ borderLeftColor: secondary }}
                 >
                   {modality}
                 </span>
@@ -173,10 +181,10 @@ export function TeamLandingPage() {
                 <article key={product.id} className="rounded-lg border border-stone-200 bg-white p-5 flex flex-col justify-between">
                   <div>
                     <div className="flex items-center gap-2">
-                      <Tag aria-hidden="true" className="text-emerald-800" size={18} />
+                      <Tag aria-hidden="true" style={{ color: primary }} size={18} />
                       <h3 className="text-base font-bold text-stone-900">{product.name}</h3>
                     </div>
-                    <p className="mt-2 text-3xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>{moneyFromCents(product.priceCents)}</p>
+                    <p className="mt-2 text-3xl font-black" style={{ fontFamily: "var(--font-display)", color: primary }}>{moneyFromCents(product.priceCents)}</p>
                     <p className="text-xs text-stone-500">
                       {product.type === "single" ? "aula avulsa" : `${product.classesCount} aulas`}
                     </p>
@@ -194,7 +202,8 @@ export function TeamLandingPage() {
                   </div>
                   <button
                     type="button"
-                    className="focus-ring mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md bg-emerald-800 px-4 text-xs font-bold text-white hover:bg-emerald-700 w-full transition-colors"
+                    className="focus-ring mt-5 inline-flex h-10 items-center justify-center gap-2 rounded-md px-4 text-xs font-bold text-white hover:opacity-90 w-full transition-opacity"
+                    style={{ backgroundColor: primary }}
                     onClick={handleContract}
                   >
                     Quero contratar
