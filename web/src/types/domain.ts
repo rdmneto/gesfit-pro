@@ -141,6 +141,7 @@ export interface Student {
     alturaCm?: number;
     pesoInicialKg?: number;
   };
+  goal?: string;
   planId?: string;
   classesQuotaMonth?: number;
   classesUsedMonth?: number;

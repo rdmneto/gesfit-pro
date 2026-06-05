@@ -10,6 +10,7 @@ import {
   ShieldCheck,
   ShoppingBag,
   UserPlus,
+  UserRound,
   Users,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -32,6 +33,9 @@ export function AppFrame() {
 
   // Mantém um treinador ativo selecionado para o aluno.
   useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
+
+  // Onde cada papel edita o próprio cadastro.
+  const accountPath = role === "trainer" ? "/app/treinador" : "/app/meu-cadastro";
 
   const studentLinks: NavItem[] = [
     { to: "/", label: "Início", icon: House, exact: true },
@@ -118,6 +122,14 @@ export function AppFrame() {
             {isLogged && (
               <>
                 <NavLink
+                  to={accountPath}
+                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-stone-100 hover:text-stone-900"
+                  title="Editar meu cadastro"
+                >
+                  <UserRound aria-hidden="true" size={15} />
+                  Meu cadastro
+                </NavLink>
+                <NavLink
                   to="/app/mudar-perfil"
                   className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-400 transition-all duration-150 hover:bg-stone-100 hover:text-stone-700"
                   title="Mudar tipo de perfil (aluno/treinador)"
@@ -137,17 +149,26 @@ export function AppFrame() {
             )}
           </nav>
 
-          {/* Mobile: show logout button if logged in, or login link if not */}
+          {/* Mobile: show account + logout if logged in, or login link if not */}
           <div className="flex items-center gap-2 md:hidden">
             {isLogged ? (
-              <button
-                type="button"
-                className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
-                onClick={() => logout()}
-                aria-label="Sair"
-              >
-                <LogOut size={18} />
-              </button>
+              <>
+                <NavLink
+                  to={accountPath}
+                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
+                  aria-label="Meu cadastro"
+                >
+                  <UserRound size={18} />
+                </NavLink>
+                <button
+                  type="button"
+                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
+                  onClick={() => logout()}
+                  aria-label="Sair"
+                >
+                  <LogOut size={18} />
+                </button>
+              </>
             ) : (
               <NavLink
                 to="/login"

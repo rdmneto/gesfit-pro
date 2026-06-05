@@ -11,6 +11,7 @@ import { MeasurementsPage } from "./pages/MeasurementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { SecurityPage } from "./pages/SecurityPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
+import { StudentProfilePage } from "./pages/StudentProfilePage";
 import { StudentTrainersPage } from "./pages/StudentTrainersPage";
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
@@ -54,6 +55,7 @@ export default function App() {
           {/* Authenticated routes — student */}
           <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />
           <Route path="app/meus-treinadores" element={<RequireStudent><StudentTrainersPage /></RequireStudent>} />
+          <Route path="app/meu-cadastro" element={<RequireStudent><StudentProfilePage /></RequireStudent>} />
           <Route path="app/minhas-aulas" element={<RequireStudent><StudentClassesPage /></RequireStudent>} />
           <Route path="app/medidas" element={<RequireStudent><MeasurementsPage /></RequireStudent>} />
 
