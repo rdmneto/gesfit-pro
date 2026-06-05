@@ -77,6 +77,10 @@ export interface Team {
   publicListing: boolean;
   trainingModalities: TrainingModality[];
   publicProfile: PublicProfileSettings;
+  /** Cidade principal de atuação do treinador */
+  city?: string;
+  /** Telefone/WhatsApp de contato, revelado ao aluno após o vínculo ativo */
+  contactPhone?: string;
   /** Academias / locais onde o treinador atende */
   worksAt: GymLocation[];
   /** Aceita atendimento domiciliar */
@@ -131,6 +135,7 @@ export interface Student {
     genero?: string;
     email?: string;
     celular?: string;
+    city?: string;
   };
   physiological: {
     alturaCm?: number;

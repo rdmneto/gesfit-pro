@@ -82,9 +82,12 @@ service cloud.firestore {
         'trainingModalities',
         'publicListing',
         'publicProfile',
+        'city',
+        'contactPhone',
         'worksAt',
         'acceptsHomeVisit',
         'acceptsCondoGym',
+        'availability',
         'createdAt'
       ]);
     }

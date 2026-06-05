@@ -15,6 +15,7 @@ import {
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { trainingModalities } from "../data/catalog";
+import { CITY_NAMES } from "../data/cities";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
@@ -51,6 +52,7 @@ export function HomePage() {
 
   const featured = useMemo(() => teams[0] || null, [teams]);
 
+  const [selectedCity, setSelectedCity] = useState<string>("Todas");
   const [selectedModality, setSelectedModality] = useState<TrainingModality | "Todas">("Todas");
   const [selectedGym, setSelectedGym] = useState<string>("Todos");
   const [filterHome, setFilterHome] = useState(false);
@@ -64,12 +66,13 @@ export function HomePage() {
 
   const publicTeams = useMemo(() => teams.filter((team) => {
     if (!team.publicListing) return false;
+    if (selectedCity !== "Todas" && team.city !== selectedCity) return false;
     if (selectedModality !== "Todas" && !team.trainingModalities?.includes(selectedModality)) return false;
     if (selectedGym !== "Todos" && !(team.worksAt || []).some((g) => g.id === selectedGym)) return false;
     if (filterHome && !team.acceptsHomeVisit) return false;
     if (filterCondo && !team.acceptsCondoGym) return false;
     return true;
-  }), [teams, selectedModality, selectedGym, filterHome, filterCondo]);
+  }), [teams, selectedCity, selectedModality, selectedGym, filterHome, filterCondo]);
 
   return (
     <div>
@@ -177,9 +180,25 @@ export function HomePage() {
             </Link>
           </div>
 
+          {/* City filter */}
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <span className="text-xs font-bold uppercase tracking-wider text-stone-500">Cidade</span>
+            <select
+              className="focus-ring h-9 rounded-full border border-[var(--color-border)] bg-white px-4 text-sm font-semibold text-stone-700"
+              value={selectedCity}
+              onChange={(e) => setSelectedCity(e.target.value)}
+              aria-label="Filtrar por cidade"
+            >
+              <option value="Todas">Todas as cidades</option>
+              {CITY_NAMES.map((c) => (
+                <option key={c} value={c}>{c}</option>
+              ))}
+            </select>
+          </div>
+
           {/* Modality filter */}
           <div
-            className="mt-6 flex gap-2 overflow-x-auto pb-2"
+            className="mt-3 flex gap-2 overflow-x-auto pb-2"
             role="tablist"
             aria-label="Filtrar por modalidade"
           >

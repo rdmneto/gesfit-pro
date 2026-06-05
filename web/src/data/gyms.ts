@@ -1,12 +1,13 @@
 import type { GymLocation } from "../types/domain";
 
 /**
- * Lista curada de academias e locais de treino.
- * Inclui redes nacionais, academias independentes e opções especiais.
- * Em produção, esta lista seria alimentada por uma API de lugares (Google Places / Foursquare).
+ * Lista curada de academias e locais de treino — fase inicial em Fortaleza/CE.
+ * A estrutura suporta múltiplas cidades (campo `city`); a expansão é só
+ * adicionar entradas de outras cidades aqui.
+ * Em produção, esta lista pode ser alimentada por uma API de lugares.
  */
 export const GYM_CATALOG: GymLocation[] = [
-  // ── Opções especiais ──────────────────────────────────────────────────────
+  // ── Opções especiais (valem para qualquer cidade) ─────────────────────────
   {
     id: "home",
     name: "Atendimento em domicílio",
@@ -21,208 +22,127 @@ export const GYM_CATALOG: GymLocation[] = [
     city: "Qualquer",
     type: "condo",
   },
-  {
-    id: "outdoor",
-    name: "Treino ao ar livre (parque / praça)",
-    address: "Parque / Praça pública",
-    city: "Qualquer",
-    type: "outdoor",
-  },
 
-  // ── Redes nacionais ───────────────────────────────────────────────────────
+  // ── Fortaleza · redes e academias ──────────────────────────────────────────
   {
-    id: "smartfit-paulista",
-    name: "Smart Fit — Av. Paulista",
-    address: "Av. Paulista, 900 — Bela Vista",
-    city: "São Paulo",
+    id: "live-aldeota",
+    name: "Live Academia — Aldeota",
+    address: "Av. Dom Luís, 500 — Aldeota",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "smartfit-pinheiros",
-    name: "Smart Fit — Pinheiros",
-    address: "R. dos Pinheiros, 498 — Pinheiros",
-    city: "São Paulo",
+    id: "live-bezerra",
+    name: "Live Academia — Bezerra de Menezes",
+    address: "Av. Bezerra de Menezes, 1820 — São Gerardo",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "smartfit-moema",
-    name: "Smart Fit — Moema",
-    address: "Av. Ibirapuera, 3103 — Moema",
-    city: "São Paulo",
+    id: "live-washington-soares",
+    name: "Live Academia — Washington Soares",
+    address: "Av. Washington Soares, 1400 — Edson Queiroz",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "smartfit-tatuape",
-    name: "Smart Fit — Tatuapé",
-    address: "R. Taquari, 699 — Tatuapé",
-    city: "São Paulo",
+    id: "live-parangaba",
+    name: "Live Academia — Parangaba",
+    address: "Av. José Bastos, 3390 — Parangaba",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "smartfit-santana",
-    name: "Smart Fit — Santana",
-    address: "Av. Luís Dumont Villares, 520 — Santana",
-    city: "São Paulo",
+    id: "live-messejana",
+    name: "Live Academia — Messejana",
+    address: "Av. Frei Cirilo, 2900 — Messejana",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bluefit-higienopolis",
-    name: "Bluefit — Higienópolis",
-    address: "R. Maranhão, 800 — Higienópolis",
-    city: "São Paulo",
+    id: "smartfit-domluis",
+    name: "Smart Fit — Aldeota (Dom Luís)",
+    address: "Av. Dom Luís, 1200 — Aldeota",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bluefit-vila-mariana",
-    name: "Bluefit — Vila Mariana",
-    address: "Av. Dom Pedro I, 736 — Vila Mariana",
-    city: "São Paulo",
+    id: "smartfit-centro",
+    name: "Smart Fit — Centro",
+    address: "R. Floriano Peixoto, 700 — Centro",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bluefit-brooklin",
-    name: "Bluefit — Brooklin",
-    address: "R. Funchal, 418 — Brooklin",
-    city: "São Paulo",
+    id: "smartfit-northshopping",
+    name: "Smart Fit — North Shopping",
+    address: "Av. Bezerra de Menezes, 2450 — São Gerardo",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bodytech-jardins",
-    name: "Bodytech — Jardins",
-    address: "Alameda Santos, 1127 — Jardins",
-    city: "São Paulo",
+    id: "selfit-funcionarios",
+    name: "Selfit — Cidade dos Funcionários",
+    address: "Av. Rogaciano Leite, 1400 — Salinas",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bodytech-itaim",
-    name: "Bodytech — Itaim Bibi",
-    address: "R. Dr. Renato Paes de Barros, 618 — Itaim Bibi",
-    city: "São Paulo",
+    id: "selfit-antonio-sales",
+    name: "Selfit — Antônio Sales",
+    address: "Av. Antônio Sales, 2200 — Dionísio Torres",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bodytech-perdizes",
-    name: "Bodytech — Perdizes",
-    address: "R. Cardoso de Almeida, 1491 — Perdizes",
-    city: "São Paulo",
-    type: "gym",
-  },
-
-  // ── Academias premium / boutique ──────────────────────────────────────────
-  {
-    id: "bioritmo-paulista",
-    name: "Bio Ritmo — Av. Paulista",
-    address: "Av. Paulista, 612 — Bela Vista",
-    city: "São Paulo",
+    id: "bodytech-iguatemi",
+    name: "Bodytech — Shopping Iguatemi",
+    address: "Av. Washington Soares, 85 — Edson Queiroz",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "bioritmo-itaim",
-    name: "Bio Ritmo — Itaim Bibi",
-    address: "R. Jerônimo da Veiga, 384 — Itaim Bibi",
-    city: "São Paulo",
+    id: "ironberry-meireles",
+    name: "Iron Berry — Meireles",
+    address: "R. Tibúrcio Cavalcante, 300 — Meireles",
+    city: "Fortaleza",
     type: "gym",
   },
   {
-    id: "selfit-moema",
-    name: "Selfit — Moema",
-    address: "Av. Moaci, 475 — Moema",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "selfit-campo-belo",
-    name: "Selfit — Campo Belo",
-    address: "R. Tenente Pena, 127 — Campo Belo",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "runner-ibirapuera",
-    name: "Runner — Ibirapuera",
-    address: "Av. Ibirapuera, 2907 — Moema",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "runner-higienopolis",
-    name: "Runner — Higienópolis",
-    address: "Av. Higienópolis, 618 — Higienópolis",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "fithub-pinheiros",
-    name: "FitHub — Pinheiros",
-    address: "R. Teodoro Sampaio, 1100 — Pinheiros",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "fithub-vila-madalena",
-    name: "FitHub — Vila Madalena",
-    address: "R. Inácio Pereira da Rocha, 400 — Vila Madalena",
-    city: "São Paulo",
+    id: "cia-athletica-coco",
+    name: "Cia Athletica — Cocó",
+    address: "Av. Eng. Santana Jr., 3000 — Cocó",
+    city: "Fortaleza",
     type: "gym",
   },
 
-  // ── CrossFit / Funcional ──────────────────────────────────────────────────
+  // ── Fortaleza · ao ar livre ────────────────────────────────────────────────
   {
-    id: "crossfit-paulista",
-    name: "CrossFit Paulista",
-    address: "Av. Paulista, 2237 — Bela Vista",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "crossfit-pinheiros",
-    name: "CrossFit Pinheiros",
-    address: "R. dos Pinheiros, 1200 — Pinheiros",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "crossfit-moema",
-    name: "CrossFit Moema",
-    address: "Av. Rouxinol, 55 — Moema",
-    city: "São Paulo",
-    type: "gym",
-  },
-  {
-    id: "cf-itaim",
-    name: "CrossFit Itaim",
-    address: "R. Leopoldo Couto Magalhães Jr., 758 — Itaim",
-    city: "São Paulo",
-    type: "gym",
-  },
-
-  // ── Parques / Outdoor ─────────────────────────────────────────────────────
-  {
-    id: "parque-ibirapuera",
-    name: "Parque Ibirapuera",
-    address: "Av. Pedro Álvares Cabral, s/n — Ibirapuera",
-    city: "São Paulo",
+    id: "beira-mar",
+    name: "Calçadão da Av. Beira Mar",
+    address: "Av. Beira Mar — Meireles",
+    city: "Fortaleza",
     type: "outdoor",
   },
   {
-    id: "parque-aclimacao",
-    name: "Parque da Aclimação",
-    address: "R. Muniz de Souza, 1119 — Aclimação",
-    city: "São Paulo",
+    id: "praia-do-futuro",
+    name: "Praia do Futuro",
+    address: "Av. Clóvis Arrais Maia — Praia do Futuro",
+    city: "Fortaleza",
     type: "outdoor",
   },
   {
-    id: "parque-trianon",
-    name: "Parque Trianon",
-    address: "Av. Paulista, 1380 — Cerqueira César",
-    city: "São Paulo",
+    id: "parque-do-coco",
+    name: "Parque do Cocó",
+    address: "Av. Eng. Santana Jr. — Cocó",
+    city: "Fortaleza",
     type: "outdoor",
   },
   {
-    id: "parque-estadual",
-    name: "Parque Estadual da Cantareira",
-    address: "Av. Dra. Aracy Amaral Camargo, s/n — Tremembé",
-    city: "São Paulo",
+    id: "lagoa-maraponga",
+    name: "Lagoa da Maraponga",
+    address: "Av. Godofredo Maciel — Maraponga",
+    city: "Fortaleza",
     type: "outdoor",
   },
 ];
@@ -233,11 +153,18 @@ export const GYM_ONLY = GYM_CATALOG.filter((g) => g.type === "gym");
 /** Opções especiais (home, condo, outdoor) */
 export const SPECIAL_LOCATIONS = GYM_CATALOG.filter((g) => g.type !== "gym");
 
-/** Busca rápida por nome ou bairro */
-export function searchGyms(query: string): GymLocation[] {
+/** Locais de uma cidade (inclui as opções "Qualquer", que valem sempre). */
+export function gymsByCity(city: string | null | undefined): GymLocation[] {
+  if (!city) return GYM_CATALOG;
+  return GYM_CATALOG.filter((g) => g.city === city || g.city === "Qualquer");
+}
+
+/** Busca rápida por nome ou bairro, opcionalmente dentro de uma cidade. */
+export function searchGyms(query: string, city?: string | null): GymLocation[] {
+  const base = city ? gymsByCity(city) : GYM_CATALOG;
   const q = query.toLowerCase().trim();
-  if (!q) return GYM_CATALOG;
-  return GYM_CATALOG.filter(
+  if (!q) return base;
+  return base.filter(
     (g) =>
       g.name.toLowerCase().includes(q) ||
       g.address.toLowerCase().includes(q) ||

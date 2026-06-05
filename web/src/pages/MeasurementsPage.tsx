@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  MessageCircle,
   Pencil,
   Plus,
   Ruler,
@@ -27,7 +28,7 @@ import {
 } from "recharts";
 import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { bmi, calculateAge } from "../lib/format";
+import { bmi, calculateAge, whatsappLink } from "../lib/format";
 import {
   useMeasurements,
   usePendingMeasurements,
@@ -167,26 +168,42 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
             Alunos que pediram para treinar com você. Aprove para liberar a compra de aulas.
           </p>
           <div className="mt-4 grid gap-3">
-            {pendingRequests.map((student) => (
-              <article
-                key={student.uid}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-4"
-              >
-                <div>
-                  <p className="font-black text-stone-950">{student.displayName}</p>
-                  <p className="mt-0.5 text-sm text-stone-500">
-                    {student.onboarding?.email ?? "Sem e-mail"}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="focus-ring btn btn-primary btn-sm"
-                  onClick={() => handleApprove(student.enrollment.id)}
+            {pendingRequests.map((student) => {
+              const wa = whatsappLink(student.onboarding?.celular);
+              return (
+                <article
+                  key={student.uid}
+                  className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-amber-200 bg-white p-4"
                 >
-                  <CheckCircle2 size={15} /> Aprovar
-                </button>
-              </article>
-            ))}
+                  <div>
+                    <p className="font-black text-stone-950">{student.displayName}</p>
+                    <p className="mt-0.5 text-sm text-stone-500">
+                      {student.onboarding?.email ?? "Sem e-mail"}
+                      {student.onboarding?.celular ? ` · ${student.onboarding.celular}` : ""}
+                    </p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {wa && (
+                      <a
+                        href={wa}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="focus-ring btn btn-secondary btn-sm"
+                      >
+                        <MessageCircle size={15} /> WhatsApp
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      className="focus-ring btn btn-primary btn-sm"
+                      onClick={() => handleApprove(student.enrollment.id)}
+                    >
+                      <CheckCircle2 size={15} /> Aprovar
+                    </button>
+                  </div>
+                </article>
+              );
+            })}
           </div>
         </section>
       )}
@@ -653,6 +670,16 @@ function StudentProfileSummary({
             {student.onboarding.email} - {student.onboarding.celular}
             {age !== undefined ? ` · ${age} anos` : ""}
           </p>
+          {whatsappLink(student.onboarding.celular) && (
+            <a
+              href={whatsappLink(student.onboarding.celular)!}
+              target="_blank"
+              rel="noreferrer"
+              className="focus-ring mt-2 inline-flex h-9 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-500"
+            >
+              <MessageCircle size={14} /> WhatsApp do aluno
+            </a>
+          )}
         </div>
         <span className="h-max rounded-md bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700">
           {student.status}

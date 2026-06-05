@@ -25,6 +25,7 @@ import { db, storage } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam } from "../lib/hooks";
 import { DEFAULT_AVAILABILITY, trainingModalities } from "../data/catalog";
+import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { gymTypeIcon, searchGyms } from "../data/gyms";
 import type { GymLocation, TrainerAvailabilityDay } from "../types/domain";
 
@@ -85,6 +86,8 @@ export function TrainerWorkspacePage() {
   // Profile States
   const [name, setName] = useState("");
   const [welcomeMessage, setWelcomeMessage] = useState("");
+  const [city, setCity] = useState(DEFAULT_CITY);
+  const [contactPhone, setContactPhone] = useState("");
   const [primaryColor, setPrimaryColor] = useState("");
   const [secondaryColor, setSecondaryColor] = useState("");
   const [bio, setBio] = useState("");
@@ -115,6 +118,8 @@ export function TrainerWorkspacePage() {
     if (!dbTeam) return;
     setName(dbTeam.name || "");
     setWelcomeMessage(dbTeam.branding?.welcomeMessage || "");
+    setCity(dbTeam.city || DEFAULT_CITY);
+    setContactPhone(dbTeam.contactPhone || "");
     setPrimaryColor(dbTeam.branding?.primaryColor || "#0f766e");
     setSecondaryColor(dbTeam.branding?.secondaryColor || "#f59e0b");
     setBio(dbTeam.branding?.bio || "");
@@ -134,8 +139,11 @@ export function TrainerWorkspacePage() {
     setAvailability(dbTeam.availability || DEFAULT_AVAILABILITY);
   }, [dbTeam]);
 
-  // Gym Search Memo
-  const filteredGyms = useMemo(() => searchGyms(gymSearch).filter((g) => g.type === "gym"), [gymSearch]);
+  // Gym Search Memo (restrito à cidade de atuação do treinador)
+  const filteredGyms = useMemo(
+    () => searchGyms(gymSearch, city).filter((g) => g.type === "gym"),
+    [gymSearch, city],
+  );
 
   function toggleGym(gym: GymLocation) {
     setSelectedGyms((prev) =>
@@ -244,6 +252,8 @@ export function TrainerWorkspacePage() {
           bannerPhotoURL
         },
         trainingModalities: modalities,
+        city,
+        contactPhone,
         publicProfile: {
           showAgenda,
           showPrices,
@@ -377,6 +387,24 @@ export function TrainerWorkspacePage() {
                 <div className="mt-4 grid gap-4 sm:grid-cols-2">
                   <Field label="Nome público" value={name} onChange={setName} placeholder={team.name} />
                   <Field label="Mensagem da landing" value={welcomeMessage} onChange={setWelcomeMessage} placeholder={team.branding.welcomeMessage} />
+                  <label className="block">
+                    <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Cidade de atuação</span>
+                    <select
+                      className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+                      value={city}
+                      onChange={(e) => setCity(e.target.value)}
+                    >
+                      {CITY_NAMES.map((c) => (
+                        <option key={c} value={c}>{c}</option>
+                      ))}
+                    </select>
+                  </label>
+                  <Field
+                    label="WhatsApp de contato"
+                    value={contactPhone}
+                    onChange={setContactPhone}
+                    placeholder="+55 85 99999-9999"
+                  />
                   <ColorField label="Cor primária" value={primaryColor} onChange={setPrimaryColor} />
                   <ColorField label="Cor secundária" value={secondaryColor} onChange={setSecondaryColor} />
                   <label className="block sm:col-span-2">

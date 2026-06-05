@@ -1,4 +1,4 @@
-import { doc, getDoc, setDoc, updateDoc, type Firestore } from "firebase/firestore";
+import { doc, getDoc, increment, setDoc, updateDoc, type Firestore } from "firebase/firestore";
 import type { EnrollmentStatus } from "../types/domain";
 
 /** Id determinístico do vínculo aluno↔treinador. */
@@ -61,5 +61,17 @@ export async function approveEnrollment(db: Firestore, id: string): Promise<void
   await updateDoc(doc(db, "enrollments", id), {
     status: "active",
     approvedAt: new Date().toISOString(),
+  });
+}
+
+/** Credita aulas no saldo do vínculo (ex.: ao confirmar um pagamento). */
+export async function creditEnrollmentClasses(
+  db: Firestore,
+  studentId: string,
+  trainerId: string,
+  count: number,
+): Promise<void> {
+  await updateDoc(doc(db, "enrollments", enrollmentId(studentId, trainerId)), {
+    classesQuota: increment(count),
   });
 }

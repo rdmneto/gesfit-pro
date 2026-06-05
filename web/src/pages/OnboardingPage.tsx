@@ -5,6 +5,7 @@ import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
+import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { Button } from "../components/ui/Button";
 
 type Step = "role-select" | "contract" | "details-student" | "details-trainer";
@@ -20,6 +21,7 @@ export function OnboardingPage() {
 
   // Student form state
   const [studentPhone, setStudentPhone] = useState("");
+  const [studentCity, setStudentCity] = useState(DEFAULT_CITY);
   const [studentBirthDate, setStudentBirthDate] = useState("");
   const [studentHeight, setStudentHeight] = useState("");
   const [studentWeight, setStudentWeight] = useState("");
@@ -97,6 +99,7 @@ export function OnboardingPage() {
           birthDate: studentBirthDate,
           email: user.email,
           celular: studentPhone,
+          city: studentCity,
         },
         physiological: {
           alturaCm: Number(studentHeight) || null,
@@ -394,6 +397,20 @@ export function OnboardingPage() {
                   value={studentPhone}
                   onChange={(e) => setStudentPhone(e.target.value)}
                 />
+              </label>
+
+              <label className="block">
+                <span className="text-sm font-semibold text-stone-700">Cidade *</span>
+                <select
+                  required
+                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3"
+                  value={studentCity}
+                  onChange={(e) => setStudentCity(e.target.value)}
+                >
+                  {CITY_NAMES.map((c) => (
+                    <option key={c} value={c}>{c}</option>
+                  ))}
+                </select>
               </label>
 
               <label className="block">

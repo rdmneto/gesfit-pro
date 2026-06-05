@@ -12,8 +12,9 @@ import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useClassProducts, usePendingPurchases } from "../lib/hooks";
+import { creditEnrollmentClasses } from "../lib/enrollments";
 import { moneyFromCents } from "../lib/format";
-import type { ClassProductType, PurchaseStatus, ClassProduct, PromotionalPackage } from "../types/domain";
+import type { ClassProductType, PurchaseStatus, ClassProduct, ClassPurchase, PromotionalPackage } from "../types/domain";
 
 const statusLabel: Record<PurchaseStatus, string> = {
   awaiting_payment: "Aguardando pagamento",
@@ -151,20 +152,37 @@ export function PackagesPage() {
     setTimeout(() => setMessage(""), 3000);
   }
 
-  async function handleReviewPurchase(purchaseId: string, status: "paid" | "rejected") {
+  async function handleReviewPurchase(purchase: ClassPurchase, status: "paid" | "rejected") {
     if (!db) {
       setError("Banco de dados indisponível no momento.");
       return;
     }
 
     try {
-      const ref = doc(db, "classPurchases", purchaseId);
+      const ref = doc(db, "classPurchases", purchase.id);
       await updateDoc(ref, {
         status,
         reviewedAt: new Date().toISOString(),
         reviewedBy: user?.uid || "",
       });
-      setMessage(`Compra ${status === "paid" ? "confirmada" : "recusada"}!`);
+
+      // Pagamento confirmado → credita as aulas no saldo do vínculo do aluno.
+      if (status === "paid") {
+        const trainerId = purchase.trainerId || teamId || "";
+        if (purchase.studentId && trainerId && purchase.classesCount > 0) {
+          try {
+            await creditEnrollmentClasses(db, purchase.studentId, trainerId, purchase.classesCount);
+          } catch (creditErr) {
+            console.error("Falha ao creditar aulas no vínculo:", creditErr);
+          }
+        }
+      }
+
+      setMessage(
+        status === "paid"
+          ? `Compra confirmada! ${purchase.classesCount} aula(s) creditada(s).`
+          : "Compra recusada.",
+      );
       setTimeout(() => setMessage(""), 3000);
     } catch (err: any) {
       console.error(err);
@@ -464,7 +482,7 @@ export function PackagesPage() {
                     <button
                       type="button"
                       className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white hover:bg-emerald-600 transition-colors"
-                      onClick={() => handleReviewPurchase(purchase.id, "paid")}
+                      onClick={() => handleReviewPurchase(purchase, "paid")}
                     >
                       <CheckCircle2 aria-hidden="true" size={13} />
                       Confirmar
@@ -472,7 +490,7 @@ export function PackagesPage() {
                     <button
                       type="button"
                       className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-50 transition-colors"
-                      onClick={() => handleReviewPurchase(purchase.id, "rejected")}
+                      onClick={() => handleReviewPurchase(purchase, "rejected")}
                     >
                       <XCircle aria-hidden="true" size={13} />
                       Recusar
