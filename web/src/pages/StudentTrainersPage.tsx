@@ -98,25 +98,33 @@ function EnrollmentCard({
   onSetActive: () => void;
   onChangeStatus: (status: EnrollmentStatus) => void;
 }) {
-  // Time é público → o aluno pode ler para obter o contato do treinador.
+  // Time é público → o aluno pode ler para obter o contato e a marca do treinador.
   const { data: team } = useTeam(enrollment.trainerId);
   const cfg = statusConfig[enrollment.status];
   const remaining = Math.max((enrollment.classesQuota ?? 0) - (enrollment.classesUsed ?? 0), 0);
   const wa = enrollment.status === "active" ? whatsappLink(team?.contactPhone) : null;
+  const primary = team?.branding?.primaryColor || "#0f766e";
+  const secondary = team?.branding?.secondaryColor || "#f59e0b";
 
   return (
     <article
-      className={[
-        "rounded-2xl border bg-white p-5 transition-all",
-        isActive ? "border-emerald-500 shadow-[var(--shadow-md)]" : "border-stone-200",
-      ].join(" ")}
+      className="relative overflow-hidden rounded-2xl border bg-white p-5 pl-6 transition-all"
+      style={{
+        borderColor: isActive ? primary : "var(--color-border)",
+        boxShadow: isActive ? "var(--shadow-md)" : undefined,
+      }}
     >
+      {/* faixa com a cor do treinador */}
+      <span className="absolute left-0 top-0 h-full w-1.5" style={{ backgroundColor: secondary }} />
       <div className="flex flex-wrap items-start justify-between gap-3">
         <div>
           <div className="flex items-center gap-2">
             <h2 className="text-xl font-black text-stone-950">{enrollment.teamName || team?.name || "Treinador"}</h2>
             {isActive && (
-              <span className="inline-flex items-center gap-1 rounded-full bg-emerald-600 px-2.5 py-0.5 text-2xs font-bold text-white">
+              <span
+                className="inline-flex items-center gap-1 rounded-full px-2.5 py-0.5 text-2xs font-bold text-white"
+                style={{ backgroundColor: primary }}
+              >
                 <Star size={11} className="fill-white" /> Ativo
               </span>
             )}
@@ -130,7 +138,7 @@ function EnrollmentCard({
         {enrollment.status === "active" && (
           <div className="rounded-xl border border-stone-200 bg-stone-50 px-4 py-2 text-center">
             <p className="text-2xs font-semibold uppercase tracking-wider text-stone-500">Saldo de aulas</p>
-            <p className="text-2xl font-black text-emerald-800">{remaining}</p>
+            <p className="text-2xl font-black" style={{ color: primary }}>{remaining}</p>
           </div>
         )}
       </div>
@@ -158,7 +166,12 @@ function EnrollmentCard({
 
       <div className="mt-4 flex flex-wrap gap-2">
         {enrollment.status === "active" && !isActive && (
-          <button type="button" className="focus-ring btn btn-primary btn-sm" onClick={onSetActive}>
+          <button
+            type="button"
+            className="focus-ring btn btn-sm text-white hover:opacity-90"
+            style={{ backgroundColor: primary }}
+            onClick={onSetActive}
+          >
             <Zap size={14} /> Tornar ativo
           </button>
         )}

@@ -33,9 +33,11 @@ import {
   useMeasurements,
   usePendingMeasurements,
   useStudent,
+  useTeam,
   useTrainerStudents,
 } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
+import { useActiveTrainer } from "../lib/activeTrainer";
 import { approveEnrollment } from "../lib/enrollments";
 import type { Enrollment, Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
@@ -338,6 +340,11 @@ function StudentMeasurementsPage({
   const { data: allMeasurements = [] } = useMeasurements(studentId);
   const { data: pendingMeasurements = [] } = usePendingMeasurements(studentId);
 
+  // Acentos na cor do treinador ativo.
+  const activeTrainerId = useActiveTrainer((s) => s.activeTrainerId);
+  const { data: activeTeam } = useTeam(activeTrainerId);
+  const primary = activeTeam?.branding?.primaryColor || "#0f766e";
+
   const effectiveMeasurements = useMemo(() => allMeasurements ?? [], [allMeasurements]);
 
   const effectivePending = useMemo(() => pendingMeasurements ?? [], [pendingMeasurements]);
@@ -393,7 +400,7 @@ function StudentMeasurementsPage({
     <section className="mx-auto max-w-6xl px-4 py-8">
       <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
         <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
+          <p className="text-sm font-bold uppercase tracking-wide" style={{ color: primary }}>
             Medidas e evolução
           </p>
           <h1 className="mt-2 text-3xl font-black">Acompanhamento do aluno</h1>
@@ -450,13 +457,14 @@ function StudentMeasurementsPage({
       <SelfMeasurementForm studentId={studentId} studentName={studentName} />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Metric icon={Activity} label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
+        <Metric icon={Activity} color={primary} label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
         <Metric
           icon={TrendingDown}
+          color={primary}
           label="Variação desde início"
           value={`${weightChange > 0 ? "+" : ""}${weightChange} kg`}
         />
-        <Metric icon={Ruler} label="IMC atual" value={currentBmi ? `${currentBmi}` : "-"} />
+        <Metric icon={Ruler} color={primary} label="IMC atual" value={currentBmi ? `${currentBmi}` : "-"} />
       </div>
 
       <div className="mt-4 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
@@ -1054,14 +1062,16 @@ function Metric({
   icon: Icon,
   label,
   value,
+  color,
 }: {
   icon: typeof Activity;
   label: string;
   value: string;
+  color?: string;
 }) {
   return (
     <div className="rounded-lg border border-stone-200 bg-white p-5">
-      <Icon aria-hidden="true" className="text-emerald-800" size={22} />
+      <Icon aria-hidden="true" className="text-emerald-800" style={color ? { color } : undefined} size={22} />
       <p className="mt-3 text-sm text-stone-600">{label}</p>
       <p className="mt-1 text-2xl font-black">{value}</p>
     </div>
