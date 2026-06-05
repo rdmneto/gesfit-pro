@@ -15,6 +15,7 @@ export function TeamLandingPage() {
   const navigate = useNavigate();
   const user = useSessionStore((state) => state.user);
   const role = useSessionStore((state) => state.claims.role);
+  const activeTrainerId = useActiveTrainer((state) => state.activeTrainerId);
   const setActiveTrainer = useActiveTrainer((state) => state.setActiveTrainer);
 
   // Busca o time pelo slug no Firestore
@@ -84,7 +85,9 @@ export function TeamLandingPage() {
           trainerId: team.id,
           teamName: team.name,
         });
-        setActiveTrainer(team.id);
+        // Só adota o novo treinador como ativo se o aluno ainda não tem um —
+        // assim, contratar um treinador adicional não tira o contexto atual.
+        if (!activeTrainerId) setActiveTrainer(team.id);
       } catch (err) {
         console.error("Erro ao solicitar vínculo com o treinador:", err);
       }
@@ -128,6 +131,9 @@ export function TeamLandingPage() {
               </Link>
             )}
           </div>
+          <p className="mt-3 text-sm text-stone-300">
+            Contratar é gratuito — você passa a ser aluno deste treinador e compra aulas quando quiser.
+          </p>
         </div>
       </section>
 
