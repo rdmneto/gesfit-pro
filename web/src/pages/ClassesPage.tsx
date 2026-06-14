@@ -59,6 +59,10 @@ export function ClassesPage() {
   const [scheduleTime, setScheduleTime] = useState("");
   const [scheduleDuration, setScheduleDuration] = useState("60");
   const [scheduleFocus, setScheduleFocus] = useState("Musculação - Inferiores");
+  const [recurrence, setRecurrence] = useState<"single" | "weekly" | "biweekly">("single");
+  const [occurrences, setOccurrences] = useState("8");
+  // Slot clicado na grade → abre o modal de agendamento rápido
+  const [schedulerSlot, setSchedulerSlot] = useState<{ date: string; time: string } | null>(null);
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -101,51 +105,122 @@ export function ClassesPage() {
     return maxTime;
   }, [trainerWorkouts]);
 
-  // Handle scheduling
+  // Duração padrão da aula no dia (da grade) — usada no agendamento por clique.
+  function durationForDate(dateStr: string) {
+    const d = new Date(`${dateStr}T00:00:00`);
+    const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+    const day = availability.find((a) => a.weekday === weekdays[d.getDay()]);
+    return day?.classDurationMinutes ?? 60;
+  }
+
+  // Cria 1 (única) ou N aulas (semanal/quinzenal) a partir de um horário base.
+  async function createSessions(opts: {
+    student: { uid: string; displayName: string };
+    dateStr: string;
+    timeStr: string;
+    durationMin: number;
+    focus: string;
+  }): Promise<boolean> {
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
+      return false;
+    }
+    const base = new Date(`${opts.dateStr}T${opts.timeStr}`);
+    if (isNaN(base.getTime())) {
+      setError("Data ou hora inválida.");
+      return false;
+    }
+    const stepDays = recurrence === "weekly" ? 7 : recurrence === "biweekly" ? 14 : 0;
+    const count = recurrence === "single" ? 1 : Math.max(1, parseInt(occurrences, 10) || 1);
+    const focus = opts.focus.trim() || "Treino";
+
+    const sessions: Omit<WorkoutSession, "id">[] = [];
+    for (let i = 0; i < count; i++) {
+      const d = new Date(base);
+      d.setDate(d.getDate() + stepDays * i);
+      sessions.push({
+        studentId: opts.student.uid,
+        studentName: opts.student.displayName,
+        trainerId: user?.uid || "",
+        title: `Treino de ${focus}`,
+        modality: "Musculação",
+        startsAt: d.toISOString(),
+        address: "",
+        proposedWorkout: focus,
+        durationMinutes: opts.durationMin,
+        plannedCalories: 320,
+        status: "scheduled",
+        exercises: [focus],
+      });
+    }
+
+    try {
+      await Promise.all(sessions.map((s) => addDoc(collection(db!, "workoutSessions"), s)));
+      return true;
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao agendar: " + err.message);
+      return false;
+    }
+  }
+
+  // Agendamento pelo formulário lateral
   async function handleScheduleClass() {
     const student = students[selectedStudentIdx];
     if (!student || !scheduleDate || !scheduleTime) {
       setError("Por favor, preencha o aluno, data e hora do agendamento.");
       return;
     }
-
     setSaving(true);
     setError("");
     setMessage("");
-
-    const startsAt = new Date(`${scheduleDate}T${scheduleTime}`).toISOString();
-    const newSession: Omit<WorkoutSession, "id"> = {
-      studentId: student.uid,
-      studentName: student.displayName,
-      trainerId: user?.uid || "",
-      title: `Treino de ${scheduleFocus}`,
-      modality: "Musculação",
-      startsAt,
-      address: "",
-      proposedWorkout: scheduleFocus,
-      durationMinutes: parseInt(scheduleDuration, 10),
-      plannedCalories: 320,
-      status: "scheduled",
-      exercises: [scheduleFocus],
-    };
-
-    if (!db) {
-      setError("Banco de dados indisponível no momento.");
-      setSaving(false);
-      return;
-    }
-
-    try {
-      await addDoc(collection(db, "workoutSessions"), newSession);
-      setSaving(false);
-      setMessage("Aula agendada com sucesso!");
+    const ok = await createSessions({
+      student,
+      dateStr: scheduleDate,
+      timeStr: scheduleTime,
+      durationMin: parseInt(scheduleDuration, 10) || 60,
+      focus: scheduleFocus,
+    });
+    setSaving(false);
+    if (ok) {
+      setMessage(recurrence === "single" ? "Aula agendada com sucesso!" : "Aulas recorrentes agendadas!");
       setScheduleDate("");
       setScheduleTime("");
-    } catch (err: any) {
-      console.error(err);
-      setError("Erro ao agendar aula: " + err.message);
-      setSaving(false);
     }
+  }
+
+  // Agendamento rápido pelo clique no horário da grade
+  async function handleScheduleSlot() {
+    if (!schedulerSlot) return;
+    const student = students[selectedStudentIdx];
+    if (!student) {
+      setError("Selecione um aluno.");
+      return;
+    }
+    setSaving(true);
+    setError("");
+    setMessage("");
+    const ok = await createSessions({
+      student,
+      dateStr: schedulerSlot.date,
+      timeStr: schedulerSlot.time,
+      durationMin: durationForDate(schedulerSlot.date),
+      focus: scheduleFocus,
+    });
+    setSaving(false);
+    if (ok) {
+      setMessage(recurrence === "single" ? "Aula agendada!" : "Aulas recorrentes agendadas!");
+      setSchedulerSlot(null);
+    }
+  }
+
+  function openSchedulerForSlot(date: Date, time: string) {
+    const y = date.getFullYear();
+    const m = String(date.getMonth() + 1).padStart(2, "0");
+    const d = String(date.getDate()).padStart(2, "0");
+    setSchedulerSlot({ date: `${y}-${m}-${d}`, time });
+    setError("");
+    setMessage("");
   }
 
   // Calculate dynamic slots for details
@@ -247,6 +322,7 @@ export function ClassesPage() {
               onFinish={() => setActiveWorkout(null)}
               onSelectMonthDay={setSelectedMonthDay}
               onStart={setActiveWorkout}
+              onScheduleSlot={openSchedulerForSlot}
             />
           ) : (
             <div className="mt-4 overflow-x-auto">
@@ -420,6 +496,13 @@ export function ClassesPage() {
                   />
                 </label>
               </div>
+
+              <RecurrenceFields
+                recurrence={recurrence}
+                setRecurrence={setRecurrence}
+                occurrences={occurrences}
+                setOccurrences={setOccurrences}
+              />
             </div>
 
             <button
@@ -461,7 +544,126 @@ export function ClassesPage() {
         </div>
 
       </div>
+
+      {/* Modal de agendamento rápido (clique no horário) */}
+      {schedulerSlot && (
+        <div className="fixed inset-0 z-50 flex items-end justify-center bg-black/40 p-0 sm:items-center sm:p-4" onClick={() => setSchedulerSlot(null)}>
+          <div
+            className="w-full max-w-md rounded-t-2xl bg-white p-6 shadow-xl sm:rounded-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="flex items-start justify-between">
+              <div>
+                <p className="text-2xs font-bold uppercase tracking-wider text-emerald-800">Agendar horário</p>
+                <h3 className="mt-0.5 text-xl font-black text-stone-950">
+                  {new Date(`${schedulerSlot.date}T${schedulerSlot.time}`).toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "2-digit" })} · {schedulerSlot.time}
+                </h3>
+              </div>
+              <button type="button" aria-label="Fechar" className="focus-ring rounded-lg p-1.5 text-stone-500 hover:bg-stone-100" onClick={() => setSchedulerSlot(null)}>
+                <X size={18} />
+              </button>
+            </div>
+
+            <div className="mt-4 grid gap-3">
+              <label className="block">
+                <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Aluno</span>
+                <select
+                  className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+                  value={selectedStudentIdx}
+                  onChange={(e) => setSelectedStudentIdx(parseInt(e.target.value, 10))}
+                >
+                  {students.length === 0 && <option value={0}>Nenhum aluno ativo</option>}
+                  {students.map((std, idx) => (
+                    <option key={std.uid} value={idx}>{std.displayName}</option>
+                  ))}
+                </select>
+              </label>
+
+              <label className="block">
+                <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Foco do treino</span>
+                <input
+                  className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm"
+                  placeholder="ex: Membros Inferiores"
+                  value={scheduleFocus}
+                  onChange={(e) => setScheduleFocus(e.target.value)}
+                />
+              </label>
+
+              <RecurrenceFields
+                recurrence={recurrence}
+                setRecurrence={setRecurrence}
+                occurrences={occurrences}
+                setOccurrences={setOccurrences}
+              />
+            </div>
+
+            {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p>}
+
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                className="focus-ring btn btn-primary h-11 flex-1 text-sm font-bold"
+                disabled={saving || students.length === 0}
+                onClick={handleScheduleSlot}
+              >
+                <UserPlus size={15} />
+                {saving ? "Agendando..." : "Confirmar"}
+              </button>
+              <button
+                type="button"
+                className="focus-ring btn btn-secondary h-11"
+                onClick={() => setSchedulerSlot(null)}
+              >
+                Cancelar
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
     </section>
+  );
+}
+
+// Campos de recorrência reutilizados (formulário lateral e modal)
+function RecurrenceFields({
+  recurrence,
+  setRecurrence,
+  occurrences,
+  setOccurrences,
+}: {
+  recurrence: "single" | "weekly" | "biweekly";
+  setRecurrence: (v: "single" | "weekly" | "biweekly") => void;
+  occurrences: string;
+  setOccurrences: (v: string) => void;
+}) {
+  return (
+    <div className="grid grid-cols-2 gap-3">
+      <label className="block">
+        <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Repetição</span>
+        <select
+          className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-xs"
+          value={recurrence}
+          onChange={(e) => setRecurrence(e.target.value as "single" | "weekly" | "biweekly")}
+        >
+          <option value="single">Aula única</option>
+          <option value="weekly">Semanal</option>
+          <option value="biweekly">Quinzenal</option>
+        </select>
+      </label>
+      {recurrence !== "single" && (
+        <label className="block">
+          <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Qtd. de aulas</span>
+          <input
+            className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs text-center"
+            type="number"
+            min={1}
+            max={52}
+            value={occurrences}
+            onChange={(e) => setOccurrences(e.target.value)}
+          />
+        </label>
+      )}
+    </div>
   );
 }
 
@@ -478,6 +680,7 @@ interface CalendarVisualProps {
   onFinish: () => void;
   onSelectMonthDay: (d: Date) => void;
   onStart: (w: WorkoutSession) => void;
+  onScheduleSlot: (date: Date, time: string) => void;
 }
 
 function TrainerCalendarVisual({
@@ -491,6 +694,7 @@ function TrainerCalendarVisual({
   onFinish,
   onSelectMonthDay,
   onStart,
+  onScheduleSlot,
 }: CalendarVisualProps) {
   
   if (view === "week") {
@@ -599,9 +803,9 @@ function TrainerCalendarVisual({
                       </p>
                     </div>
                   ) : (
-                    <p className="font-bold text-xs text-emerald-800">Horário livre para novos alunos</p>
+                    <p className="font-bold text-xs text-emerald-800">Horário livre</p>
                   )}
-                  {workout && (
+                  {workout ? (
                     <button
                       type="button"
                       className={[
@@ -613,6 +817,17 @@ function TrainerCalendarVisual({
                       {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
                       {isActive ? "Finalizar" : "Iniciar"}
                     </button>
+                  ) : (
+                    selectedMonthDay && (
+                      <button
+                        type="button"
+                        className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3.5 text-2xs font-bold text-emerald-800 transition-colors hover:bg-emerald-50"
+                        onClick={() => onScheduleSlot(selectedMonthDay, slot)}
+                      >
+                        <UserPlus size={12} />
+                        Agendar
+                      </button>
+                    )
                   )}
                 </article>
               );
@@ -689,45 +904,72 @@ function TrainerCalendarVisual({
     );
   }
 
-  // Day view
-  const dayWorkouts = getTrainerCalendarItems(workouts, "day");
+  // Day view — agenda detalhada de hoje (todos os horários, livres e ocupados)
+  const today = new Date();
+  const dayWeekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+  const dayAvail = availability.find((a) => a.weekday === dayWeekdays[today.getDay()]);
+  const daySlots = dayAvail && dayAvail.active
+    ? [
+        ...periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes),
+        ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
+      ]
+    : [];
+  const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, today));
+
   return (
-    <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-      {dayWorkouts.map((workout) => (
-        <article
-          key={workout.id}
-          className={[
-            "rounded-xl border border-stone-200 p-4 bg-white hover:shadow-sm transition-all flex flex-col justify-between min-h-36",
-            activeWorkoutId === workout.id ? "border-emerald-400 bg-emerald-50/10" : "",
-          ].join(" ")}
-        >
-          <div>
-            <div className="flex items-start justify-between gap-2">
-              <strong className="text-sm font-black text-stone-900">{formatTime(workout.startsAt)}</strong>
-              <span className="rounded bg-emerald-50 px-2 py-0.5 text-4xs font-bold text-emerald-800 uppercase border border-emerald-100">
-                {workout.modality}
-              </span>
-            </div>
-            <p className="mt-2 font-bold text-sm text-stone-950">{workout.studentName}</p>
-            <p className="mt-1 text-xs text-stone-500 font-medium leading-5">{workout.proposedWorkout ?? workout.title}</p>
-          </div>
-          <button
-            type="button"
-            className={[
-              "focus-ring mt-4 inline-flex h-9 w-full items-center justify-center gap-1.5 rounded-lg text-xs font-bold text-white transition-all shadow-2xs bg-emerald-700 hover:bg-emerald-650",
-              activeWorkoutId === workout.id ? "bg-stone-950 hover:bg-stone-900" : "",
-            ].join(" ")}
-            onClick={() => activeWorkoutId === workout.id ? onFinish() : onStart(workout)}
-          >
-            {activeWorkoutId === workout.id ? <CheckCircle2 size={13} /> : <Play size={13} />}
-            {activeWorkoutId === workout.id ? "Finalizar" : "Iniciar Atendimento"}
-          </button>
-        </article>
-      ))}
-      {dayWorkouts.length === 0 && (
-        <p className="col-span-full py-8 text-center text-sm text-stone-400 italic">
-          Nenhum atendimento agendado para hoje.
+    <div className="mt-4 grid gap-2.5">
+      {daySlots.length === 0 ? (
+        <p className="py-8 text-center text-sm text-stone-400 italic rounded-xl border border-stone-200 bg-white">
+          Sem expediente configurado para hoje. Defina sua grade em Ajustes → Agenda.
         </p>
+      ) : (
+        daySlots.map((slot) => {
+          const workout = workoutAtSlot(dayWorkouts, slot);
+          const isActive = activeWorkoutId === workout?.id;
+          return (
+            <article
+              key={slot}
+              className={[
+                "grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[5rem_1fr_auto] items-center",
+                workout ? "border-amber-200 bg-amber-50/40" : "border-emerald-250 bg-emerald-50/45",
+              ].join(" ")}
+            >
+              <p className={["font-black text-sm", workout ? "text-amber-800" : "text-emerald-850"].join(" ")}>{slot}</p>
+              {workout ? (
+                <div>
+                  <p className="font-bold text-sm text-stone-950">{workout.studentName}</p>
+                  <p className="mt-0.5 text-xs text-stone-600 font-medium">
+                    {workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min
+                  </p>
+                </div>
+              ) : (
+                <p className="font-bold text-xs text-emerald-800">Horário livre</p>
+              )}
+              {workout ? (
+                <button
+                  type="button"
+                  className={[
+                    "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
+                    isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
+                  ].join(" ")}
+                  onClick={() => (isActive ? onFinish() : onStart(workout))}
+                >
+                  {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                  {isActive ? "Finalizar" : "Iniciar"}
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3.5 text-2xs font-bold text-emerald-800 transition-colors hover:bg-emerald-50"
+                  onClick={() => onScheduleSlot(today, slot)}
+                >
+                  <UserPlus size={12} />
+                  Agendar
+                </button>
+              )}
+            </article>
+          );
+        })
       )}
     </div>
   );
