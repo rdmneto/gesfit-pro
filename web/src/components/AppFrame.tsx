@@ -7,9 +7,8 @@ import {
   LogOut,
   RefreshCw,
   Ruler,
-  ShieldCheck,
+  Settings,
   ShoppingBag,
-  UserPlus,
   UserRound,
   Users,
 } from "lucide-react";
@@ -34,8 +33,7 @@ export function AppFrame() {
   // Mantém um treinador ativo selecionado para o aluno.
   useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
 
-  // Onde cada papel edita o próprio cadastro.
-  const accountPath = role === "trainer" ? "/app/treinador" : "/app/meu-cadastro";
+  const isStudent = role === "student";
 
   const studentLinks: NavItem[] = [
     { to: "/", label: "Início", icon: House, exact: true },
@@ -46,13 +44,10 @@ export function AppFrame() {
   ];
 
   const trainerLinks: NavItem[] = [
-    { to: "/", label: "Início", icon: House, exact: true },
-    { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
-    { to: "/app/aulas", label: "Agenda", icon: CalendarDays },
+    { to: "/app", label: "Página principal", icon: Dumbbell, exact: true },
+    { to: "/app/agenda", label: "Agenda", icon: CalendarDays },
     { to: "/app/alunos", label: "Alunos", icon: Users },
-    { to: "/app/treinador", label: "Perfil", icon: UserPlus },
-    { to: "/app/pacotes", label: "Pacotes", icon: ShoppingBag },
-    { to: "/app/seguranca", label: "Regras", icon: ShieldCheck },
+    { to: "/app/ajustes", label: "Ajustes", icon: Settings },
   ];
 
   const publicLinks: NavItem[] = [
@@ -121,22 +116,26 @@ export function AppFrame() {
             ))}
             {isLogged && (
               <>
-                <NavLink
-                  to={accountPath}
-                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-stone-100 hover:text-stone-900"
-                  title="Editar meu cadastro"
-                >
-                  <UserRound aria-hidden="true" size={15} />
-                  Meu cadastro
-                </NavLink>
-                <NavLink
-                  to="/app/mudar-perfil"
-                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-400 transition-all duration-150 hover:bg-stone-100 hover:text-stone-700"
-                  title="Mudar tipo de perfil (aluno/treinador)"
-                >
-                  <RefreshCw aria-hidden="true" size={14} />
-                  Mudar perfil
-                </NavLink>
+                {isStudent && (
+                  <>
+                    <NavLink
+                      to="/app/meu-cadastro"
+                      className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-stone-100 hover:text-stone-900"
+                      title="Editar meu cadastro"
+                    >
+                      <UserRound aria-hidden="true" size={15} />
+                      Meu cadastro
+                    </NavLink>
+                    <NavLink
+                      to="/app/mudar-perfil"
+                      className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-400 transition-all duration-150 hover:bg-stone-100 hover:text-stone-700"
+                      title="Mudar tipo de perfil (aluno/treinador)"
+                    >
+                      <RefreshCw aria-hidden="true" size={14} />
+                      Mudar perfil
+                    </NavLink>
+                  </>
+                )}
                 <button
                   type="button"
                   className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
@@ -153,13 +152,15 @@ export function AppFrame() {
           <div className="flex items-center gap-2 md:hidden">
             {isLogged ? (
               <>
-                <NavLink
-                  to={accountPath}
-                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
-                  aria-label="Meu cadastro"
-                >
-                  <UserRound size={18} />
-                </NavLink>
+                {isStudent && (
+                  <NavLink
+                    to="/app/meu-cadastro"
+                    className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
+                    aria-label="Meu cadastro"
+                  >
+                    <UserRound size={18} />
+                  </NavLink>
+                )}
                 <button
                   type="button"
                   className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"

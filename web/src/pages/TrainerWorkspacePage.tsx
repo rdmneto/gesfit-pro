@@ -8,8 +8,10 @@ import {
   Clock,
   Home,
   Image,
+  LogOut,
   MapPin,
   Minus,
+  Package,
   Palette,
   Plus,
   Search,
@@ -24,6 +26,7 @@ import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam } from "../lib/hooks";
+import { PackagesPage } from "./PackagesPage";
 import { DEFAULT_AVAILABILITY, trainingModalities } from "../data/catalog";
 import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { gymTypeIcon, searchGyms } from "../data/gyms";
@@ -65,6 +68,7 @@ function locationTypeColor(type: GymLocation["type"]) {
 
 export function TrainerWorkspacePage() {
   const teamId = useSessionStore((state) => state.claims.teamId);
+  const logout = useSessionStore((state) => state.logout);
   const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
 
   // Time padrão (treinador sem perfil salvo ainda) — apenas defaults editáveis.
@@ -81,7 +85,9 @@ export function TrainerWorkspacePage() {
   };
 
   // Sub-tab state
-  const [activeSubTab, setActiveSubTab] = useState<"perfil" | "locais" | "agenda">("perfil");
+  const [activeSubTab, setActiveSubTab] = useState<
+    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes"
+  >("cadastro");
 
   // Profile States
   const [name, setName] = useState("");
@@ -296,12 +302,20 @@ export function TrainerWorkspacePage() {
             Área do treinador
           </p>
           <h1 className="mt-2 text-3xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
-            Configurações do Perfil
+            Ajustes
           </h1>
           <p className="mt-2 max-w-3xl leading-6 text-stone-500">
-            Customize seu perfil público, gerencie os locais onde você atende e sua grade horária de trabalho semanal.
+            Configure seu cadastro, estilos de treino, academias, agenda e pacotes/promoções.
           </p>
         </div>
+        <button
+          type="button"
+          onClick={() => logout()}
+          className="focus-ring inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-stone-200 px-4 text-sm font-bold text-stone-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+        >
+          <LogOut size={16} />
+          Sair
+        </button>
       </div>
 
       {/* Visual Public Banner Preview — reflete a paleta escolhida ao vivo */}
@@ -352,52 +366,35 @@ export function TrainerWorkspacePage() {
       </p>
 
       {/* Sub-tabs Navigation */}
-      <div className="mt-6 flex border-b border-stone-200">
-        <button
-          type="button"
-          className={[
-            "focus-ring -mb-px flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-bold transition-all",
-            activeSubTab === "perfil"
-              ? "border-emerald-700 text-emerald-950 font-black"
-              : "border-transparent text-stone-500 hover:text-stone-800",
-          ].join(" ")}
-          onClick={() => setActiveSubTab("perfil")}
-        >
-          <Palette size={16} />
-          Identidade e Fotos
-        </button>
-        <button
-          type="button"
-          className={[
-            "focus-ring -mb-px flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-bold transition-all",
-            activeSubTab === "locais"
-              ? "border-emerald-700 text-emerald-950 font-black"
-              : "border-transparent text-stone-500 hover:text-stone-800",
-          ].join(" ")}
-          onClick={() => setActiveSubTab("locais")}
-        >
-          <MapPin size={16} />
-          Locais de Atendimento
-        </button>
-        <button
-          type="button"
-          className={[
-            "focus-ring -mb-px flex items-center gap-2 border-b-2 px-5 py-3.5 text-sm font-bold transition-all",
-            activeSubTab === "agenda"
-              ? "border-emerald-700 text-emerald-950 font-black"
-              : "border-transparent text-stone-500 hover:text-stone-800",
-          ].join(" ")}
-          onClick={() => setActiveSubTab("agenda")}
-        >
-          <CalendarClock size={16} />
-          Disponibilidade e Grade
-        </button>
+      <div className="mt-6 flex gap-1 overflow-x-auto border-b border-stone-200">
+        {([
+          { id: "cadastro", label: "Meu cadastro", icon: Palette },
+          { id: "estilos", label: "Estilos de treino", icon: Check },
+          { id: "locais", label: "Academias", icon: MapPin },
+          { id: "agenda", label: "Agenda", icon: CalendarClock },
+          { id: "pacotes", label: "Pacotes e promoções", icon: Package },
+        ] as const).map(({ id, label, icon: Icon }) => (
+          <button
+            key={id}
+            type="button"
+            className={[
+              "focus-ring -mb-px flex shrink-0 items-center gap-2 border-b-2 px-4 py-3.5 text-sm font-bold transition-all",
+              activeSubTab === id
+                ? "border-emerald-700 text-emerald-950 font-black"
+                : "border-transparent text-stone-500 hover:text-stone-800",
+            ].join(" ")}
+            onClick={() => setActiveSubTab(id)}
+          >
+            <Icon size={16} />
+            {label}
+          </button>
+        ))}
       </div>
 
       {/* Tab Contents */}
       <div className="mt-6">
-        {/* ── Sub-tab 1: PERFIL ────────────────────────────────────────── */}
-        {activeSubTab === "perfil" && (
+        {/* ── Sub-tab: MEU CADASTRO ────────────────────────────────────── */}
+        {activeSubTab === "cadastro" && (
           <div className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
               <section className="card p-5">
@@ -468,51 +465,53 @@ export function TrainerWorkspacePage() {
               </section>
             </div>
 
-            <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-              <section className="card p-5">
-                <div className="flex items-center gap-2">
-                  <ToggleRight aria-hidden="true" className="text-emerald-800" size={20} />
-                  <h2 className="text-lg font-black text-stone-950">Divulgação na landing</h2>
-                </div>
-                <div className="mt-4 space-y-2">
-                  <Switch label="Mostrar agenda disponível" checked={showAgenda} onChange={setShowAgenda} />
-                  <Switch label="Mostrar valores de aulas e pacotes" checked={showPrices} onChange={setShowPrices} />
-                  <Switch label="Mostrar fotos do treinador/equipe" checked={showPhotos} onChange={setShowPhotos} />
-                </div>
-              </section>
-
-              <section className="card p-5">
-                <div className="flex items-center gap-2">
-                  <Check aria-hidden="true" className="text-emerald-800" size={20} />
-                  <h2 className="text-lg font-black text-stone-950">Modalidades de treino</h2>
-                </div>
-                <div className="mt-4 grid gap-3 sm:grid-cols-2">
-                  {trainingModalities.map((modality) => {
-                    const isChecked = modalities.includes(modality);
-                    return (
-                      <label
-                        key={modality}
-                        className={[
-                          "flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-bold cursor-pointer transition-colors",
-                          isChecked
-                            ? "border-emerald-200 bg-emerald-50 text-emerald-950 animate-pulse-once"
-                            : "border-stone-200 bg-stone-50/50 text-stone-600 hover:border-stone-300",
-                        ].join(" ")}
-                      >
-                        <input
-                          checked={isChecked}
-                          onChange={(e) => handleModalityChange(modality, e.target.checked)}
-                          type="checkbox"
-                          className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
-                        />
-                        {modality}
-                      </label>
-                    );
-                  })}
-                </div>
-              </section>
-            </div>
+            <section className="card p-5">
+              <div className="flex items-center gap-2">
+                <ToggleRight aria-hidden="true" className="text-emerald-800" size={20} />
+                <h2 className="text-lg font-black text-stone-950">Divulgação na landing</h2>
+              </div>
+              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+                <Switch label="Mostrar agenda disponível" checked={showAgenda} onChange={setShowAgenda} />
+                <Switch label="Mostrar valores de aulas e pacotes" checked={showPrices} onChange={setShowPrices} />
+                <Switch label="Mostrar fotos do treinador/equipe" checked={showPhotos} onChange={setShowPhotos} />
+              </div>
+            </section>
           </div>
+        )}
+
+        {/* ── Sub-tab: ESTILOS DE TREINO ───────────────────────────────── */}
+        {activeSubTab === "estilos" && (
+          <section className="card p-5">
+            <div className="flex items-center gap-2">
+              <Check aria-hidden="true" className="text-emerald-800" size={20} />
+              <h2 className="text-lg font-black text-stone-950">Modalidades de treino</h2>
+            </div>
+            <p className="mt-1 text-xs text-stone-400">Selecione os estilos de treino que você oferece.</p>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+              {trainingModalities.map((modality) => {
+                const isChecked = modalities.includes(modality);
+                return (
+                  <label
+                    key={modality}
+                    className={[
+                      "flex min-h-12 items-center gap-3 rounded-xl border px-4 text-sm font-bold cursor-pointer transition-colors",
+                      isChecked
+                        ? "border-emerald-200 bg-emerald-50 text-emerald-950 animate-pulse-once"
+                        : "border-stone-200 bg-stone-50/50 text-stone-600 hover:border-stone-300",
+                    ].join(" ")}
+                  >
+                    <input
+                      checked={isChecked}
+                      onChange={(e) => handleModalityChange(modality, e.target.checked)}
+                      type="checkbox"
+                      className="rounded border-stone-300 text-emerald-600 focus:ring-emerald-500 h-4 w-4"
+                    />
+                    {modality}
+                  </label>
+                );
+              })}
+            </div>
+          </section>
         )}
 
         {/* ── Sub-tab 2: LOCAIS ─────────────────────────────────────────── */}
@@ -739,30 +738,39 @@ export function TrainerWorkspacePage() {
             </div>
           </div>
         )}
+
+        {/* ── Sub-tab: PACOTES E PROMOÇÕES ─────────────────────────────── */}
+        {activeSubTab === "pacotes" && (
+          <div className="-mx-4">
+            <PackagesPage />
+          </div>
+        )}
       </div>
 
-      {saveSuccess && (
+      {saveSuccess && activeSubTab !== "pacotes" && (
         <div className="mt-6 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-800 animate-fade-in">
           Configurações e personalização salvas com sucesso!
         </div>
       )}
-      {saveError && (
+      {saveError && activeSubTab !== "pacotes" && (
         <div className="mt-6 rounded-xl bg-rose-50 border border-rose-200 p-4 text-sm font-bold text-rose-800 animate-fade-in">
           {saveError}
         </div>
       )}
 
-      {/* Floating Save Button */}
-      <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
-        <button
-          type="button"
-          disabled={saving}
-          onClick={handleSave}
-          className="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-stone-950 px-6 font-bold text-white shadow-xl hover:bg-stone-850 disabled:opacity-50 transition-all border border-stone-800"
-        >
-          {saving ? "Salvando..." : "Salvar configurações"}
-        </button>
-      </div>
+      {/* Floating Save Button — pacotes/promoções têm salvamento próprio */}
+      {activeSubTab !== "pacotes" && (
+        <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
+          <button
+            type="button"
+            disabled={saving}
+            onClick={handleSave}
+            className="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-stone-950 px-6 font-bold text-white shadow-xl hover:bg-stone-850 disabled:opacity-50 transition-all border border-stone-800"
+          >
+            {saving ? "Salvando..." : "Salvar configurações"}
+          </button>
+        </div>
+      )}
     </section>
   );
 }

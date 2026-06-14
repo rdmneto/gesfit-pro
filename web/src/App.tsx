@@ -9,13 +9,11 @@ import { HomePage } from "./pages/HomePage";
 import { LoginPage } from "./pages/LoginPage";
 import { MeasurementsPage } from "./pages/MeasurementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
-import { SecurityPage } from "./pages/SecurityPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentProfilePage } from "./pages/StudentProfilePage";
 import { StudentTrainersPage } from "./pages/StudentTrainersPage";
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
-import { PackagesPage } from "./pages/PackagesPage";
 import { TrainerWorkspacePage } from "./pages/TrainerWorkspacePage";
 import { useSessionStore } from "./store/session";
 
@@ -61,12 +59,14 @@ export default function App() {
 
           {/* Authenticated routes — trainer */}
           <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
-          <Route path="app/aulas" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
+          <Route path="app/aulas" element={<Navigate to="/app/agenda" replace />} />
           <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
-          <Route path="app/treinador" element={<RequireTrainer><TrainerWorkspacePage /></RequireTrainer>} />
-          <Route path="app/seguranca" element={<RequireTrainer><SecurityPage /></RequireTrainer>} />
-          <Route path="app/pacotes" element={<RequireTrainer><PackagesPage /></RequireTrainer>} />
-          <Route path="app/configuracoes" element={<Navigate to="/app/treinador" replace />} />
+          <Route path="app/ajustes" element={<RequireTrainer><TrainerWorkspacePage /></RequireTrainer>} />
+          {/* Rotas antigas → Ajustes (consolidou perfil, pacotes e regras) */}
+          <Route path="app/treinador" element={<Navigate to="/app/ajustes" replace />} />
+          <Route path="app/pacotes" element={<Navigate to="/app/ajustes" replace />} />
+          <Route path="app/seguranca" element={<Navigate to="/app/ajustes" replace />} />
+          <Route path="app/configuracoes" element={<Navigate to="/app/ajustes" replace />} />
 
           <Route path="*" element={<Navigate to="/" replace />} />
         </Route>
