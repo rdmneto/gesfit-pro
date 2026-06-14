@@ -1,8 +1,6 @@
 import {
-  CalendarClock,
   CalendarDays,
   CheckCircle2,
-  Clock,
   List,
   Play,
   UserPlus,
@@ -19,7 +17,6 @@ import {
   type CalendarMode,
   formatDate,
   formatDateTime,
-  formatTime,
   getTrainerCalendarItems,
   isSameDay,
   monthGridDays,
@@ -55,9 +52,6 @@ export function ClassesPage() {
 
   // Schedule class states
   const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
-  const [scheduleDate, setScheduleDate] = useState("");
-  const [scheduleTime, setScheduleTime] = useState("");
-  const [scheduleDuration, setScheduleDuration] = useState("60");
   const [scheduleFocus, setScheduleFocus] = useState("Musculação - Inferiores");
   const [recurrence, setRecurrence] = useState<"single" | "weekly" | "biweekly">("single");
   const [occurrences, setOccurrences] = useState("8");
@@ -69,41 +63,6 @@ export function ClassesPage() {
   const [error, setError] = useState("");
 
   const visibleWorkouts = getTrainerCalendarItems(trainerWorkouts, calendarView);
-  const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
-
-  // Highlights / statistics
-  const weeklyWorkoutsCount = useMemo(() => {
-    const today = new Date();
-    const days = weekDays(today);
-    const start = days[0];
-    const end = new Date(days[6]);
-    end.setHours(23, 59, 59);
-    return trainerWorkouts.filter((w) => {
-      const d = new Date(w.startsAt);
-      return d >= start && d <= end;
-    }).length;
-  }, [trainerWorkouts]);
-
-  const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
-  const todayDuration = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
-
-  const busiestHour = useMemo(() => {
-    if (trainerWorkouts.length === 0) return "–";
-    const counts: Record<string, number> = {};
-    trainerWorkouts.forEach((w) => {
-      const time = w.startsAt.split("T")[1]?.slice(0, 5) || "06:00";
-      counts[time] = (counts[time] || 0) + 1;
-    });
-    let maxTime = "–";
-    let maxCount = 0;
-    Object.entries(counts).forEach(([time, count]) => {
-      if (count > maxCount) {
-        maxCount = count;
-        maxTime = time;
-      }
-    });
-    return maxTime;
-  }, [trainerWorkouts]);
 
   // Duração padrão da aula no dia (da grade) — usada no agendamento por clique.
   function durationForDate(dateStr: string) {
@@ -161,31 +120,6 @@ export function ClassesPage() {
       console.error(err);
       setError("Erro ao agendar: " + err.message);
       return false;
-    }
-  }
-
-  // Agendamento pelo formulário lateral
-  async function handleScheduleClass() {
-    const student = students[selectedStudentIdx];
-    if (!student || !scheduleDate || !scheduleTime) {
-      setError("Por favor, preencha o aluno, data e hora do agendamento.");
-      return;
-    }
-    setSaving(true);
-    setError("");
-    setMessage("");
-    const ok = await createSessions({
-      student,
-      dateStr: scheduleDate,
-      timeStr: scheduleTime,
-      durationMin: parseInt(scheduleDuration, 10) || 60,
-      focus: scheduleFocus,
-    });
-    setSaving(false);
-    if (ok) {
-      setMessage(recurrence === "single" ? "Aula agendada com sucesso!" : "Aulas recorrentes agendadas!");
-      setScheduleDate("");
-      setScheduleTime("");
     }
   }
 
@@ -265,10 +199,8 @@ export function ClassesPage() {
         </div>
       )}
 
-      {/* Main Grid: Agenda vs Sidebar */}
-      <div className="mt-6 grid gap-6 lg:grid-cols-[1.3fr_0.7fr]">
-        
-        {/* COLUNA ESQUERDA: Calendário Visual */}
+      {/* Agenda */}
+      <div className="mt-6">
         <section className="card p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
             <div>
@@ -394,154 +326,6 @@ export function ClassesPage() {
           )}
         </section>
 
-        {/* COLUNA DIREITA: Destaques & Agendamento */}
-        <div className="space-y-4">
-          
-          {/* Destaques da Agenda */}
-          <section className="card p-5">
-            <div className="flex items-center gap-2">
-              <div className="flex h-7 w-7 items-center justify-center rounded-md bg-amber-50">
-                <CalendarClock aria-hidden="true" className="text-amber-700" size={16} />
-              </div>
-              <h2 className="text-sm font-black text-stone-950 uppercase tracking-wider">Destaques da Agenda</h2>
-            </div>
-            <div className="mt-4 grid gap-3 grid-cols-2">
-              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
-                <p className="text-2xs font-semibold text-stone-500 uppercase">Aulas na Semana</p>
-                <p className="mt-1 text-xl font-black text-stone-950">{weeklyWorkoutsCount}</p>
-                <p className="text-2xs text-stone-400 mt-0.5">agendadas</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
-                <p className="text-2xs font-semibold text-stone-500 uppercase">Carga Hoje</p>
-                <p className="mt-1 text-xl font-black text-stone-950">{todayDuration} min</p>
-                <p className="text-2xs text-stone-400 mt-0.5">de atendimento</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
-                <p className="text-2xs font-semibold text-stone-500 uppercase">Horário de Pico</p>
-                <p className="mt-1 text-base font-black text-stone-950">{busiestHour}</p>
-                <p className="text-2xs text-stone-400 mt-1">mais concorrido</p>
-              </div>
-              <div className="rounded-xl border border-stone-200 bg-stone-50/50 p-3">
-                <p className="text-2xs font-semibold text-stone-500 uppercase">Próximo Aluno</p>
-                <p className="mt-1 text-xs font-black text-stone-950 truncate">
-                  {nextWorkouts[0] ? nextWorkouts[0].studentName : "Sem treinos"}
-                </p>
-                <p className="text-2xs text-stone-400 mt-1 truncate">
-                  {nextWorkouts[0] ? formatTime(nextWorkouts[0].startsAt) : "–"}
-                </p>
-              </div>
-            </div>
-          </section>
-
-          {/* Agendar Horário de Aula */}
-          <section className="card p-5">
-            <div className="flex items-center gap-2">
-              <UserPlus aria-hidden="true" className="text-emerald-800" size={18} />
-              <h2 className="text-base font-black text-stone-950">Agendar horário de aula</h2>
-            </div>
-            <div className="mt-4 grid gap-3">
-              <label className="block">
-                <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Aluno</span>
-                <select
-                  className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 bg-white px-3 text-xs"
-                  value={selectedStudentIdx}
-                  onChange={(e) => setSelectedStudentIdx(parseInt(e.target.value, 10))}
-                >
-                  {students.map((std, idx) => (
-                    <option key={std.uid} value={idx}>
-                      {std.displayName}
-                    </option>
-                  ))}
-                </select>
-              </label>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Data</span>
-                  <input
-                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
-                    type="date"
-                    value={scheduleDate}
-                    onChange={(e) => setScheduleDate(e.target.value)}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Hora início</span>
-                  <input
-                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
-                    type="time"
-                    value={scheduleTime}
-                    onChange={(e) => setScheduleTime(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <div className="grid grid-cols-2 gap-3">
-                <label className="block">
-                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Duração (min)</span>
-                  <input
-                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs text-center"
-                    type="number"
-                    value={scheduleDuration}
-                    onChange={(e) => setScheduleDuration(e.target.value)}
-                  />
-                </label>
-                <label className="block">
-                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Foco do treino</span>
-                  <input
-                    className="focus-ring mt-1.5 h-10 w-full rounded-xl border border-stone-200 px-3 text-xs"
-                    placeholder="ex: Membros Inferiores"
-                    value={scheduleFocus}
-                    onChange={(e) => setScheduleFocus(e.target.value)}
-                  />
-                </label>
-              </div>
-
-              <RecurrenceFields
-                recurrence={recurrence}
-                setRecurrence={setRecurrence}
-                occurrences={occurrences}
-                setOccurrences={setOccurrences}
-              />
-            </div>
-
-            <button
-              type="button"
-              className="focus-ring btn btn-primary mt-4 w-full h-10 text-xs font-bold"
-              disabled={saving}
-              onClick={handleScheduleClass}
-            >
-              <UserPlus aria-hidden="true" size={14} />
-              {saving ? "Agendando..." : "Confirmar Agendamento"}
-            </button>
-          </section>
-
-          {/* Próximos Compromissos */}
-          <section className="card p-5">
-            <div className="flex items-center gap-2">
-              <Clock aria-hidden="true" className="text-emerald-800" size={18} />
-              <h2 className="text-base font-black text-stone-950">Próximos compromissos</h2>
-            </div>
-            <div className="mt-4 space-y-3 max-h-[300px] overflow-y-auto pr-1">
-              {nextWorkouts.map((workout) => (
-                <article key={workout.id} className="rounded-xl border border-stone-200 p-3 bg-stone-50/50">
-                  <div className="flex items-start justify-between gap-2">
-                    <p className="font-bold text-xs text-stone-950">{workout.studentName}</p>
-                    <span className="rounded bg-stone-200 px-2 py-0.5 text-3xs font-bold text-stone-700 uppercase">
-                      {workout.modality}
-                    </span>
-                  </div>
-                  <p className="mt-1 text-3xs font-semibold text-stone-500">{formatDateTime(workout.startsAt)}</p>
-                  <p className="mt-1.5 text-2xs font-bold text-stone-700">{workout.proposedWorkout ?? workout.title}</p>
-                  <p className="mt-0.5 text-3xs text-stone-400 truncate">{workout.address}</p>
-                </article>
-              ))}
-              {nextWorkouts.length === 0 && (
-                <p className="text-xs text-stone-400 italic text-center py-6">Nenhum compromisso futuro.</p>
-              )}
-            </div>
-          </section>
-        </div>
 
       </div>
 
@@ -699,11 +483,19 @@ function TrainerCalendarVisual({
   
   if (view === "week") {
     const days = weekDays(new Date());
+    const weekdayKeys: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
     return (
       <div className="mt-4 overflow-x-auto">
         <div className="grid min-w-[760px] grid-cols-7 gap-2">
           {days.map((day) => {
             const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
+            const dayAvail = availability.find((a) => a.weekday === weekdayKeys[day.getDay()]);
+            const slots = dayAvail && dayAvail.active
+              ? [
+                  ...periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes),
+                  ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
+                ]
+              : [];
             return (
               <section key={day.toISOString()} className="min-h-64 rounded-xl border border-stone-200 bg-stone-50 p-2">
                 <div className="rounded-lg bg-white p-2 text-center shadow-2xs">
@@ -712,41 +504,49 @@ function TrainerCalendarVisual({
                   </p>
                   <p className="text-xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
                 </div>
-                <div className="mt-2 space-y-2">
-                  {dayWorkouts.length ? (
-                    dayWorkouts.map((workout) => {
+                <div className="mt-2 space-y-1.5">
+                  {slots.length === 0 && (
+                    <p className="rounded-lg border border-stone-200 bg-white p-2 text-center text-4xs font-semibold text-stone-400">
+                      Sem expediente
+                    </p>
+                  )}
+                  {slots.map((slot) => {
+                    const workout = workoutAtSlot(dayWorkouts, slot);
+                    if (workout) {
                       const isActive = activeWorkoutId === workout.id;
                       return (
-                        <article key={workout.id} className="rounded-xl border border-stone-250 bg-white p-2 text-3xs hover:shadow-2xs transition-shadow">
+                        <article key={slot} className="rounded-lg border border-amber-200 bg-white p-1.5 text-3xs">
                           <div className="flex items-center justify-between gap-1">
-                            <strong className="text-stone-900">{formatTime(workout.startsAt)}</strong>
-                            <span className="rounded bg-emerald-50 px-1 py-0.5 text-4xs font-bold text-emerald-800 uppercase">
-                              {workout.modality}
-                            </span>
+                            <strong className="text-stone-900">{slot}</strong>
+                            <span className="rounded bg-amber-50 px-1 py-0.5 text-4xs font-bold text-amber-700 uppercase">{workout.modality}</span>
                           </div>
-                          <p className="mt-1.5 font-black text-stone-900">{workout.studentName}</p>
-                          <p className="mt-1 line-clamp-2 text-stone-500 font-medium">
-                            {workout.proposedWorkout ?? workout.title}
-                          </p>
+                          <p className="mt-1 font-black text-stone-900 truncate">{workout.studentName}</p>
                           <button
                             type="button"
                             className={[
-                              "focus-ring mt-2 inline-flex h-6 w-full items-center justify-center gap-1 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
+                              "focus-ring mt-1.5 inline-flex h-6 w-full items-center justify-center gap-1 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
                               isActive ? "bg-stone-950 hover:bg-stone-900" : "",
                             ].join(" ")}
-                            onClick={() => isActive ? onFinish() : onStart(workout)}
+                            onClick={() => (isActive ? onFinish() : onStart(workout))}
                           >
                             {isActive ? <CheckCircle2 size={9} /> : <Play size={9} />}
                             {isActive ? "Finalizar" : "Iniciar"}
                           </button>
                         </article>
                       );
-                    })
-                  ) : (
-                    <div className="rounded-xl border border-emerald-100 bg-emerald-50/50 p-2 text-center text-3xs font-bold text-emerald-850">
-                      Livre
-                    </div>
-                  )}
+                    }
+                    return (
+                      <button
+                        key={slot}
+                        type="button"
+                        onClick={() => onScheduleSlot(day, slot)}
+                        className="focus-ring flex w-full items-center justify-between rounded-lg border border-emerald-200 bg-emerald-50/60 px-2 py-1.5 text-3xs font-bold text-emerald-800 transition-colors hover:bg-emerald-100"
+                      >
+                        <span>{slot}</span>
+                        <span className="inline-flex items-center gap-0.5"><UserPlus size={10} /> Livre</span>
+                      </button>
+                    );
+                  })}
                 </div>
               </section>
             );
