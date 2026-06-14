@@ -1,13 +1,16 @@
 import {
   CalendarDays,
   CheckCircle2,
+  ChevronLeft,
+  ChevronRight,
   List,
   Play,
+  Trash2,
   UserPlus,
   X,
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { collection, addDoc } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam, useTrainerStudents, useWorkoutSessions } from "../lib/hooks";
@@ -47,6 +50,7 @@ export function ClassesPage() {
   // Calendar states
   const [calendarView, setCalendarView] = useState<CalendarView>("week");
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("visual");
+  const [referenceDate, setReferenceDate] = useState(new Date());
   const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
 
@@ -73,30 +77,39 @@ export function ClassesPage() {
   }
 
   // Cria 1 (única) ou N aulas (semanal/quinzenal) a partir de um horário base.
+  // Pula horários já ocupados (verificação de conflito) e relata quantos.
   async function createSessions(opts: {
     student: { uid: string; displayName: string };
     dateStr: string;
     timeStr: string;
     durationMin: number;
     focus: string;
-  }): Promise<boolean> {
+  }): Promise<{ created: number; skipped: number } | null> {
     if (!db) {
       setError("Banco de dados indisponível no momento.");
-      return false;
+      return null;
     }
     const base = new Date(`${opts.dateStr}T${opts.timeStr}`);
     if (isNaN(base.getTime())) {
       setError("Data ou hora inválida.");
-      return false;
+      return null;
     }
     const stepDays = recurrence === "weekly" ? 7 : recurrence === "biweekly" ? 14 : 0;
     const count = recurrence === "single" ? 1 : Math.max(1, parseInt(occurrences, 10) || 1);
     const focus = opts.focus.trim() || "Treino";
 
+    // Horários já ocupados (mesmo instante) — para detectar conflitos.
+    const occupied = new Set(trainerWorkouts.map((w) => new Date(w.startsAt).getTime()));
+
     const sessions: Omit<WorkoutSession, "id">[] = [];
+    let skipped = 0;
     for (let i = 0; i < count; i++) {
       const d = new Date(base);
       d.setDate(d.getDate() + stepDays * i);
+      if (occupied.has(d.getTime())) {
+        skipped++;
+        continue;
+      }
       sessions.push({
         studentId: opts.student.uid,
         studentName: opts.student.displayName,
@@ -113,13 +126,34 @@ export function ClassesPage() {
       });
     }
 
+    if (sessions.length === 0) {
+      setError("Todos os horários selecionados já estão ocupados.");
+      return null;
+    }
+
     try {
       await Promise.all(sessions.map((s) => addDoc(collection(db!, "workoutSessions"), s)));
-      return true;
+      return { created: sessions.length, skipped };
     } catch (err: any) {
       console.error(err);
       setError("Erro ao agendar: " + err.message);
-      return false;
+      return null;
+    }
+  }
+
+  // Exclui uma aula agendada.
+  async function deleteSession(workout: WorkoutSession) {
+    if (!db) return;
+    if (!window.confirm(`Excluir a aula de ${workout.studentName} em ${formatDateTime(workout.startsAt)}?`)) return;
+    try {
+      await deleteDoc(doc(db, "workoutSessions", workout.id));
+      if (activeWorkout?.id === workout.id) setActiveWorkout(null);
+      setError("");
+      setMessage("Aula excluída.");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao excluir: " + err.message);
     }
   }
 
@@ -134,7 +168,7 @@ export function ClassesPage() {
     setSaving(true);
     setError("");
     setMessage("");
-    const ok = await createSessions({
+    const result = await createSessions({
       student,
       dateStr: schedulerSlot.date,
       timeStr: schedulerSlot.time,
@@ -142,8 +176,9 @@ export function ClassesPage() {
       focus: scheduleFocus,
     });
     setSaving(false);
-    if (ok) {
-      setMessage(recurrence === "single" ? "Aula agendada!" : "Aulas recorrentes agendadas!");
+    if (result) {
+      const base = result.created === 1 ? "Aula agendada!" : `${result.created} aulas agendadas!`;
+      setMessage(result.skipped > 0 ? `${base} ${result.skipped} horário(s) já ocupado(s) foram pulados.` : base);
       setSchedulerSlot(null);
     }
   }
@@ -170,6 +205,30 @@ export function ClassesPage() {
       ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
     ];
   }, [selectedMonthDay, availability]);
+
+  // Navegação entre dias/semanas/meses
+  function shiftReference(dir: 1 | -1) {
+    setReferenceDate((prev) => {
+      const d = new Date(prev);
+      if (calendarView === "day") d.setDate(d.getDate() + dir);
+      else if (calendarView === "week") d.setDate(d.getDate() + dir * 7);
+      else d.setMonth(d.getMonth() + dir);
+      return d;
+    });
+    setSelectedMonthDay(null);
+  }
+
+  const periodLabel = (() => {
+    if (calendarView === "day") {
+      return referenceDate.toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit" });
+    }
+    if (calendarView === "week") {
+      const ds = weekDays(referenceDate);
+      const fmt = (d: Date) => d.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit" });
+      return `${fmt(ds[0])} – ${fmt(ds[6])}`;
+    }
+    return referenceDate.toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
+  })();
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
@@ -243,19 +302,52 @@ export function ClassesPage() {
           </div>
 
           {calendarMode === "visual" ? (
-            <TrainerCalendarVisual
-              selectedMonthDay={selectedMonthDay}
-              view={calendarView}
-              workouts={trainerWorkouts}
-              activeWorkoutId={activeWorkout?.id}
-              availability={availability}
-              detailSlots={detailDateSlots}
-              onCloseMonthDay={() => setSelectedMonthDay(null)}
-              onFinish={() => setActiveWorkout(null)}
-              onSelectMonthDay={setSelectedMonthDay}
-              onStart={setActiveWorkout}
-              onScheduleSlot={openSchedulerForSlot}
-            />
+            <>
+              {/* Navegação entre períodos */}
+              <div className="mt-4 flex items-center justify-center gap-2">
+                <button
+                  type="button"
+                  aria-label="Anterior"
+                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-stone-50"
+                  onClick={() => shiftReference(-1)}
+                >
+                  <ChevronLeft size={18} />
+                </button>
+                <span className="min-w-[10rem] text-center text-sm font-black text-stone-800 capitalize">
+                  {periodLabel}
+                </span>
+                <button
+                  type="button"
+                  aria-label="Próximo"
+                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-stone-50"
+                  onClick={() => shiftReference(1)}
+                >
+                  <ChevronRight size={18} />
+                </button>
+                <button
+                  type="button"
+                  className="focus-ring ml-1 h-9 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-600 hover:bg-stone-50"
+                  onClick={() => { setReferenceDate(new Date()); setSelectedMonthDay(null); }}
+                >
+                  Hoje
+                </button>
+              </div>
+              <TrainerCalendarVisual
+                selectedMonthDay={selectedMonthDay}
+                referenceDate={referenceDate}
+                view={calendarView}
+                workouts={trainerWorkouts}
+                activeWorkoutId={activeWorkout?.id}
+                availability={availability}
+                detailSlots={detailDateSlots}
+                onCloseMonthDay={() => setSelectedMonthDay(null)}
+                onFinish={() => setActiveWorkout(null)}
+                onSelectMonthDay={setSelectedMonthDay}
+                onStart={setActiveWorkout}
+                onScheduleSlot={openSchedulerForSlot}
+                onDelete={deleteSession}
+              />
+            </>
           ) : (
             <div className="mt-4 overflow-x-auto">
               <table className="w-full min-w-[700px] border-separate border-spacing-0 text-left text-sm">
@@ -276,17 +368,27 @@ export function ClassesPage() {
                       <td className="border-b border-stone-100 py-3.5 text-xs text-stone-600 truncate max-w-48">{workout.address}</td>
                       <td className="border-b border-stone-100 py-3.5 text-xs font-medium text-stone-700">{workout.proposedWorkout ?? workout.title}</td>
                       <td className="border-b border-stone-100 py-3.5">
-                        <button
-                          type="button"
-                          className={[
-                            "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-2xs font-bold text-white transition-colors",
-                            activeWorkout?.id === workout.id ? "bg-stone-950" : "bg-emerald-750 hover:bg-emerald-750",
-                          ].join(" ")}
-                          onClick={() => activeWorkout?.id === workout.id ? setActiveWorkout(null) : setActiveWorkout(workout)}
-                        >
-                          {activeWorkout?.id === workout.id ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                          {activeWorkout?.id === workout.id ? "Finalizar" : "Iniciar"}
-                        </button>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            className={[
+                              "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-2xs font-bold text-white transition-colors",
+                              activeWorkout?.id === workout.id ? "bg-stone-950" : "bg-emerald-750 hover:bg-emerald-750",
+                            ].join(" ")}
+                            onClick={() => activeWorkout?.id === workout.id ? setActiveWorkout(null) : setActiveWorkout(workout)}
+                          >
+                            {activeWorkout?.id === workout.id ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                            {activeWorkout?.id === workout.id ? "Finalizar" : "Iniciar"}
+                          </button>
+                          <button
+                            type="button"
+                            aria-label="Excluir aula"
+                            className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                            onClick={() => deleteSession(workout)}
+                          >
+                            <Trash2 size={13} />
+                          </button>
+                        </div>
                       </td>
                     </tr>
                   ))}
@@ -457,6 +559,7 @@ interface CalendarVisualProps {
   view: CalendarView;
   workouts: WorkoutSession[];
   selectedMonthDay: Date | null;
+  referenceDate: Date;
   activeWorkoutId?: string;
   availability: TrainerAvailabilityDay[];
   detailSlots: string[];
@@ -465,12 +568,14 @@ interface CalendarVisualProps {
   onSelectMonthDay: (d: Date) => void;
   onStart: (w: WorkoutSession) => void;
   onScheduleSlot: (date: Date, time: string) => void;
+  onDelete: (w: WorkoutSession) => void;
 }
 
 function TrainerCalendarVisual({
   view,
   workouts,
   selectedMonthDay,
+  referenceDate,
   activeWorkoutId,
   availability,
   detailSlots,
@@ -479,10 +584,11 @@ function TrainerCalendarVisual({
   onSelectMonthDay,
   onStart,
   onScheduleSlot,
+  onDelete,
 }: CalendarVisualProps) {
-  
+
   if (view === "week") {
-    const days = weekDays(new Date());
+    const days = weekDays(referenceDate);
     const weekdayKeys: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
     return (
       <div className="mt-4 overflow-x-auto">
@@ -515,23 +621,32 @@ function TrainerCalendarVisual({
                     if (workout) {
                       const isActive = activeWorkoutId === workout.id;
                       return (
-                        <article key={slot} className="rounded-lg border border-amber-200 bg-white p-1.5 text-3xs">
-                          <div className="flex items-center justify-between gap-1">
-                            <strong className="text-stone-900">{slot}</strong>
-                            <span className="rounded bg-amber-50 px-1 py-0.5 text-4xs font-bold text-amber-700 uppercase">{workout.modality}</span>
+                        <article key={slot} className="overflow-hidden rounded-lg border border-amber-200 bg-white p-1.5">
+                          <strong className="block text-3xs text-stone-900">{slot}</strong>
+                          <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">
+                            {workout.studentName}
+                          </p>
+                          <div className="mt-1 flex items-center gap-1">
+                            <button
+                              type="button"
+                              className={[
+                                "focus-ring inline-flex h-6 flex-1 items-center justify-center gap-0.5 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
+                                isActive ? "bg-stone-950 hover:bg-stone-900" : "",
+                              ].join(" ")}
+                              onClick={() => (isActive ? onFinish() : onStart(workout))}
+                            >
+                              {isActive ? <CheckCircle2 size={9} /> : <Play size={9} />}
+                              {isActive ? "Fim" : "Iniciar"}
+                            </button>
+                            <button
+                              type="button"
+                              aria-label="Excluir aula"
+                              className="focus-ring flex h-6 w-6 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-600 hover:bg-rose-50"
+                              onClick={() => onDelete(workout)}
+                            >
+                              <Trash2 size={10} />
+                            </button>
                           </div>
-                          <p className="mt-1 font-black text-stone-900 truncate">{workout.studentName}</p>
-                          <button
-                            type="button"
-                            className={[
-                              "focus-ring mt-1.5 inline-flex h-6 w-full items-center justify-center gap-1 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
-                              isActive ? "bg-stone-950 hover:bg-stone-900" : "",
-                            ].join(" ")}
-                            onClick={() => (isActive ? onFinish() : onStart(workout))}
-                          >
-                            {isActive ? <CheckCircle2 size={9} /> : <Play size={9} />}
-                            {isActive ? "Finalizar" : "Iniciar"}
-                          </button>
                         </article>
                       );
                     }
@@ -557,7 +672,7 @@ function TrainerCalendarVisual({
   }
 
   if (view === "month") {
-    const today = new Date();
+    const today = referenceDate;
     const days = monthGridDays(today);
     const WEEK_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
@@ -606,17 +721,27 @@ function TrainerCalendarVisual({
                     <p className="font-bold text-xs text-emerald-800">Horário livre</p>
                   )}
                   {workout ? (
-                    <button
-                      type="button"
-                      className={[
-                        "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
-                        isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
-                      ].join(" ")}
-                      onClick={() => isActive ? onFinish() : onStart(workout)}
-                    >
-                      {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                      {isActive ? "Finalizar" : "Iniciar"}
-                    </button>
+                    <div className="flex items-center gap-2">
+                      <button
+                        type="button"
+                        className={[
+                          "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
+                          isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
+                        ].join(" ")}
+                        onClick={() => isActive ? onFinish() : onStart(workout)}
+                      >
+                        {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                        {isActive ? "Finalizar" : "Iniciar"}
+                      </button>
+                      <button
+                        type="button"
+                        aria-label="Excluir aula"
+                        className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                        onClick={() => onDelete(workout)}
+                      >
+                        <Trash2 size={13} />
+                      </button>
+                    </div>
                   ) : (
                     selectedMonthDay && (
                       <button
@@ -704,8 +829,8 @@ function TrainerCalendarVisual({
     );
   }
 
-  // Day view — agenda detalhada de hoje (todos os horários, livres e ocupados)
-  const today = new Date();
+  // Day view — agenda detalhada do dia selecionado (todos os horários)
+  const today = referenceDate;
   const dayWeekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
   const dayAvail = availability.find((a) => a.weekday === dayWeekdays[today.getDay()]);
   const daySlots = dayAvail && dayAvail.active
@@ -746,17 +871,27 @@ function TrainerCalendarVisual({
                 <p className="font-bold text-xs text-emerald-800">Horário livre</p>
               )}
               {workout ? (
-                <button
-                  type="button"
-                  className={[
-                    "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
-                    isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
-                  ].join(" ")}
-                  onClick={() => (isActive ? onFinish() : onStart(workout))}
-                >
-                  {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                  {isActive ? "Finalizar" : "Iniciar"}
-                </button>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={[
+                      "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
+                      isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
+                    ].join(" ")}
+                    onClick={() => (isActive ? onFinish() : onStart(workout))}
+                  >
+                    {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
+                    {isActive ? "Finalizar" : "Iniciar"}
+                  </button>
+                  <button
+                    type="button"
+                    aria-label="Excluir aula"
+                    className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
+                    onClick={() => onDelete(workout)}
+                  >
+                    <Trash2 size={13} />
+                  </button>
+                </div>
               ) : (
                 <button
                   type="button"
