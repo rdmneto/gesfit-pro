@@ -2,6 +2,7 @@ import { useMemo } from "react";
 import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
+import { hasStock, visiblePublic } from "../lib/products";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
@@ -34,7 +35,7 @@ export function TeamLandingPage() {
   const { data: dbProducts, loading: productsLoading } = useClassProducts(teamId ?? null);
 
   const products = useMemo(
-    () => (dbProducts || []).filter((p) => p.active && p.publicVisible),
+    () => (dbProducts || []).filter((p) => p.active && visiblePublic(p) && hasStock(p)),
     [dbProducts],
   );
 

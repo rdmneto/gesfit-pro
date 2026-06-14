@@ -17,6 +17,7 @@ import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../co
 import { Button } from "../components/ui/Button";
 import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
+import { hasStock, visibleToStudent } from "../lib/products";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import type { ClassProduct, PurchaseStatus } from "../types/domain";
@@ -68,7 +69,9 @@ export function StudentClassesPage() {
 
   const progressVariant = isEmpty ? "danger" : isLow ? "warning" : "default";
 
-  const activeProducts = products.filter((p) => p.active && p.publicVisible);
+  const activeProducts = products.filter(
+    (p) => p.active && hasStock(p) && (!user || visibleToStudent(p, user.uid)),
+  );
   const packageProducts = activeProducts.filter((p) => p.type === "package");
   const singleProducts = activeProducts.filter((p) => p.type === "single");
 

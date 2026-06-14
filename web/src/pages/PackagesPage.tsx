@@ -8,13 +8,20 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { collection, addDoc, doc, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, increment, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useClassProducts, usePendingPurchases } from "../lib/hooks";
+import { useClassProducts, usePendingPurchases, useTrainerStudents } from "../lib/hooks";
 import { creditEnrollmentClasses } from "../lib/enrollments";
+import { remainingStock } from "../lib/products";
 import { moneyFromCents } from "../lib/format";
-import type { ClassProductType, PurchaseStatus, ClassProduct, ClassPurchase, PromotionalPackage } from "../types/domain";
+import type { ClassProductType, ProductAudience, PurchaseStatus, ClassProduct, ClassPurchase, PromotionalPackage } from "../types/domain";
+
+const AUDIENCE_OPTIONS: { value: ProductAudience; label: string }[] = [
+  { value: "all", label: "Todos (vitrine pública)" },
+  { value: "students", label: "Apenas meus alunos" },
+  { value: "specific", label: "Alunos específicos" },
+];
 
 const statusLabel: Record<PurchaseStatus, string> = {
   awaiting_payment: "Aguardando pagamento",
@@ -29,9 +36,11 @@ export function PackagesPage() {
 
   const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
   const { data: dbPurchases, loading: loadingPurchases } = usePendingPurchases(teamId);
+  const { data: dbStudents } = useTrainerStudents(user?.uid);
 
   const activeProducts = dbProducts ?? [];
   const purchases = dbPurchases ?? [];
+  const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
 
   // Form states for new offer
   const [productType, setProductType] = useState<ClassProductType>("single");
@@ -40,6 +49,9 @@ export function PackagesPage() {
   const [classesCount, setClassesCount] = useState("");
   const [description, setDescription] = useState("");
   const [orientador, setOrientador] = useState(user?.displayName || "");
+  const [audience, setAudience] = useState<ProductAudience>("all");
+  const [targetStudentIds, setTargetStudentIds] = useState<string[]>([]);
+  const [offeredQty, setOfferedQty] = useState("");
   
   // Promo states
   const [promoName, setPromoName] = useState("");
@@ -82,9 +94,18 @@ export function PackagesPage() {
       classesCount: parseInt(classesCount, 10),
       priceCents: Math.round(priceNum * 100),
       active: true,
-      publicVisible: true,
+      publicVisible: audience === "all",
       description,
+      audience,
+      targetStudentIds: audience === "specific" ? targetStudentIds : [],
+      offeredQuantity: parseInt(offeredQty, 10) || 0,
+      soldQuantity: 0,
     };
+
+    if (audience === "specific" && targetStudentIds.length === 0) {
+      setError("Selecione ao menos um aluno para a oferta direcionada.");
+      return;
+    }
 
     if (!db) {
       setError("Banco de dados indisponível no momento.");
@@ -100,6 +121,9 @@ export function PackagesPage() {
       setPrice("");
       setClassesCount("");
       setDescription("");
+      setOfferedQty("");
+      setAudience("all");
+      setTargetStudentIds([]);
     } catch (err: any) {
       console.error(err);
       setError("Erro ao salvar produto: " + err.message);
@@ -131,7 +155,7 @@ export function PackagesPage() {
       publicVisible: false,
       description: "Oferta promocional limitada.",
       promotional: true as const,
-      audience: "all_students" as const,
+      audience: "all" as const,
       offeredQuantity: parseInt(promoQty, 10),
       soldQuantity: 0,
       availableUntilRemoved: true,
@@ -166,7 +190,8 @@ export function PackagesPage() {
         reviewedBy: user?.uid || "",
       });
 
-      // Pagamento confirmado → credita as aulas no saldo do vínculo do aluno.
+      // Pagamento confirmado → credita as aulas no saldo do vínculo do aluno
+      // e contabiliza a venda no estoque da oferta.
       if (status === "paid") {
         const trainerId = purchase.trainerId || teamId || "";
         if (purchase.studentId && trainerId && purchase.classesCount > 0) {
@@ -174,6 +199,15 @@ export function PackagesPage() {
             await creditEnrollmentClasses(db, purchase.studentId, trainerId, purchase.classesCount);
           } catch (creditErr) {
             console.error("Falha ao creditar aulas no vínculo:", creditErr);
+          }
+        }
+        if (purchase.productId) {
+          try {
+            await updateDoc(doc(db, "classProducts", purchase.productId), {
+              soldQuantity: increment(1),
+            });
+          } catch (stockErr) {
+            console.error("Falha ao atualizar estoque da oferta:", stockErr);
           }
         }
       }
@@ -272,6 +306,62 @@ export function PackagesPage() {
                 onChange={(e) => setOrientador(e.target.value)}
               />
             </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Quantidade ofertada</span>
+              <input
+                className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 px-3 text-sm"
+                type="number"
+                min={0}
+                placeholder="0 = ilimitado"
+                value={offeredQty}
+                onChange={(e) => setOfferedQty(e.target.value)}
+              />
+            </label>
+            <label className="block">
+              <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Quem pode ver</span>
+              <select
+                className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+                value={audience}
+                onChange={(e) => setAudience(e.target.value as ProductAudience)}
+              >
+                {AUDIENCE_OPTIONS.map((opt) => (
+                  <option key={opt.value} value={opt.value}>{opt.label}</option>
+                ))}
+              </select>
+            </label>
+            {audience === "specific" && (
+              <div className="sm:col-span-2">
+                <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Alunos que poderão ver</span>
+                {students.length === 0 ? (
+                  <p className="mt-1.5 text-xs text-stone-400 italic">Nenhum aluno ativo para direcionar.</p>
+                ) : (
+                  <div className="mt-1.5 flex flex-wrap gap-2">
+                    {students.map((std) => {
+                      const checked = targetStudentIds.includes(std.uid);
+                      return (
+                        <button
+                          key={std.uid}
+                          type="button"
+                          onClick={() =>
+                            setTargetStudentIds((prev) =>
+                              checked ? prev.filter((id) => id !== std.uid) : [...prev, std.uid],
+                            )
+                          }
+                          className={[
+                            "rounded-full border px-3 py-1.5 text-xs font-bold transition-colors",
+                            checked
+                              ? "border-emerald-300 bg-emerald-50 text-emerald-800"
+                              : "border-stone-200 bg-white text-stone-600 hover:border-stone-300",
+                          ].join(" ")}
+                        >
+                          {std.displayName}
+                        </button>
+                      );
+                    })}
+                  </div>
+                )}
+              </div>
+            )}
             <label className="block sm:col-span-2">
               <span className="text-xs font-bold uppercase tracking-wide text-stone-500">Descrição curta</span>
               <textarea
@@ -324,6 +414,20 @@ export function PackagesPage() {
                   </div>
                   <p className="mt-3 text-2xl font-black text-stone-950">{moneyFromCents(product.priceCents)}</p>
                   <p className="mt-1.5 text-xs leading-5 text-stone-600 line-clamp-2">{product.description}</p>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    <span className="rounded bg-stone-100 px-2 py-0.5 text-2xs font-bold text-stone-600 border border-stone-200">
+                      {product.audience === "students"
+                        ? "Apenas alunos"
+                        : product.audience === "specific"
+                          ? `Direcionado (${product.targetStudentIds?.length ?? 0})`
+                          : "Vitrine pública"}
+                    </span>
+                    <span className="rounded bg-stone-100 px-2 py-0.5 text-2xs font-bold text-stone-600 border border-stone-200">
+                      {remainingStock(product) === null
+                        ? "Estoque ilimitado"
+                        : `${remainingStock(product)} restante(s)`}
+                    </span>
+                  </div>
                 </article>
               ))
             )}
@@ -413,9 +517,11 @@ export function PackagesPage() {
                         {promo.classesCount} aulas por {moneyFromCents(promo.priceCents)}
                       </p>
                       <p className="mt-2 text-2xs font-semibold tracking-wider text-stone-400 uppercase">
-                        {promo.audience === "all_students"
-                          ? "Público: Todos os alunos"
-                          : "Público: Alunos selecionados"}
+                        {promo.audience === "specific"
+                          ? "Público: Alunos selecionados"
+                          : promo.audience === "students"
+                            ? "Público: Apenas alunos"
+                            : "Público: Todos"}
                       </p>
                     </div>
                     <div className="flex flex-col justify-between items-start sm:items-end">

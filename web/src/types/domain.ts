@@ -100,6 +100,9 @@ export interface Plan {
   active: boolean;
 }
 
+/** Quem enxerga a oferta: todos (vitrine pública), apenas alunos vinculados, ou alunos específicos. */
+export type ProductAudience = "all" | "students" | "specific";
+
 export interface ClassProduct {
   id: string;
   teamId: string;
@@ -111,13 +114,19 @@ export interface ClassProduct {
   active: boolean;
   publicVisible: boolean;
   description: string;
+  /** Público-alvo da oferta (padrão "all"). */
+  audience?: ProductAudience;
+  /** Quando audience === "specific", ids dos alunos que podem ver/comprar. */
+  targetStudentIds?: string[];
+  /** Quantidade ofertada (0/undefined = ilimitado). */
+  offeredQuantity?: number;
+  /** Quantidade já vendida (confirmada). */
+  soldQuantity?: number;
 }
 
 export interface PromotionalPackage extends ClassProduct {
   type: "package";
   promotional: true;
-  audience: "all_students" | "selected_students";
-  targetStudentIds?: string[];
   offeredQuantity: number;
   soldQuantity: number;
   availableUntilRemoved: boolean;
