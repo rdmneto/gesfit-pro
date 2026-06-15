@@ -20,6 +20,7 @@ import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
 import { useCollection, useClassProducts } from "../lib/hooks";
+import { useSessionStore } from "../store/session";
 import { where } from "firebase/firestore";
 
 const FEATURES = [
@@ -46,6 +47,7 @@ const FEATURES = [
 ];
 
 export function HomePage() {
+  const user = useSessionStore((state) => state.user);
   const { data: dbTeams } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
   const teams = useMemo(() => dbTeams ?? [], [dbTeams]);
@@ -288,7 +290,8 @@ export function HomePage() {
         </div>
       </section>
 
-      {/* ── CTA final ─────────────────────────────────────── */}
+      {/* ── CTA final (apenas para visitantes não logados) ──── */}
+      {!user && (
       <section className="mx-auto max-w-6xl px-4 py-16">
         <div
           className="overflow-hidden rounded-2xl text-white"
@@ -333,6 +336,7 @@ export function HomePage() {
           </div>
         </div>
       </section>
+      )}
     </div>
   );
 }

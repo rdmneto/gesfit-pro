@@ -14,6 +14,7 @@ import {
   Package,
   Palette,
   Plus,
+  RefreshCw,
   Search,
   Timer,
   ToggleRight,
@@ -21,6 +22,7 @@ import {
   Video,
   X,
 } from "lucide-react";
+import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
@@ -308,14 +310,24 @@ export function TrainerWorkspacePage() {
             Configure seu cadastro, estilos de treino, academias, agenda e pacotes/promoções.
           </p>
         </div>
-        <button
-          type="button"
-          onClick={() => logout()}
-          className="focus-ring inline-flex h-10 shrink-0 items-center gap-2 rounded-xl border border-stone-200 px-4 text-sm font-bold text-stone-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
-        >
-          <LogOut size={16} />
-          Sair
-        </button>
+        <div className="flex shrink-0 items-center gap-2">
+          <Link
+            to="/app/mudar-perfil"
+            className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 px-4 text-sm font-bold text-stone-600 transition-colors hover:border-amber-200 hover:bg-amber-50 hover:text-amber-800"
+            title="Mudar tipo de perfil"
+          >
+            <RefreshCw size={15} />
+            Mudar perfil
+          </Link>
+          <button
+            type="button"
+            onClick={() => logout()}
+            className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl border border-stone-200 px-4 text-sm font-bold text-stone-600 transition-colors hover:border-rose-200 hover:bg-rose-50 hover:text-rose-700"
+          >
+            <LogOut size={16} />
+            Sair
+          </button>
+        </div>
       </div>
 
       {/* Visual Public Banner Preview — reflete a paleta escolhida ao vivo */}

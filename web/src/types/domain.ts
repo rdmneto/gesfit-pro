@@ -197,11 +197,15 @@ export interface StudentMeasurement {
   id: string;
   studentId: string;
   measuredAt: string;
-  weightKg: number;
-  waistCm: number;
-  hipCm: number;
-  chestCm: number;
+  // Todas as medidas são opcionais — o aluno pode acompanhar só o que quiser.
+  weightKg?: number;
+  waistCm?: number;
+  hipCm?: number;
+  chestCm?: number;
   bodyFatPercent?: number;
+  armRightCm?: number;
+  thighCm?: number;
+  calfCm?: number;
   notes?: string;
 }
 

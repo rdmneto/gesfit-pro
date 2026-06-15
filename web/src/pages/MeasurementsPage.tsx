@@ -4,6 +4,7 @@ import {
   CheckCircle2,
   ChevronDown,
   ChevronUp,
+  Copy,
   MessageCircle,
   Pencil,
   Plus,
@@ -14,8 +15,8 @@ import {
   Users,
   XCircle,
 } from "lucide-react";
-import type { FormEvent, ReactNode } from "react";
-import { useMemo, useRef, useState } from "react";
+import type { ChangeEvent, FormEvent, ReactNode } from "react";
+import { useMemo, useState } from "react";
 import {
   CartesianGrid,
   Legend,
@@ -358,7 +359,10 @@ function StudentMeasurementsPage({
   const latest = sortedMeasurements.at(-1);
   const heightCm = dbStudent?.physiological?.alturaCm ?? undefined;
   const currentBmi = bmi(latest?.weightKg, heightCm);
-  const weightChange = first && latest ? Number((latest.weightKg - first.weightKg).toFixed(1)) : 0;
+  const weightChange =
+    first?.weightKg != null && latest?.weightKg != null
+      ? Number((latest.weightKg - first.weightKg).toFixed(1))
+      : 0;
 
   // Accept measurement: save to Firestore measurements subcollection
   async function handleAccept(measurement: StudentMeasurementSubmission) {
@@ -454,10 +458,10 @@ function StudentMeasurementsPage({
       ) : null}
 
       {/* ── Auto-registro do aluno ───────────────────────── */}
-      <SelfMeasurementForm studentId={studentId} studentName={studentName} />
+      <SelfMeasurementForm studentId={studentId} studentName={studentName} lastMeasurement={sortedMeasurements.at(-1)} />
 
       <div className="mt-6 grid gap-4 sm:grid-cols-3">
-        <Metric icon={Activity} color={primary} label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
+        <Metric icon={Activity} color={primary} label="Peso atual" value={unitVal(latest?.weightKg, "kg")} />
         <Metric
           icon={TrendingDown}
           color={primary}
@@ -501,43 +505,94 @@ function StudentMeasurementsPage({
 
 // ── Auto-registro pelo aluno ────────────────────────────────────────────────
 
+const SELF_NUMERIC_KEYS = [
+  "weightKg",
+  "waistCm",
+  "hipCm",
+  "chestCm",
+  "bodyFatPercent",
+  "armRightCm",
+  "thighCm",
+  "calfCm",
+] as const;
+
 function SelfMeasurementForm({
   studentId,
   studentName,
+  lastMeasurement,
 }: {
   studentId: string | null;
   studentName: string;
+  lastMeasurement?: StudentMeasurement;
 }) {
+  const todayStr = new Date().toISOString().slice(0, 10);
+  const emptyVals = {
+    measuredAt: todayStr,
+    weightKg: "",
+    waistCm: "",
+    hipCm: "",
+    chestCm: "",
+    bodyFatPercent: "",
+    armRightCm: "",
+    thighCm: "",
+    calfCm: "",
+    notes: "",
+  };
+
   const [open, setOpen] = useState(false);
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
-  const formRef = useRef<HTMLFormElement>(null);
+  const [error, setError] = useState("");
+  const [vals, setVals] = useState(emptyVals);
+
+  const set = (k: keyof typeof emptyVals) => (e: ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
+    setVals((v) => ({ ...v, [k]: e.target.value }));
+
+  function repeatLast() {
+    if (!lastMeasurement) return;
+    const n = (x?: number) => (x === undefined || x === null ? "" : String(x));
+    setVals((v) => ({
+      ...v,
+      weightKg: n(lastMeasurement.weightKg),
+      waistCm: n(lastMeasurement.waistCm),
+      hipCm: n(lastMeasurement.hipCm),
+      chestCm: n(lastMeasurement.chestCm),
+      bodyFatPercent: n(lastMeasurement.bodyFatPercent),
+      armRightCm: n(lastMeasurement.armRightCm),
+      thighCm: n(lastMeasurement.thighCm),
+      calfCm: n(lastMeasurement.calfCm),
+    }));
+  }
 
   async function handleSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!db || !studentId) return;
+    setError("");
+    if (!vals.measuredAt) {
+      setError("Informe a data da medição.");
+      return;
+    }
+    const filled = SELF_NUMERIC_KEYS.filter((k) => vals[k] !== "" && !Number.isNaN(Number(vals[k])));
+    if (filled.length === 0) {
+      setError("Preencha pelo menos uma medida.");
+      return;
+    }
     setSaving(true);
     setSuccess(false);
-    const data = new FormData(event.currentTarget);
-
     try {
-      await addDoc(collection(db, `students/${studentId}/measurements`), {
+      const payload: Record<string, unknown> = {
         studentId,
-        measuredAt: String(data.get("measuredAt")),
-        weightKg: Number(data.get("weightKg")),
-        waistCm: Number(data.get("waistCm")),
-        hipCm: Number(data.get("hipCm")),
-        chestCm: Number(data.get("chestCm")),
-        bodyFatPercent: Number(data.get("bodyFatPercent")) || null,
-        armRightCm: Number(data.get("armRightCm")) || null,
-        thighCm: Number(data.get("thighCm")) || null,
-        calfCm: Number(data.get("calfCm")) || null,
-        notes: String(data.get("notes") ?? ""),
+        measuredAt: vals.measuredAt,
+        notes: vals.notes ?? "",
         source: "self",
         registeredBy: studentName,
         confirmedAt: serverTimestamp(),
+      };
+      filled.forEach((k) => {
+        payload[k] = Number(vals[k]);
       });
-      formRef.current?.reset();
+      await addDoc(collection(db, `students/${studentId}/measurements`), payload);
+      setVals({ ...emptyVals, measuredAt: vals.measuredAt });
       setSuccess(true);
       setTimeout(() => {
         setOpen(false);
@@ -545,6 +600,7 @@ function SelfMeasurementForm({
       }, 1500);
     } catch (err) {
       console.error("Erro ao salvar medida:", err);
+      setError("Não foi possível salvar. Tente novamente.");
     } finally {
       setSaving(false);
     }
@@ -567,7 +623,7 @@ function SelfMeasurementForm({
           <div>
             <p className="font-black text-emerald-900">Registrar minhas medidas</p>
             <p className="text-sm text-emerald-700">
-              Medidas registradas por você são confirmadas automaticamente
+              Registre só o que quiser — todas as medidas são opcionais.
             </p>
           </div>
         </div>
@@ -580,21 +636,29 @@ function SelfMeasurementForm({
 
       {/* Collapsible form */}
       {open && (
-        <form
-          ref={formRef}
-          className="mt-2 rounded-xl border border-stone-200 bg-white p-6 shadow-sm"
-          onSubmit={handleSubmit}
-        >
-          <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
-            Dados principais
-          </p>
+        <form className="mt-2 rounded-xl border border-stone-200 bg-white p-6 shadow-sm" onSubmit={handleSubmit}>
+          <div className="flex flex-wrap items-center justify-between gap-2">
+            <p className="text-xs font-bold uppercase tracking-wider text-stone-400">
+              Medidas <span className="normal-case font-normal text-stone-300">(preencha o que quiser)</span>
+            </p>
+            {lastMeasurement && (
+              <button
+                type="button"
+                onClick={repeatLast}
+                className="focus-ring inline-flex items-center gap-1.5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-100"
+              >
+                <Copy size={13} /> Repetir últimas medidas
+              </button>
+            )}
+          </div>
+
           <div className="mt-3 grid gap-4 sm:grid-cols-2">
-            <Field label="Data" name="measuredAt" type="date" required />
-            <Field label="Peso (kg)" name="weightKg" placeholder="68.7" type="number" step="0.1" required />
-            <Field label="Cintura (cm)" name="waistCm" placeholder="80" type="number" step="0.1" required />
-            <Field label="Quadril (cm)" name="hipCm" placeholder="100" type="number" step="0.1" required />
-            <Field label="Tórax (cm)" name="chestCm" placeholder="93" type="number" step="0.1" required />
-            <Field label="Gordura corporal (%)" name="bodyFatPercent" placeholder="27.9" type="number" step="0.1" />
+            <CField label="Data" type="date" value={vals.measuredAt} onChange={set("measuredAt")} />
+            <CField label="Peso (kg)" type="number" step="0.1" placeholder="68.7" value={vals.weightKg} onChange={set("weightKg")} />
+            <CField label="Cintura (cm)" type="number" step="0.1" placeholder="80" value={vals.waistCm} onChange={set("waistCm")} />
+            <CField label="Quadril (cm)" type="number" step="0.1" placeholder="100" value={vals.hipCm} onChange={set("hipCm")} />
+            <CField label="Tórax (cm)" type="number" step="0.1" placeholder="93" value={vals.chestCm} onChange={set("chestCm")} />
+            <CField label="Gordura corporal (%)" type="number" step="0.1" placeholder="27.9" value={vals.bodyFatPercent} onChange={set("bodyFatPercent")} />
           </div>
 
           <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">
@@ -602,35 +666,33 @@ function SelfMeasurementForm({
             <span className="normal-case font-normal text-stone-300">(opcional)</span>
           </p>
           <div className="mt-3 grid gap-4 sm:grid-cols-3">
-            <Field label="Braço dir. (cm)" name="armRightCm" placeholder="31" type="number" step="0.1" />
-            <Field label="Coxa (cm)" name="thighCm" placeholder="55" type="number" step="0.1" />
-            <Field label="Panturrilha (cm)" name="calfCm" placeholder="37" type="number" step="0.1" />
+            <CField label="Braço dir. (cm)" type="number" step="0.1" placeholder="31" value={vals.armRightCm} onChange={set("armRightCm")} />
+            <CField label="Coxa (cm)" type="number" step="0.1" placeholder="55" value={vals.thighCm} onChange={set("thighCm")} />
+            <CField label="Panturrilha (cm)" type="number" step="0.1" placeholder="37" value={vals.calfCm} onChange={set("calfCm")} />
           </div>
 
           <label className="mt-5 block">
             <span className="text-sm font-semibold text-stone-700">Observações</span>
             <textarea
               className="focus-ring mt-2 min-h-20 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-              name="notes"
+              value={vals.notes}
+              onChange={set("notes")}
               placeholder="Ex: medida feita em jejum, logo pela manhã..."
             />
           </label>
 
+          {error && (
+            <p className="mt-4 rounded-lg bg-rose-50 px-4 py-3 text-sm font-semibold text-rose-700">{error}</p>
+          )}
           {success && (
             <div className="mt-4 flex items-center gap-2 rounded-lg bg-emerald-50 px-4 py-3">
               <CheckCircle2 className="text-emerald-700" size={18} />
-              <p className="text-sm font-semibold text-emerald-800">
-                Medidas salvas com sucesso!
-              </p>
+              <p className="text-sm font-semibold text-emerald-800">Medidas salvas com sucesso!</p>
             </div>
           )}
 
           <div className="mt-5 flex flex-wrap gap-3">
-            <button
-              type="submit"
-              className="focus-ring btn btn-primary"
-              disabled={saving}
-            >
+            <button type="submit" className="focus-ring btn btn-primary" disabled={saving}>
               {saving ? (
                 <span className="h-4 w-4 animate-spin rounded-full border-2 border-white/40 border-t-white" />
               ) : (
@@ -638,18 +700,44 @@ function SelfMeasurementForm({
               )}
               {saving ? "Salvando…" : "Salvar minhas medidas"}
             </button>
-            <button
-              type="button"
-              className="focus-ring btn btn-outline"
-              onClick={() => setOpen(false)}
-              disabled={saving}
-            >
+            <button type="button" className="focus-ring btn btn-outline" onClick={() => setOpen(false)} disabled={saving}>
               Cancelar
             </button>
           </div>
         </form>
       )}
     </div>
+  );
+}
+
+// Campo controlado simples (usado no auto-registro de medidas).
+function CField({
+  label,
+  value,
+  onChange,
+  type = "text",
+  step,
+  placeholder,
+}: {
+  label: string;
+  value: string;
+  onChange: (e: ChangeEvent<HTMLInputElement>) => void;
+  type?: string;
+  step?: string;
+  placeholder?: string;
+}) {
+  return (
+    <label className="block">
+      <span className="text-sm font-semibold text-stone-700">{label}</span>
+      <input
+        className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
+        type={type}
+        step={step}
+        placeholder={placeholder}
+        value={value}
+        onChange={onChange}
+      />
+    </label>
   );
 }
 
@@ -694,7 +782,7 @@ function StudentProfileSummary({
         </span>
       </div>
       <div className="mt-5 grid gap-3 sm:grid-cols-3">
-        <MiniMetric label="Peso atual" value={latest ? `${latest.weightKg} kg` : "-"} />
+        <MiniMetric label="Peso atual" value={unitVal(latest?.weightKg, "kg")} />
         <MiniMetric label="Altura" value={student.physiological.alturaCm ? `${student.physiological.alturaCm} cm` : "-"} />
         <MiniMetric label="Pendentes" value={`${pendingCount}`} />
       </div>
@@ -763,9 +851,13 @@ function TrainerMeasurementsHistory({ measurements }: { measurements: StudentMea
   const latest = sortedMeasurements.at(-1);
   const previous = sortedMeasurements.at(-2);
   const weightDelta =
-    latest && previous ? Number((latest.weightKg - previous.weightKg).toFixed(1)) : null;
+    latest?.weightKg != null && previous?.weightKg != null
+      ? Number((latest.weightKg - previous.weightKg).toFixed(1))
+      : null;
   const waistDelta =
-    latest && previous ? Number((latest.waistCm - previous.waistCm).toFixed(1)) : null;
+    latest?.waistCm != null && previous?.waistCm != null
+      ? Number((latest.waistCm - previous.waistCm).toFixed(1))
+      : null;
   const bodyFatDelta =
     latest?.bodyFatPercent && previous?.bodyFatPercent
       ? Number((latest.bodyFatPercent - previous.bodyFatPercent).toFixed(1))
@@ -898,7 +990,7 @@ function TrainerMeasurementsHistory({ measurements }: { measurements: StudentMea
               <article key={measurement.id} className="rounded-md border border-stone-200 p-3">
                 <p className="text-sm font-black">{formatDate(measurement.measuredAt)}</p>
                 <p className="mt-2 text-xs text-stone-600">
-                  Peso {measurement.weightKg} kg - Cintura {measurement.waistCm} cm
+                  Peso {unitVal(measurement.weightKg, "kg")} · Cintura {unitVal(measurement.waistCm, "cm")}
                 </p>
                 <p className="mt-1 text-xs text-stone-600">
                   Gordura {measurement.bodyFatPercent ? `${measurement.bodyFatPercent}%` : "-"}
@@ -974,11 +1066,11 @@ function MeasurementsHistory({
             {sortedMeasurements.map((measurement) => (
               <tr key={measurement.id}>
                 <Td>{formatDate(measurement.measuredAt)}</Td>
-                <Td>{measurement.weightKg} kg</Td>
-                <Td>{measurement.waistCm} cm</Td>
-                <Td>{measurement.hipCm} cm</Td>
-                <Td>{measurement.chestCm} cm</Td>
-                <Td>{measurement.bodyFatPercent ? `${measurement.bodyFatPercent}%` : "-"}</Td>
+                <Td>{unitVal(measurement.weightKg, "kg")}</Td>
+                <Td>{unitVal(measurement.waistCm, "cm")}</Td>
+                <Td>{unitVal(measurement.hipCm, "cm")}</Td>
+                <Td>{unitVal(measurement.chestCm, "cm")}</Td>
+                <Td>{measurement.bodyFatPercent != null ? `${measurement.bodyFatPercent}%` : "–"}</Td>
                 <Td>{measurement.notes || "-"}</Td>
               </tr>
             ))}
@@ -1008,8 +1100,8 @@ function MeasurementReviewCard({
         </span>
       </div>
       <div className="mt-3 grid gap-2 sm:grid-cols-3">
-        <MiniMetric label="Peso" value={`${measurement.weightKg} kg`} />
-        <MiniMetric label="Cintura" value={`${measurement.waistCm} cm`} />
+        <MiniMetric label="Peso" value={unitVal(measurement.weightKg, "kg")} />
+        <MiniMetric label="Cintura" value={unitVal(measurement.waistCm, "cm")} />
         <MiniMetric label="Gordura" value={measurement.bodyFatPercent ? `${measurement.bodyFatPercent}%` : "-"} />
       </div>
       {measurement.notes ? (
@@ -1026,6 +1118,11 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
       <p className="mt-1 font-black">{value}</p>
     </div>
   );
+}
+
+// Exibe um valor com unidade, ou "–" quando a medida não foi registrada.
+function unitVal(value: number | undefined | null, unit: string) {
+  return value == null ? "–" : `${value} ${unit}`;
 }
 
 function Field({

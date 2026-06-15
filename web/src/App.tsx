@@ -11,6 +11,7 @@ import { MeasurementsPage } from "./pages/MeasurementsPage";
 import { OnboardingPage } from "./pages/OnboardingPage";
 import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentProfilePage } from "./pages/StudentProfilePage";
+import { StudentSettingsPage } from "./pages/StudentSettingsPage";
 import { StudentTrainersPage } from "./pages/StudentTrainersPage";
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
@@ -61,7 +62,7 @@ export default function App() {
           <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
           <Route path="app/aulas" element={<Navigate to="/app/agenda" replace />} />
           <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
-          <Route path="app/ajustes" element={<RequireTrainer><TrainerWorkspacePage /></RequireTrainer>} />
+          <Route path="app/ajustes" element={<RequireAuth><AjustesRoute /></RequireAuth>} />
           {/* Rotas antigas → Ajustes (consolidou perfil, pacotes e regras) */}
           <Route path="app/treinador" element={<Navigate to="/app/ajustes" replace />} />
           <Route path="app/pacotes" element={<Navigate to="/app/ajustes" replace />} />
@@ -73,6 +74,13 @@ export default function App() {
       </Routes>
     </BrowserRouter>
   );
+}
+
+// Ajustes é compartilhado: treinador vê o workspace; aluno vê o hub de ajustes.
+function AjustesRoute() {
+  const role = useSessionStore((state) => state.claims.role);
+  if (role === "trainer") return <TrainerWorkspacePage />;
+  return <StudentSettingsPage />;
 }
 
 function RequireAuth({ children }: { children: ReactNode }) {

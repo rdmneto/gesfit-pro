@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
-import { CheckCircle2, UserRound } from "lucide-react";
+import { CheckCircle2, RefreshCw, UserRound } from "lucide-react";
+import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
@@ -131,6 +132,22 @@ export function StudentProfilePage() {
           {saving ? "Salvando…" : "Salvar cadastro"}
         </button>
       </form>
+
+      {/* Mudança de perfil */}
+      <div className="mt-4 flex flex-col justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-5 sm:flex-row sm:items-center">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-amber-50">
+            <RefreshCw className="text-amber-700" size={18} />
+          </div>
+          <div>
+            <p className="font-black text-stone-950">Tipo de perfil</p>
+            <p className="text-sm text-stone-500">Você é aluno. Quer atuar como treinador?</p>
+          </div>
+        </div>
+        <Link to="/app/mudar-perfil" className="focus-ring btn btn-outline shrink-0">
+          <RefreshCw size={15} /> Virar treinador
+        </Link>
+      </div>
     </section>
   );
 }

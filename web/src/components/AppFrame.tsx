@@ -5,11 +5,9 @@ import {
   House,
   LogIn,
   LogOut,
-  RefreshCw,
   Ruler,
   Settings,
   ShoppingBag,
-  UserRound,
   Users,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -33,14 +31,12 @@ export function AppFrame() {
   // Mantém um treinador ativo selecionado para o aluno.
   useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
 
-  const isStudent = role === "student";
-
   const studentLinks: NavItem[] = [
-    { to: "/", label: "Início", icon: House, exact: true },
-    { to: "/app", label: "Painel", icon: Dumbbell, exact: true },
+    { to: "/app", label: "Início", icon: House, exact: true },
     { to: "/app/minhas-aulas", label: "Aulas", icon: ShoppingBag },
     { to: "/app/medidas", label: "Medidas", icon: Ruler },
     { to: "/app/meus-treinadores", label: "Treinadores", icon: BicepsFlexed },
+    { to: "/app/ajustes", label: "Ajustes", icon: Settings },
   ];
 
   const trainerLinks: NavItem[] = [
@@ -115,61 +111,28 @@ export function AppFrame() {
               </NavLink>
             ))}
             {isLogged && (
-              <>
-                {isStudent && (
-                  <>
-                    <NavLink
-                      to="/app/meu-cadastro"
-                      className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-stone-100 hover:text-stone-900"
-                      title="Editar meu cadastro"
-                    >
-                      <UserRound aria-hidden="true" size={15} />
-                      Meu cadastro
-                    </NavLink>
-                    <NavLink
-                      to="/app/mudar-perfil"
-                      className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-400 transition-all duration-150 hover:bg-stone-100 hover:text-stone-700"
-                      title="Mudar tipo de perfil (aluno/treinador)"
-                    >
-                      <RefreshCw aria-hidden="true" size={14} />
-                      Mudar perfil
-                    </NavLink>
-                  </>
-                )}
-                <button
-                  type="button"
-                  className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
-                  onClick={() => logout()}
-                >
-                  <LogOut aria-hidden="true" size={16} />
-                  Sair
-                </button>
-              </>
+              <button
+                type="button"
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
+                onClick={() => logout()}
+              >
+                <LogOut aria-hidden="true" size={16} />
+                Sair
+              </button>
             )}
           </nav>
 
-          {/* Mobile: show account + logout if logged in, or login link if not */}
+          {/* Mobile: show logout if logged in, or login link if not */}
           <div className="flex items-center gap-2 md:hidden">
             {isLogged ? (
-              <>
-                {isStudent && (
-                  <NavLink
-                    to="/app/meu-cadastro"
-                    className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
-                    aria-label="Meu cadastro"
-                  >
-                    <UserRound size={18} />
-                  </NavLink>
-                )}
-                <button
-                  type="button"
-                  className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
-                  onClick={() => logout()}
-                  aria-label="Sair"
-                >
-                  <LogOut size={18} />
-                </button>
-              </>
+              <button
+                type="button"
+                className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
+                onClick={() => logout()}
+                aria-label="Sair"
+              >
+                <LogOut size={18} />
+              </button>
             ) : (
               <NavLink
                 to="/login"
