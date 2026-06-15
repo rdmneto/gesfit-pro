@@ -21,6 +21,7 @@ import {
   useWorkoutSessions,
   useTrainerStudents,
   useBookings,
+  usePaidPurchases,
 } from "../lib/hooks";
 
 export function DashboardPage() {
@@ -62,6 +63,7 @@ function TrainerDashboard() {
     user ? { trainerId: user.uid } : {}
   );
   const { data: dbBookings } = useBookings(user ? { trainerId: user.uid } : {});
+  const { data: dbPaidPurchases } = usePaidPurchases(teamId);
 
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
 
@@ -100,12 +102,14 @@ function TrainerDashboard() {
   const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
   const uniqueStudentsToday = new Set(todayWorkouts.map((w) => w.studentId)).size;
 
-  // Estimativa de faturamento por ticket médio (ajustar quando houver coleção de planos com preço).
-  const AVERAGE_TICKET = 350;
-  const estimatedRevenue = useMemo(
-    () => activeStudents.length * AVERAGE_TICKET,
-    [activeStudents],
-  );
+  // Faturamento real do mês: soma das compras pagas (PIX confirmado) no mês corrente.
+  const monthRevenue = useMemo(() => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    return (dbPaidPurchases ?? [])
+      .filter((p) => String(p.reviewedAt || p.submittedAt || "").startsWith(ym))
+      .reduce((sum, p) => sum + (p.amountCents || 0), 0) / 100;
+  }, [dbPaidPurchases]);
 
   const presenceRate = useMemo(() => {
     const pastBookings = bookings.filter((b) => b.status === "attended" || b.status === "no_show");
@@ -203,7 +207,7 @@ function TrainerDashboard() {
       {/* KPI Grid */}
       <KpiGrid
         studentCount={activeStudents.length}
-        estimatedRevenue={estimatedRevenue}
+        estimatedRevenue={monthRevenue}
         presenceRate={presenceRate}
         noShowCount={noShowCount}
         expiringCount={expiringCount}

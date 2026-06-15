@@ -325,3 +325,13 @@ export function usePendingPurchases(teamId: string | null | undefined) {
     [teamId]
   );
 }
+
+/** Compras já pagas de um time (para calcular faturamento real). */
+export function usePaidPurchases(teamId: string | null | undefined) {
+  return useCollection<ClassPurchase>(
+    "classPurchases",
+    teamId ? [where("teamId", "==", teamId), where("status", "==", "paid")] : [],
+    [],
+    [teamId]
+  );
+}
