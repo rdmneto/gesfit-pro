@@ -15,11 +15,12 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
-import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam } from "../lib/hooks";
+import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visibleToStudent } from "../lib/products";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
+import { StudentAgenda } from "../features/dashboard/StudentAgenda";
 import type { ClassProduct, PurchaseStatus } from "../types/domain";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
@@ -43,6 +44,11 @@ export function StudentClassesPage() {
   const { data: dbPurchases = [], loading: purchasesLoading } = useStudentPurchases(user?.uid ?? null);
   const { data: dbProducts = [], loading: productsLoading } = useClassProducts(teamId);
   const { data: dbTeam } = useTeam(teamId);
+  const { data: dbWorkouts } = useWorkoutSessions(user ? { studentId: user.uid } : {});
+  const workouts = useMemo(
+    () => (dbWorkouts ?? []).filter((w) => !activeTrainerId || w.trainerId === activeTrainerId),
+    [dbWorkouts, activeTrainerId],
+  );
 
   const team = dbTeam;
   const purchases = useMemo(
@@ -114,9 +120,9 @@ export function StudentClassesPage() {
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
       <SectionHeader
-        eyebrow="Gestão de aulas"
-        title="Minhas aulas"
-        description="Acompanhe seu saldo, histórico de compras e adquira mais aulas quando precisar."
+        eyebrow="Aulas"
+        title="Treinos e aulas"
+        description="Veja sua agenda de treinos, acompanhe seu saldo e adquira mais aulas quando precisar."
       />
 
       {/* ── Contexto do treinador ativo ──────────────────── */}
@@ -145,6 +151,11 @@ export function StudentClassesPage() {
           </Link>
         </p>
       ) : null}
+
+      {/* ── Agenda de treinos ────────────────────────────── */}
+      <div className="mt-6">
+        <StudentAgenda workouts={workouts} />
+      </div>
 
       {/* ── Saldo de aulas ───────────────────────────────── */}
       <div className="mt-6 grid gap-4 sm:grid-cols-3">

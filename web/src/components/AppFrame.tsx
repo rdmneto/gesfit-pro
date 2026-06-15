@@ -7,7 +7,6 @@ import {
   LogOut,
   Ruler,
   Settings,
-  ShoppingBag,
   Users,
 } from "lucide-react";
 import { NavLink, Outlet, useLocation } from "react-router-dom";
@@ -32,8 +31,7 @@ export function AppFrame() {
   useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
 
   const studentLinks: NavItem[] = [
-    { to: "/app", label: "Início", icon: House, exact: true },
-    { to: "/app/minhas-aulas", label: "Aulas", icon: ShoppingBag },
+    { to: "/app/minhas-aulas", label: "Aulas", icon: CalendarDays },
     { to: "/app/medidas", label: "Medidas", icon: Ruler },
     { to: "/app/meus-treinadores", label: "Treinadores", icon: BicepsFlexed },
     { to: "/app/ajustes", label: "Ajustes", icon: Settings },

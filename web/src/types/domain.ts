@@ -151,6 +151,7 @@ export interface Student {
     pesoInicialKg?: number;
   };
   goal?: string;
+  createdAt?: string;
   planId?: string;
   classesQuotaMonth?: number;
   classesUsedMonth?: number;

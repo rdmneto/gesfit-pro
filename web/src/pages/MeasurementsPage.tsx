@@ -102,7 +102,10 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
   const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
 
-  const measurements = useMemo(() => selectedMeasurements ?? [], [selectedMeasurements]);
+  const measurements = useMemo(
+    () => withInitialWeight(selectedMeasurements ?? [], selectedStudent),
+    [selectedMeasurements, selectedStudent],
+  );
 
   const pending = useMemo(() => selectedPending ?? [], [selectedPending]);
 
@@ -346,7 +349,10 @@ function StudentMeasurementsPage({
   const { data: activeTeam } = useTeam(activeTrainerId);
   const primary = activeTeam?.branding?.primaryColor || "#0f766e";
 
-  const effectiveMeasurements = useMemo(() => allMeasurements ?? [], [allMeasurements]);
+  const effectiveMeasurements = useMemo(
+    () => withInitialWeight(allMeasurements ?? [], dbStudent),
+    [allMeasurements, dbStudent],
+  );
 
   const effectivePending = useMemo(() => pendingMeasurements ?? [], [pendingMeasurements]);
 
@@ -1123,6 +1129,27 @@ function MiniMetric({ label, value }: { label: string; value: string }) {
 // Exibe um valor com unidade, ou "–" quando a medida não foi registrada.
 function unitVal(value: number | undefined | null, unit: string) {
   return value == null ? "–" : `${value} ${unit}`;
+}
+
+// Usa o peso inicial do cadastro como primeira medida, datado no dia do
+// cadastro. Se já houver uma medida real nessa data, a real prevalece.
+function withInitialWeight(
+  measurements: StudentMeasurement[],
+  student: { uid?: string; physiological?: { pesoInicialKg?: number }; createdAt?: string } | null | undefined,
+): StudentMeasurement[] {
+  const peso = student?.physiological?.pesoInicialKg;
+  const created = student?.createdAt;
+  if (!peso || !created) return measurements;
+  const date = String(created).slice(0, 10);
+  if (measurements.some((m) => m.measuredAt === date)) return measurements;
+  const initial: StudentMeasurement = {
+    id: "__initial__",
+    studentId: student?.uid ?? "",
+    measuredAt: date,
+    weightKg: peso,
+    notes: "Peso inicial (cadastro)",
+  };
+  return [initial, ...measurements];
 }
 
 function Field({
