@@ -228,7 +228,7 @@ export interface WorkoutSession {
   proposedWorkout?: string;
   durationMinutes: number;
   plannedCalories: number;
-  status: "scheduled" | "in_progress" | "completed";
+  status: "scheduled" | "in_progress" | "completed" | "no_show";
   exercises: string[];
 }
 

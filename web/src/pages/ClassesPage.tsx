@@ -1,16 +1,15 @@
 import {
   CalendarDays,
-  CheckCircle2,
+  Check,
   ChevronLeft,
   ChevronRight,
   List,
-  Play,
   Trash2,
   UserPlus,
   X,
 } from "lucide-react";
 import { useState, useMemo } from "react";
-import { collection, addDoc, deleteDoc, doc } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, updateDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam, useTrainerStudents, useWorkoutSessions } from "../lib/hooks";
@@ -52,7 +51,6 @@ export function ClassesPage() {
   const [calendarMode, setCalendarMode] = useState<CalendarMode>("visual");
   const [referenceDate, setReferenceDate] = useState(new Date());
   const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
-  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
 
   // Schedule class states
   const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
@@ -141,13 +139,32 @@ export function ClassesPage() {
     }
   }
 
+  // Marca presença/falta (ou desfaz, voltando para "scheduled").
+  async function markAttendance(workout: WorkoutSession, status: WorkoutSession["status"]) {
+    if (!db) return;
+    try {
+      await updateDoc(doc(db, "workoutSessions", workout.id), { status });
+      setError("");
+      setMessage(
+        status === "completed"
+          ? "Presença registrada."
+          : status === "no_show"
+            ? "Falta registrada."
+            : "Marcação desfeita.",
+      );
+      setTimeout(() => setMessage(""), 2500);
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao registrar presença: " + err.message);
+    }
+  }
+
   // Exclui uma aula agendada.
   async function deleteSession(workout: WorkoutSession) {
     if (!db) return;
     if (!window.confirm(`Excluir a aula de ${workout.studentName} em ${formatDateTime(workout.startsAt)}?`)) return;
     try {
       await deleteDoc(doc(db, "workoutSessions", workout.id));
-      if (activeWorkout?.id === workout.id) setActiveWorkout(null);
       setError("");
       setMessage("Aula excluída.");
       setTimeout(() => setMessage(""), 3000);
@@ -337,15 +354,13 @@ export function ClassesPage() {
                 referenceDate={referenceDate}
                 view={calendarView}
                 workouts={trainerWorkouts}
-                activeWorkoutId={activeWorkout?.id}
                 availability={availability}
                 detailSlots={detailDateSlots}
                 onCloseMonthDay={() => setSelectedMonthDay(null)}
-                onFinish={() => setActiveWorkout(null)}
                 onSelectMonthDay={setSelectedMonthDay}
-                onStart={setActiveWorkout}
                 onScheduleSlot={openSchedulerForSlot}
                 onDelete={deleteSession}
+                onMark={markAttendance}
               />
             </>
           ) : (
@@ -369,17 +384,7 @@ export function ClassesPage() {
                       <td className="border-b border-stone-100 py-3.5 text-xs font-medium text-stone-700">{workout.proposedWorkout ?? workout.title}</td>
                       <td className="border-b border-stone-100 py-3.5">
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            className={[
-                              "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3 text-2xs font-bold text-white transition-colors",
-                              activeWorkout?.id === workout.id ? "bg-stone-950" : "bg-emerald-750 hover:bg-emerald-750",
-                            ].join(" ")}
-                            onClick={() => activeWorkout?.id === workout.id ? setActiveWorkout(null) : setActiveWorkout(workout)}
-                          >
-                            {activeWorkout?.id === workout.id ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                            {activeWorkout?.id === workout.id ? "Finalizar" : "Iniciar"}
-                          </button>
+                          <AttendanceControl workout={workout} onMark={markAttendance} />
                           <button
                             type="button"
                             aria-label="Excluir aula"
@@ -404,31 +409,7 @@ export function ClassesPage() {
             </div>
           )}
 
-          {/* Active Workout Row */}
-          {activeWorkout && (
-            <section className="mt-6 rounded-xl border border-emerald-250 bg-emerald-50/70 p-4 animate-slide-up">
-              <div className="grid gap-4 sm:grid-cols-[1fr_auto] items-center">
-                <div>
-                  <p className="text-2xs font-bold uppercase tracking-wider text-emerald-800">Aula Iniciada</p>
-                  <h3 className="mt-0.5 text-lg font-black text-stone-950">{activeWorkout.studentName}</h3>
-                  <p className="text-xs text-stone-600 mt-1">
-                    {activeWorkout.proposedWorkout ?? activeWorkout.title} · {formatDateTime(activeWorkout.startsAt)}
-                  </p>
-                </div>
-                <button
-                  type="button"
-                  className="focus-ring inline-flex h-10 items-center justify-center gap-1.5 rounded-xl bg-stone-950 px-5 text-xs font-bold text-white shadow"
-                  onClick={() => setActiveWorkout(null)}
-                >
-                  <CheckCircle2 size={16} />
-                  Finalizar aula
-                </button>
-              </div>
-            </section>
-          )}
         </section>
-
-
       </div>
 
       {/* Modal de agendamento rápido (clique no horário) */}
@@ -553,6 +534,46 @@ function RecurrenceFields({
   );
 }
 
+// Controle de presença/falta de uma aula (✓ compareceu · ✗ faltou).
+function AttendanceControl({
+  workout,
+  onMark,
+}: {
+  workout: WorkoutSession;
+  onMark: (w: WorkoutSession, s: WorkoutSession["status"]) => void;
+}) {
+  const done = workout.status === "completed";
+  const miss = workout.status === "no_show";
+  return (
+    <div className="flex items-center gap-1">
+      <button
+        type="button"
+        title="Compareceu"
+        aria-label="Marcar presença"
+        className={[
+          "focus-ring flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+          done ? "border-emerald-600 bg-emerald-600 text-white" : "border-stone-200 text-emerald-700 hover:bg-emerald-50",
+        ].join(" ")}
+        onClick={() => onMark(workout, done ? "scheduled" : "completed")}
+      >
+        <Check size={14} />
+      </button>
+      <button
+        type="button"
+        title="Faltou"
+        aria-label="Marcar falta"
+        className={[
+          "focus-ring flex h-8 w-8 items-center justify-center rounded-lg border transition-colors",
+          miss ? "border-rose-500 bg-rose-500 text-white" : "border-stone-200 text-rose-600 hover:bg-rose-50",
+        ].join(" ")}
+        onClick={() => onMark(workout, miss ? "scheduled" : "no_show")}
+      >
+        <X size={14} />
+      </button>
+    </div>
+  );
+}
+
 // ── Sub-componentes do Calendário ───────────────────────────────────────────
 
 interface CalendarVisualProps {
@@ -560,15 +581,13 @@ interface CalendarVisualProps {
   workouts: WorkoutSession[];
   selectedMonthDay: Date | null;
   referenceDate: Date;
-  activeWorkoutId?: string;
   availability: TrainerAvailabilityDay[];
   detailSlots: string[];
   onCloseMonthDay: () => void;
-  onFinish: () => void;
   onSelectMonthDay: (d: Date) => void;
-  onStart: (w: WorkoutSession) => void;
   onScheduleSlot: (date: Date, time: string) => void;
   onDelete: (w: WorkoutSession) => void;
+  onMark: (w: WorkoutSession, s: WorkoutSession["status"]) => void;
 }
 
 function TrainerCalendarVisual({
@@ -576,15 +595,13 @@ function TrainerCalendarVisual({
   workouts,
   selectedMonthDay,
   referenceDate,
-  activeWorkoutId,
   availability,
   detailSlots,
   onCloseMonthDay,
-  onFinish,
   onSelectMonthDay,
-  onStart,
   onScheduleSlot,
   onDelete,
+  onMark,
 }: CalendarVisualProps) {
 
   if (view === "week") {
@@ -619,32 +636,31 @@ function TrainerCalendarVisual({
                   {slots.map((slot) => {
                     const workout = workoutAtSlot(dayWorkouts, slot);
                     if (workout) {
-                      const isActive = activeWorkoutId === workout.id;
                       return (
-                        <article key={slot} className="overflow-hidden rounded-lg border border-amber-200 bg-white p-1.5">
+                        <article
+                          key={slot}
+                          className={[
+                            "overflow-hidden rounded-lg border bg-white p-1.5",
+                            workout.status === "completed"
+                              ? "border-emerald-300"
+                              : workout.status === "no_show"
+                                ? "border-rose-300"
+                                : "border-amber-200",
+                          ].join(" ")}
+                        >
                           <strong className="block text-3xs text-stone-900">{slot}</strong>
                           <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">
                             {workout.studentName}
                           </p>
-                          <div className="mt-1 flex items-center gap-1">
-                            <button
-                              type="button"
-                              className={[
-                                "focus-ring inline-flex h-6 flex-1 items-center justify-center gap-0.5 rounded bg-emerald-700 text-4xs font-black text-white hover:bg-emerald-650 transition-colors",
-                                isActive ? "bg-stone-950 hover:bg-stone-900" : "",
-                              ].join(" ")}
-                              onClick={() => (isActive ? onFinish() : onStart(workout))}
-                            >
-                              {isActive ? <CheckCircle2 size={9} /> : <Play size={9} />}
-                              {isActive ? "Fim" : "Iniciar"}
-                            </button>
+                          <div className="mt-1 flex items-center justify-between gap-1">
+                            <AttendanceControl workout={workout} onMark={onMark} />
                             <button
                               type="button"
                               aria-label="Excluir aula"
-                              className="focus-ring flex h-6 w-6 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-600 hover:bg-rose-50"
+                              className="focus-ring flex h-7 w-7 shrink-0 items-center justify-center rounded border border-rose-200 text-rose-600 hover:bg-rose-50"
                               onClick={() => onDelete(workout)}
                             >
-                              <Trash2 size={10} />
+                              <Trash2 size={11} />
                             </button>
                           </div>
                         </article>
@@ -698,7 +714,6 @@ function TrainerCalendarVisual({
           <div className="mt-4 grid gap-2.5">
             {detailSlots.map((slot) => {
               const workout = workoutAtSlot(dayWorkouts, slot);
-              const isActive = activeWorkoutId === workout?.id;
               return (
                 <article
                   key={slot}
@@ -722,17 +737,7 @@ function TrainerCalendarVisual({
                   )}
                   {workout ? (
                     <div className="flex items-center gap-2">
-                      <button
-                        type="button"
-                        className={[
-                          "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
-                          isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
-                        ].join(" ")}
-                        onClick={() => isActive ? onFinish() : onStart(workout)}
-                      >
-                        {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                        {isActive ? "Finalizar" : "Iniciar"}
-                      </button>
+                      <AttendanceControl workout={workout} onMark={onMark} />
                       <button
                         type="button"
                         aria-label="Excluir aula"
@@ -850,7 +855,6 @@ function TrainerCalendarVisual({
       ) : (
         daySlots.map((slot) => {
           const workout = workoutAtSlot(dayWorkouts, slot);
-          const isActive = activeWorkoutId === workout?.id;
           return (
             <article
               key={slot}
@@ -872,17 +876,7 @@ function TrainerCalendarVisual({
               )}
               {workout ? (
                 <div className="flex items-center gap-2">
-                  <button
-                    type="button"
-                    className={[
-                      "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg px-3.5 text-2xs font-bold text-white transition-colors shadow-2xs",
-                      isActive ? "bg-stone-950" : "bg-emerald-700 hover:bg-emerald-650",
-                    ].join(" ")}
-                    onClick={() => (isActive ? onFinish() : onStart(workout))}
-                  >
-                    {isActive ? <CheckCircle2 size={12} /> : <Play size={12} />}
-                    {isActive ? "Finalizar" : "Iniciar"}
-                  </button>
+                  <AttendanceControl workout={workout} onMark={onMark} />
                   <button
                     type="button"
                     aria-label="Excluir aula"

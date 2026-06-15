@@ -20,7 +20,6 @@ import {
   useTeam,
   useWorkoutSessions,
   useTrainerStudents,
-  useBookings,
   usePaidPurchases,
 } from "../lib/hooks";
 
@@ -62,7 +61,6 @@ function TrainerDashboard() {
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
     user ? { trainerId: user.uid } : {}
   );
-  const { data: dbBookings } = useBookings(user ? { trainerId: user.uid } : {});
   const { data: dbPaidPurchases } = usePaidPurchases(teamId);
 
   const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
@@ -85,7 +83,6 @@ function TrainerDashboard() {
   }, [dbWorkoutSessions]);
 
   const students = dbStudents ?? [];
-  const bookings = dbBookings ?? [];
 
   // Alunos com vínculo ativo (a aprovação é por vínculo, não pelo doc do aluno).
   const activeStudents = useMemo(
@@ -111,16 +108,18 @@ function TrainerDashboard() {
       .reduce((sum, p) => sum + (p.amountCents || 0), 0) / 100;
   }, [dbPaidPurchases]);
 
+  // Presença real: aulas marcadas como concluídas vs. faltas.
   const presenceRate = useMemo(() => {
-    const pastBookings = bookings.filter((b) => b.status === "attended" || b.status === "no_show");
-    if (pastBookings.length === 0) return 100;
-    const attended = pastBookings.filter((b) => b.status === "attended").length;
-    return Math.round((attended / pastBookings.length) * 100);
-  }, [bookings]);
+    const marked = trainerWorkouts.filter((w) => w.status === "completed" || w.status === "no_show");
+    if (marked.length === 0) return 100;
+    const attended = marked.filter((w) => w.status === "completed").length;
+    return Math.round((attended / marked.length) * 100);
+  }, [trainerWorkouts]);
 
-  const noShowCount = useMemo(() => {
-    return bookings.filter((b) => b.status === "no_show").length;
-  }, [bookings]);
+  const noShowCount = useMemo(
+    () => trainerWorkouts.filter((w) => w.status === "no_show").length,
+    [trainerWorkouts],
+  );
 
   const expiringCount = useMemo(() => {
     return activeStudents.filter((s) => {
