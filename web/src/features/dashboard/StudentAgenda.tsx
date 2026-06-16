@@ -113,7 +113,7 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
           </div>
 
           {view === "day" && <DayView workouts={sorted} day={ref} trainings={trainings} />}
-          {view === "week" && <WeekView workouts={sorted} reference={ref} />}
+          {view === "week" && <WeekView workouts={sorted} reference={ref} trainings={trainings} />}
           {view === "month" && <MonthView workouts={sorted} reference={ref} trainings={trainings} />}
         </>
       )}
