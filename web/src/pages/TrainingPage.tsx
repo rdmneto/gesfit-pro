@@ -5,8 +5,9 @@ import { useSessionStore } from '../store/session';
 import { useTrainerStudents, useCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, TrainingLog, Exercise } from '../types/domain';
-import { Dumbbell, Plus, Trash2, ChevronDown, ChevronUp, Check, Clock, Archive, X } from 'lucide-react';
+import { Dumbbell, Plus, Trash2, ChevronDown, ChevronUp, Check, Clock, Archive, X, Sparkles, Loader2 } from 'lucide-react';
 import { formatDateTime } from '../features/dashboard/dashboardUtils';
+import { generateWorkout } from '../lib/ai';
 
 export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
@@ -38,6 +39,34 @@ export function TrainingPage() {
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
   const [exercises, setExercises] = useState<Exercise[]>([]);
+
+  // AI states
+  const [showAIModal, setShowAIModal] = useState(false);
+  const [aiGenerating, setAiGenerating] = useState(false);
+  const [aiDuration, setAiDuration] = useState("60");
+  const [aiCount, setAiCount] = useState("6");
+  const [aiFocus, setAiFocus] = useState("Hipertrofia");
+  const [aiStyle, setAiStyle] = useState("Musculação");
+  const [aiError, setAiError] = useState("");
+
+  const handleGenerateAI = async () => {
+    setAiGenerating(true);
+    setAiError("");
+    try {
+      const generatedExercises = await generateWorkout({
+        durationMinutes: aiDuration,
+        exercisesCount: aiCount,
+        focus: aiFocus,
+        style: aiStyle
+      });
+      setExercises(generatedExercises);
+      setShowAIModal(false);
+    } catch (err: any) {
+      setAiError(err.message || "Erro desconhecido ao gerar treino.");
+    } finally {
+      setAiGenerating(false);
+    }
+  };
 
   // Helpers
   const addExercise = () => {
@@ -221,7 +250,17 @@ export function TrainingPage() {
                 </label>
 
                 <div className="mt-6 border-t border-stone-200 pt-4">
-                  <h3 className="text-md font-bold text-stone-900 mb-3 flex items-center gap-2"><Dumbbell size={16}/> Exercícios</h3>
+                  <div className="flex flex-wrap gap-4 justify-between items-center mb-4">
+                    <h3 className="text-md font-bold text-stone-900 flex items-center gap-2"><Dumbbell size={16}/> Exercícios</h3>
+                    <button
+                      type="button"
+                      className="focus-ring flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200"
+                      onClick={() => setShowAIModal(true)}
+                    >
+                      <Sparkles size={14} />
+                      Gerar com IA
+                    </button>
+                  </div>
                   <div className="space-y-3">
                     {exercises.map((ex, idx) => (
                       <div key={idx} className="flex gap-2 items-start bg-white p-3 rounded-xl border border-stone-200 shadow-sm">
@@ -285,6 +324,80 @@ export function TrainingPage() {
                     </button>
                   </div>
                 </div>
+
+                {showAIModal && (
+                  <div className="mt-6 rounded-xl border border-indigo-200 bg-indigo-50/50 p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h4 className="text-sm font-bold text-indigo-900 flex items-center gap-2">
+                        <Sparkles size={16} className="text-indigo-600" />
+                        Assistente de Treino IA
+                      </h4>
+                      <button type="button" onClick={() => setShowAIModal(false)} className="text-indigo-400 hover:text-indigo-600"><X size={16}/></button>
+                    </div>
+
+                    <div className="grid gap-3 sm:grid-cols-2">
+                      <label className="block">
+                        <span className="text-xs font-semibold text-indigo-800">Tempo (min)</span>
+                        <input
+                          className="mt-1 h-9 w-full rounded-lg border border-indigo-200 px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          value={aiDuration}
+                          onChange={e => setAiDuration(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-indigo-800">Qtd. Exercícios</span>
+                        <input
+                          className="mt-1 h-9 w-full rounded-lg border border-indigo-200 px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          value={aiCount}
+                          onChange={e => setAiCount(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-indigo-800">Foco</span>
+                        <input
+                          className="mt-1 h-9 w-full rounded-lg border border-indigo-200 px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          placeholder="Ex: Emagrecimento, Hipertrofia..."
+                          value={aiFocus}
+                          onChange={e => setAiFocus(e.target.value)}
+                        />
+                      </label>
+                      <label className="block">
+                        <span className="text-xs font-semibold text-indigo-800">Estilo</span>
+                        <input
+                          className="mt-1 h-9 w-full rounded-lg border border-indigo-200 px-3 text-sm focus:border-indigo-500 focus:ring-indigo-500"
+                          placeholder="Ex: Musculação, Funcional..."
+                          value={aiStyle}
+                          onChange={e => setAiStyle(e.target.value)}
+                        />
+                      </label>
+                    </div>
+
+                    {aiError && (
+                      <p className="mt-3 text-xs text-rose-600 font-medium bg-rose-50 p-2 rounded border border-rose-200">
+                        {aiError}
+                      </p>
+                    )}
+
+                    <div className="mt-4 flex justify-end">
+                      <button
+                        type="button"
+                        onClick={handleGenerateAI}
+                        disabled={aiGenerating}
+                        className="flex items-center gap-2 rounded-lg bg-indigo-600 px-4 py-2 text-sm font-bold text-white hover:bg-indigo-700 disabled:opacity-50 transition-colors"
+                      >
+                        {aiGenerating ? (
+                          <>
+                            <Loader2 size={16} className="animate-spin" /> Gerando...
+                          </>
+                        ) : (
+                          <>
+                            <Sparkles size={16} /> Gerar Exercícios
+                          </>
+                        )}
+                      </button>
+                    </div>
+                  </div>
+                )}
                 
                 <div className="mt-6 flex justify-end gap-3">
                   <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
