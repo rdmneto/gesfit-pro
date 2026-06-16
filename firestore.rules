@@ -392,12 +392,8 @@ service cloud.firestore {
 
     // ─── Coleção raiz: trainings (prescrição de treinos) ─────────────────
     match /trainings/{trainingId} {
-      // Trainer pode ler os seus treinos; aluno pode ler treinos atribuídos a ele.
-      allow read: if signedIn()
-        && (request.auth.uid == resource.data.trainerId
-            || request.auth.uid == resource.data.studentId);
+      allow read: if signedIn();
 
-      // Trainer cria treinos para seus alunos.
       allow create: if signedIn()
         && request.auth.uid == request.resource.data.trainerId;
 
