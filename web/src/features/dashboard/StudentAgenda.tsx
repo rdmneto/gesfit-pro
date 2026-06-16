@@ -288,38 +288,63 @@ function DayView({ workouts, day, trainings }: { workouts: WorkoutSession[]; day
   );
 }
 
-function WeekView({ workouts, reference }: { workouts: WorkoutSession[]; reference: Date }) {
+function WeekView({ workouts, reference, trainings }: { workouts: WorkoutSession[]; reference: Date; trainings?: Training[] }) {
+  const [selected, setSelected] = useState<Date | null>(null);
   const days = weekDays(reference);
+  const selectedItems = selected ? workouts.filter((w) => isSameDay(w.startsAt, selected)) : [];
+
   return (
-    <div className="mt-4 overflow-x-auto">
-      <div className="grid min-w-[760px] grid-cols-7 gap-2">
-        {days.map((day) => {
-          const items = workouts.filter((w) => isSameDay(w.startsAt, day));
-          const isToday = isSameDay(day.toISOString(), new Date());
-          return (
-            <section key={day.toISOString()} className="min-h-48 rounded-xl border border-stone-200 bg-stone-50 p-2">
-              <div className={["rounded-lg p-2 text-center shadow-2xs", isToday ? "bg-emerald-700 text-white" : "bg-white"].join(" ")}>
-                <p className={["text-3xs font-bold uppercase", isToday ? "text-emerald-100" : "text-emerald-800"].join(" ")}>
-                  {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}
-                </p>
-                <p className={["mt-0.5 text-xl font-black", isToday ? "text-white" : "text-stone-900"].join(" ")}>{day.getDate()}</p>
-              </div>
-              <div className="mt-2 space-y-1.5">
-                {items.length === 0 ? (
-                  <p className="rounded-lg border border-stone-200 bg-white p-2 text-center text-4xs font-semibold text-stone-300">—</p>
-                ) : (
-                  items.map((w) => (
-                    <article key={w.id} className="overflow-hidden rounded-lg border border-emerald-200 bg-white p-1.5">
-                      <strong className="block text-3xs text-emerald-800">{fmtTime(w.startsAt)}</strong>
-                      <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">{w.title}</p>
-                    </article>
-                  ))
-                )}
-              </div>
-            </section>
-          );
-        })}
+    <div className="mt-4">
+      <div className="overflow-x-auto pb-2">
+        <div className="grid min-w-[760px] grid-cols-7 gap-2">
+          {days.map((day) => {
+            const items = workouts.filter((w) => isSameDay(w.startsAt, day));
+            const isToday = isSameDay(day.toISOString(), new Date());
+            const isSel = selected && isSameDay(day.toISOString(), selected);
+            
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => setSelected(day)}
+                className={[
+                  "focus-ring text-left min-h-48 rounded-xl border p-2 transition-all",
+                  isSel ? "border-emerald-500 ring-1 ring-emerald-400 bg-emerald-50/30" : "border-stone-200 bg-stone-50 hover:border-emerald-300"
+                ].join(" ")}
+              >
+                <div className={["rounded-lg p-2 text-center shadow-2xs", isToday ? "bg-emerald-700 text-white" : "bg-white"].join(" ")}>
+                  <p className={["text-3xs font-bold uppercase", isToday ? "text-emerald-100" : "text-emerald-800"].join(" ")}>
+                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}
+                  </p>
+                  <p className={["mt-0.5 text-xl font-black", isToday ? "text-white" : "text-stone-900"].join(" ")}>{day.getDate()}</p>
+                </div>
+                <div className="mt-2 space-y-1.5">
+                  {items.length === 0 ? (
+                    <p className="rounded-lg border border-stone-200 bg-white p-2 text-center text-4xs font-semibold text-stone-300">—</p>
+                  ) : (
+                    items.map((w) => (
+                      <article key={w.id} className="overflow-hidden rounded-lg border border-emerald-200 bg-white p-1.5">
+                        <strong className="block text-3xs text-emerald-800">{fmtTime(w.startsAt)}</strong>
+                        <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">{w.title}</p>
+                      </article>
+                    ))
+                  )}
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
+      
+      {selected && (
+        <div className="mt-4 grid gap-3 animate-fade-in">
+          {selectedItems.length === 0 ? (
+            <p className="py-4 text-center text-sm italic text-stone-400">Nenhum treino em {selected.toLocaleDateString("pt-BR")}.</p>
+          ) : (
+            selectedItems.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
+          )}
+        </div>
+      )}
     </div>
   );
 }
