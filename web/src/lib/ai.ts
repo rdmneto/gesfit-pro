@@ -73,6 +73,8 @@ Lembre-se: Retorne SOMENTE o JSON. Certifique-se de que é um array [].
     }));
   } catch (error: any) {
     console.error("Erro na geração por IA:", error);
-    throw new Error("Não foi possível gerar o treino. Verifique a chave ou o formato retornado.");
+    // Extraindo mensagem detalhada para ajudar no debug
+    const errorMsg = error.message || "Erro desconhecido";
+    throw new Error(`Erro na IA: ${errorMsg}`);
   }
 }
