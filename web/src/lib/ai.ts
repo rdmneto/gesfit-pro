@@ -21,7 +21,7 @@ export async function generateWorkout(params: WorkoutGenerationParams): Promise<
     throw new Error("Chave da API do Gemini (VITE_GEMINI_API_KEY) não está configurada. Adicione no arquivo .env");
   }
 
-  const model = genAI.getGenerativeModel({ model: "gemini-1.5-flash" });
+  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
 
   const prompt = `
 Você é um Personal Trainer de elite.
