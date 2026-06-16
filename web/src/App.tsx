@@ -13,9 +13,11 @@ import { StudentClassesPage } from "./pages/StudentClassesPage";
 import { StudentProfilePage } from "./pages/StudentProfilePage";
 import { StudentSettingsPage } from "./pages/StudentSettingsPage";
 import { StudentTrainersPage } from "./pages/StudentTrainersPage";
+
 import { TeamLandingPage } from "./pages/TeamLandingPage";
 import { TeamsPage } from "./pages/TeamsPage";
 import { TrainerWorkspacePage } from "./pages/TrainerWorkspacePage";
+import { TrainingPage } from "./pages/TrainingPage";
 import { useSessionStore } from "./store/session";
 
 export default function App() {
@@ -61,6 +63,7 @@ export default function App() {
           {/* Authenticated routes — trainer */}
           <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
           <Route path="app/aulas" element={<Navigate to="/app/agenda" replace />} />
+          <Route path="app/treinos" element={<RequireTrainer><TrainingPage /></RequireTrainer>} />
           <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
           <Route path="app/ajustes" element={<RequireAuth><AjustesRoute /></RequireAuth>} />
           {/* Rotas antigas → Ajustes (consolidou perfil, pacotes e regras) */}

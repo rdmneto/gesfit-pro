@@ -13,6 +13,18 @@ export function formatDateTime(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "short", hour: "2-digit", minute: "2-digit" }).format(new Date(value));
 }
 
+export function formatFriendlyDateTime(value: string): string {
+  const date = new Date(value);
+  const now = new Date();
+  const isToday = date.getDate() === now.getDate() && date.getMonth() === now.getMonth() && date.getFullYear() === now.getFullYear();
+  const timeStr = new Intl.DateTimeFormat("pt-BR", { hour: "2-digit", minute: "2-digit" }).format(date);
+  if (isToday) {
+    return `Hoje, ${timeStr}`;
+  }
+  const dateStr = new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "2-digit" }).format(date);
+  return `${dateStr} às ${timeStr}`;
+}
+
 export function formatDate(value: string): string {
   return new Intl.DateTimeFormat("pt-BR", { day: "2-digit", month: "long", year: "numeric" }).format(new Date(value));
 }

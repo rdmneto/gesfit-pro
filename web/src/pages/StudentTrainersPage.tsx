@@ -101,7 +101,7 @@ function EnrollmentCard({
   // Time é público → o aluno pode ler para obter o contato e a marca do treinador.
   const { data: team } = useTeam(enrollment.trainerId);
   const cfg = statusConfig[enrollment.status];
-  const remaining = Math.max((enrollment.classesQuota ?? 0) - (enrollment.classesUsed ?? 0), 0);
+  const remaining = (enrollment.classesQuota ?? 0) - (enrollment.classesUsed ?? 0);
   const wa = enrollment.status === "active" ? whatsappLink(team?.contactPhone) : null;
   const primary = team?.branding?.primaryColor || "#0f766e";
   const secondary = team?.branding?.secondaryColor || "#f59e0b";

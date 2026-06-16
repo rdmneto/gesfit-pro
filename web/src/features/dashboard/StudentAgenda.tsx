@@ -1,6 +1,8 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, Play, Dumbbell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
-import type { WorkoutSession } from "../../types/domain";
+import { doc, updateDoc } from "firebase/firestore";
+import { db } from "../../lib/firebase";
+import type { WorkoutSession, Training } from "../../types/domain";
 import { isSameDay, monthGridDays, weekDays } from "./dashboardUtils";
 
 type View = "day" | "week" | "month";
@@ -13,7 +15,7 @@ function fmtDateTime(iso: string) {
 }
 
 /** Agenda de treinos do aluno — apresentação em Lista ou Calendário (dia/semana/mês). */
-export function StudentAgenda({ workouts }: { workouts: WorkoutSession[] }) {
+export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSession[], trainings?: Training[] }) {
   const [mode, setMode] = useState<"calendar" | "list">("calendar");
   const [view, setView] = useState<View>("week");
   const [ref, setRef] = useState(new Date());
@@ -92,7 +94,7 @@ export function StudentAgenda({ workouts }: { workouts: WorkoutSession[] }) {
           {sorted.length === 0 ? (
             <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado.</p>
           ) : (
-            sorted.map((w) => <WorkoutCard key={w.id} workout={w} />)
+            sorted.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
           )}
         </div>
       ) : (
@@ -110,52 +112,177 @@ export function StudentAgenda({ workouts }: { workouts: WorkoutSession[] }) {
             </button>
           </div>
 
-          {view === "day" && <DayView workouts={sorted} day={ref} />}
+          {view === "day" && <DayView workouts={sorted} day={ref} trainings={trainings} />}
           {view === "week" && <WeekView workouts={sorted} reference={ref} />}
-          {view === "month" && <MonthView workouts={sorted} reference={ref} />}
+          {view === "month" && <MonthView workouts={sorted} reference={ref} trainings={trainings} />}
         </>
       )}
     </section>
   );
 }
 
-function WorkoutCard({ workout }: { workout: WorkoutSession }) {
+function getYouTubeId(url: string): string | null {
+  if (!url) return null;
+  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
+  return match ? match[1] : null;
+}
+
+function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; trainings?: Training[] }) {
+  const [expanded, setExpanded] = useState(false);
+  const [expandedVideoIdx, setExpandedVideoIdx] = useState<number | null>(null);
+  const [submitting, setSubmitting] = useState(false);
+
+  const training = workout.trainingId ? trainings?.find((t) => t.id === workout.trainingId) : null;
+
+  async function handleComplete() {
+    if (!db) return;
+    setSubmitting(true);
+    try {
+      await updateDoc(doc(db, "workoutSessions", workout.id), {
+        studentCompletedAt: new Date().toISOString(),
+      });
+      setExpanded(false);
+    } catch (e) {
+      console.error(e);
+      alert("Erro ao concluir treino.");
+    } finally {
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <article className="rounded-xl border border-[var(--color-border)] p-4">
+    <article className="rounded-xl border border-[var(--color-border)] p-4 transition-all bg-white hover:border-emerald-300">
       <div className="flex items-start justify-between gap-2">
         <div>
           <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{workout.modality}</p>
           <h3 className="mt-0.5 font-black text-stone-950">{workout.title}</h3>
           <p className="mt-1 text-sm text-stone-500">{fmtDateTime(workout.startsAt)}</p>
         </div>
-        <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-600">
-          <Clock size={12} /> {workout.durationMinutes} min
-        </span>
+        <div className="flex flex-col items-end gap-2">
+          <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-600">
+            <Clock size={12} /> {workout.durationMinutes} min
+          </span>
+          {workout.studentCompletedAt && (
+            <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+              <CheckCircle2 size={12} /> Feito
+            </span>
+          )}
+        </div>
       </div>
-      {workout.exercises?.length > 0 && (
+      
+      {!expanded && workout.exercises?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
           {workout.exercises.map((e) => (
             <span key={e} className="badge badge-green">{e}</span>
           ))}
         </div>
       )}
+      
       {workout.plannedCalories > 0 && (
         <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
           <Flame size={12} /> Meta {workout.plannedCalories} kcal
         </p>
       )}
+
+      {training && !workout.studentCompletedAt && (
+        <div className="mt-4 pt-4 border-t border-stone-100">
+          <button
+            type="button"
+            className="w-full focus-ring flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-50 px-4 py-2.5 text-sm font-bold text-emerald-800 transition-colors hover:bg-emerald-100"
+            onClick={() => setExpanded(!expanded)}
+          >
+            <Dumbbell size={16} />
+            {expanded ? "Ocultar Treino" : "Iniciar Treino agora"}
+            {expanded ? <ChevronUp size={16} className="ml-auto" /> : <ChevronDown size={16} className="ml-auto" />}
+          </button>
+        </div>
+      )}
+
+      {expanded && training && (
+        <div className="mt-4 animate-slide-up space-y-3">
+          {training.exercises.map((ex, idx) => {
+            const ytId = getYouTubeId(ex.videoUrl || "");
+            const isVideoExpanded = expandedVideoIdx === idx;
+
+            return (
+              <div key={idx} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                <div className="flex justify-between items-start mb-2">
+                  <h4 className="font-bold text-stone-900 text-sm">
+                    {ex.order + 1}. {ex.name}
+                  </h4>
+                </div>
+                
+                <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                  <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
+                    <span className="font-bold text-stone-500 block text-[10px] uppercase">Séries</span>
+                    <span className="font-medium text-stone-900">{ex.sets || "-"}</span>
+                  </div>
+                  <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
+                    <span className="font-bold text-stone-500 block text-[10px] uppercase">Pausa</span>
+                    <span className="font-medium text-stone-900">{ex.rest || "-"}</span>
+                  </div>
+                </div>
+
+                {ex.notes && (
+                  <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>
+                )}
+
+                {ytId && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
+                      onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}
+                    >
+                      <Play size={14} /> 
+                      {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
+                    </button>
+                    
+                    {isVideoExpanded && (
+                      <div className="mt-2 overflow-hidden rounded-lg aspect-video bg-stone-900 animate-fade-in">
+                        <iframe
+                          className="w-full h-full"
+                          src={`https://www.youtube.com/embed/${ytId}`}
+                          title={ex.name}
+                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                          allowFullScreen
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            );
+          })}
+
+          <div className="mt-4 pt-4 border-t border-stone-200">
+            <button
+              type="button"
+              className="focus-ring btn btn-primary w-full shadow-[var(--shadow-brand)] h-12"
+              disabled={submitting}
+              onClick={handleComplete}
+            >
+              <CheckCircle2 size={20} />
+              {submitting ? "Registrando..." : "Concluir Treino"}
+            </button>
+            <p className="mt-2 text-center text-[10px] text-stone-400">
+              Isso registrará que você completou o treino. O crédito da aula só será abatido pelo seu treinador.
+            </p>
+          </div>
+        </div>
+      )}
     </article>
   );
 }
 
-function DayView({ workouts, day }: { workouts: WorkoutSession[]; day: Date }) {
+function DayView({ workouts, day, trainings }: { workouts: WorkoutSession[]; day: Date; trainings?: Training[] }) {
   const items = workouts.filter((w) => isSameDay(w.startsAt, day));
   return (
     <div className="mt-4 grid gap-3">
       {items.length === 0 ? (
         <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino neste dia.</p>
       ) : (
-        items.map((w) => <WorkoutCard key={w.id} workout={w} />)
+        items.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
       )}
     </div>
   );
@@ -197,7 +324,7 @@ function WeekView({ workouts, reference }: { workouts: WorkoutSession[]; referen
   );
 }
 
-function MonthView({ workouts, reference }: { workouts: WorkoutSession[]; reference: Date }) {
+function MonthView({ workouts, reference, trainings }: { workouts: WorkoutSession[]; reference: Date; trainings?: Training[] }) {
   const [selected, setSelected] = useState<Date | null>(null);
   const days = monthGridDays(reference);
   const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
@@ -241,7 +368,7 @@ function MonthView({ workouts, reference }: { workouts: WorkoutSession[]; refere
           {selectedItems.length === 0 ? (
             <p className="py-4 text-center text-sm italic text-stone-400">Nenhum treino em {selected.toLocaleDateString("pt-BR")}.</p>
           ) : (
-            selectedItems.map((w) => <WorkoutCard key={w.id} workout={w} />)
+            selectedItems.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
           )}
         </div>
       )}

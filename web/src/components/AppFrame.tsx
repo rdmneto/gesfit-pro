@@ -1,6 +1,7 @@
 import {
-  BicepsFlexed,
+  CalendarClock,
   CalendarDays,
+  ClipboardList,
   Dumbbell,
   House,
   LogIn,
@@ -31,15 +32,16 @@ export function AppFrame() {
   useEnsureActiveTrainer(role === "student" ? user?.uid ?? null : null);
 
   const studentLinks: NavItem[] = [
-    { to: "/app/minhas-aulas", label: "Aulas", icon: CalendarDays },
+    { to: "/app/minhas-aulas", label: "Agenda", icon: CalendarClock },
     { to: "/app/medidas", label: "Medidas", icon: Ruler },
-    { to: "/app/meus-treinadores", label: "Treinadores", icon: BicepsFlexed },
+    { to: "/app/meus-treinadores", label: "Treinadores", icon: Users },
     { to: "/app/ajustes", label: "Ajustes", icon: Settings },
   ];
 
   const trainerLinks: NavItem[] = [
     { to: "/app", label: "Página principal", icon: Dumbbell, exact: true },
     { to: "/app/agenda", label: "Agenda", icon: CalendarDays },
+    { to: "/app/treinos", label: "Treinos", icon: ClipboardList },
     { to: "/app/alunos", label: "Alunos", icon: Users },
     { to: "/app/ajustes", label: "Ajustes", icon: Settings },
   ];

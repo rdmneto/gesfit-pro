@@ -1,11 +1,11 @@
-import { AlertCircle, DollarSign, TrendingUp, UserPlus2 } from "lucide-react";
+import { DollarSign, TrendingUp, UserPlus2 } from "lucide-react";
 
 interface KpiGridProps {
   studentCount: number;
   estimatedRevenue: number;
   presenceRate: number;
   noShowCount: number;
-  expiringCount: number;
+  remainingCreditsCount: number;
 }
 
 export function KpiGrid({
@@ -13,7 +13,7 @@ export function KpiGrid({
   estimatedRevenue,
   presenceRate,
   noShowCount,
-  expiringCount,
+  remainingCreditsCount,
 }: KpiGridProps) {
   return (
     <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
@@ -47,15 +47,15 @@ export function KpiGrid({
       </div>
 
       <div className="metric-card">
-        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-50">
-          <AlertCircle aria-hidden="true" className="text-amber-600" size={20} />
+        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
+          <UserPlus2 aria-hidden="true" className="text-indigo-600" size={20} />
         </div>
-        <p className="mt-3 text-sm text-stone-500">Créditos expirando</p>
+        <p className="mt-3 text-sm text-stone-500">Créditos de alunos</p>
         <p className="mt-0.5 text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
-          {expiringCount}
+          {remainingCreditsCount}
         </p>
-        <p className="mt-1 text-xs font-semibold text-amber-700">
-          aluno{expiringCount === 1 ? "" : "s"} com &le; 2 aulas restantes
+        <p className="mt-1 text-xs font-semibold text-indigo-700">
+          Total de aulas disponíveis
         </p>
       </div>
 

@@ -230,6 +230,12 @@ export interface WorkoutSession {
   plannedCalories: number;
   status: "scheduled" | "in_progress" | "completed" | "no_show";
   exercises: string[];
+  trainingId?: string;
+  startedAt?: string;
+  completedAt?: string;
+  actualDurationMinutes?: number;
+  studentStartedAt?: string;
+  studentCompletedAt?: string;
 }
 
 export interface Booking {
@@ -260,6 +266,44 @@ export interface PublicScheduleSlot {
   /** Local onde essa aula acontece */
   locationId?: string;
   locationName?: string;
+}
+
+export interface Exercise {
+  order: number;
+  name: string;
+  sets?: string;
+  rest?: string;
+  notes?: string;
+  videoUrl?: string;
+}
+
+export interface Training {
+  id: string;
+  trainerId: string;
+  studentId?: string;
+  studentName?: string;
+  enrollmentId?: string;
+  title: string;
+  description?: string;
+  exercises: Exercise[];
+  status: "active" | "archived";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface TrainingLog {
+  id: string;
+  trainingId: string;
+  studentId: string;
+  trainerId: string;
+  enrollmentId: string;
+  trainingTitle: string;
+  completedByStudent: boolean;
+  confirmedByTrainer: boolean;
+  completedAt?: string;
+  confirmedAt?: string;
+  studentNotes?: string;
+  createdAt: string;
 }
 
 export interface SessionClaims {

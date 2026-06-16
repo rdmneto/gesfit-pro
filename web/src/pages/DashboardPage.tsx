@@ -4,24 +4,22 @@ import {
   Clock,
   Timer,
   Users,
+  Play,
 } from "lucide-react";
-import { useMemo, useState } from "react";
 import { Link, Navigate } from "react-router-dom";
 import { useSessionStore } from "../store/session";
-import type { WorkoutSession } from "../types/domain";
 import { KpiGrid } from "../features/dashboard/KpiGrid";
-import { TrainerWorkoutCard } from "../features/dashboard/TrainerWorkoutCard";
+import { ActiveTrainingDetails } from "../features/dashboard/ActiveTrainingDetails";
 import {
   formatDate,
   formatDateTime,
-  isSameDay,
+  formatFriendlyDateTime,
 } from "../features/dashboard/dashboardUtils";
-import {
-  useTeam,
-  useWorkoutSessions,
-  useTrainerStudents,
-  usePaidPurchases,
-} from "../lib/hooks";
+import { useAttendance } from "../features/dashboard/useAttendance";
+import { AlertCircle, FileX } from "lucide-react";
+import { useCollection } from "../lib/hooks";
+import { where } from "firebase/firestore";
+import type { Training } from "../types/domain";
 
 export function DashboardPage() {
   const role = useSessionStore((state) => state.claims.role);
@@ -51,144 +49,147 @@ export function DashboardPage() {
 // TRAINER DASHBOARD
 // ─────────────────────────────────────────────────────────────────────────────
 
+import { useDashboardMetrics } from "../features/dashboard/useDashboardMetrics";
+
 function TrainerDashboard() {
   const user = useSessionStore((state) => state.user);
   const teamId = useSessionStore((state) => state.claims.teamId);
 
-  // Firestore hooks
-  const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
-  const { data: dbStudents, loading: studentsLoading } = useTrainerStudents(user?.uid);
-  const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
-    user ? { trainerId: user.uid } : {}
+  const { data: trainingsData } = useCollection<Training>(
+    "trainings",
+    user ? [where("trainerId", "==", user.uid)] : [],
+    [],
+    [user?.uid]
   );
-  const { data: dbPaidPurchases } = usePaidPurchases(teamId);
+  const trainings = trainingsData || [];
 
-  const [activeWorkout, setActiveWorkout] = useState<WorkoutSession | null>(null);
+  const { startSession, completeSession, markNoShow } = useAttendance();
 
-  const defaultBranding = {
-    bannerPhotoURL: "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80",
-    primaryColor: "#0f766e",
-    secondaryColor: "#f59e0b",
-    welcomeMessage: "Foco nos treinos!",
-    bio: "",
-  };
+  const {
+    loading: metricsLoading,
+    team,
+    pendingRequestCount,
+    unfinishedPastWorkouts,
+    todayWorkouts,
+    nextWorkouts,
+    totalMinutesToday,
+    uniqueStudentsToday,
+    monthRevenue,
+    presenceRate,
+    noShowCount,
+    remainingCreditsCount,
+    activeStudents,
+  } = useDashboardMetrics(user?.uid, teamId);
 
-  const team = dbTeam
-    ? { ...dbTeam, branding: { ...defaultBranding, ...dbTeam.branding } }
-    : { name: "Meu Time", branding: defaultBranding };
-
-  const trainerWorkouts = useMemo(() => {
-    const list = dbWorkoutSessions ?? [];
-    return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
-  }, [dbWorkoutSessions]);
-
-  const students = dbStudents ?? [];
-
-  // Alunos com vínculo ativo (a aprovação é por vínculo, não pelo doc do aluno).
-  const activeStudents = useMemo(
-    () => students.filter((s) => s.enrollment?.status === "active"),
-    [students],
-  );
-  const pendingRequestCount = useMemo(
-    () => students.filter((s) => s.enrollment?.status === "pending").length,
-    [students],
-  );
-
-  const todayWorkouts = trainerWorkouts.filter((w) => isSameDay(w.startsAt, new Date()));
-  const nextWorkouts = trainerWorkouts.filter((w) => new Date(w.startsAt).getTime() >= Date.now()).slice(0, 5);
-  const totalMinutesToday = todayWorkouts.reduce((s, w) => s + w.durationMinutes, 0);
-  const uniqueStudentsToday = new Set(todayWorkouts.map((w) => w.studentId)).size;
-
-  // Faturamento real do mês: soma das compras pagas (PIX confirmado) no mês corrente.
-  const monthRevenue = useMemo(() => {
-    const now = new Date();
-    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
-    return (dbPaidPurchases ?? [])
-      .filter((p) => String(p.reviewedAt || p.submittedAt || "").startsWith(ym))
-      .reduce((sum, p) => sum + (p.amountCents || 0), 0) / 100;
-  }, [dbPaidPurchases]);
-
-  // Presença real: aulas marcadas como concluídas vs. faltas.
-  const presenceRate = useMemo(() => {
-    const marked = trainerWorkouts.filter((w) => w.status === "completed" || w.status === "no_show");
-    if (marked.length === 0) return 100;
-    const attended = marked.filter((w) => w.status === "completed").length;
-    return Math.round((attended / marked.length) * 100);
-  }, [trainerWorkouts]);
-
-  const noShowCount = useMemo(
-    () => trainerWorkouts.filter((w) => w.status === "no_show").length,
-    [trainerWorkouts],
-  );
-
-  const expiringCount = useMemo(() => {
-    return activeStudents.filter((s) => {
-      const quota = s.enrollment?.classesQuota ?? 0;
-      const used = s.enrollment?.classesUsed ?? 0;
-      const remaining = quota - used;
-      return remaining >= 0 && remaining <= 2;
-    }).length;
-  }, [activeStudents]);
-
-  const loading = teamLoading || studentsLoading || workoutsLoading;
-
-  if (loading) {
+  if (metricsLoading) {
     return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
-          <p className="text-sm text-stone-400">Carregando dados do treinador...</p>
+      <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
+        <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+          <div className="h-64 rounded-xl bg-stone-100 animate-pulse" />
+          <div className="h-64 rounded-xl bg-stone-100 animate-pulse" />
         </div>
-      </div>
+        <div className="mt-4 grid gap-4 grid-cols-2 lg:grid-cols-4">
+          <div className="h-24 rounded-xl bg-stone-100 animate-pulse" />
+          <div className="h-24 rounded-xl bg-stone-100 animate-pulse" />
+          <div className="h-24 rounded-xl bg-stone-100 animate-pulse" />
+          <div className="h-24 rounded-xl bg-stone-100 animate-pulse" />
+        </div>
+        <div className="mt-4 h-[400px] rounded-xl bg-stone-100 animate-pulse" />
+      </section>
     );
   }
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
       {/* Hero */}
-      <div className="grid gap-4 lg:grid-cols-[1.15fr_0.85fr]">
+      <div className="grid gap-4 lg:grid-cols-[1.2fr_0.8fr]">
+        {/* Banner Hero com visual Premium/Glassmorphism para o próximo treino */}
         <section
-          className="overflow-hidden rounded-xl border border-stone-200 bg-stone-950 text-white"
+          className="relative overflow-hidden rounded-xl border border-stone-200 bg-stone-950 text-white min-h-[18rem] sm:min-h-[22rem] flex flex-col justify-between"
           style={{
-            backgroundImage: `linear-gradient(90deg, rgba(12,19,16,0.92), rgba(12,19,16,0.45)), url(${team.branding.bannerPhotoURL})`,
+            backgroundImage: `linear-gradient(135deg, rgba(12,19,16,0.95), rgba(12,19,16,0.6)), url(${team?.branding?.bannerPhotoURL})`,
             backgroundPosition: "center",
             backgroundSize: "cover",
           }}
         >
-          <div className="p-6 sm:p-8">
-            <p className="text-xs font-bold uppercase tracking-widest text-emerald-300">Painel do treinador</p>
-            <h1 className="mt-2 text-3xl font-black sm:text-4xl" style={{ fontFamily: "var(--font-display)" }}>Agenda e treinos do dia</h1>
-            <p className="mt-3 max-w-2xl leading-7 text-stone-200">
-              Visualize seus alunos de hoje, inicie treinos rapidamente.
-            </p>
-            <div className="mt-6 grid gap-3 sm:grid-cols-3">
+          <div className="p-6 sm:p-8 flex-1">
+            <p className="text-xs font-bold uppercase tracking-widest text-emerald-400">Painel do treinador</p>
+            <h1 className="mt-2 text-3xl font-black sm:text-4xl text-white tracking-tight leading-tight">Agenda e treinos do dia</h1>
+            <div className="mt-6 flex flex-wrap gap-4">
               <HeroMetric icon={CalendarClock} label="Treinos hoje" value={`${todayWorkouts.length}`} />
               <HeroMetric icon={Users} label="Alunos hoje" value={`${uniqueStudentsToday}`} />
               <HeroMetric icon={Timer} label="Carga do dia" value={`${totalMinutesToday} min`} />
             </div>
           </div>
-        </section>
-
-        <section className="card p-5">
-          <div className="flex items-center gap-2">
-            <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
-              <Clock aria-hidden="true" className="text-emerald-700" size={16} />
+          
+          {nextWorkouts[0] && (
+            <div className="backdrop-blur-md bg-white/10 border-t border-white/20 p-5 sm:px-8">
+              <div className="flex items-center justify-between gap-4">
+                <div>
+                  <p className="text-xs font-bold text-emerald-300 uppercase tracking-widest flex items-center gap-1.5"><Clock size={12}/> Próximo atendimento</p>
+                  <h3 className="text-lg font-black text-white mt-1">{nextWorkouts[0].studentName}</h3>
+                  <p className="text-sm text-stone-300">{formatFriendlyDateTime(nextWorkouts[0].startsAt)} · {nextWorkouts[0].proposedWorkout ?? nextWorkouts[0].title}</p>
+                </div>
+                {nextWorkouts[0].status === 'in_progress' ? (
+                  <button
+                    type="button"
+                    className="focus-ring flex h-10 px-4 items-center gap-2 rounded-lg bg-stone-800 text-sm font-bold text-white transition-all hover:bg-stone-700"
+                    onClick={() => {
+                      completeSession(nextWorkouts[0]);
+                    }}
+                  >
+                    <CheckCircle2 size={16} /> Finalizar
+                  </button>
+                ) : (
+                  <button
+                    type="button"
+                    className="focus-ring flex h-10 px-4 items-center gap-2 rounded-lg bg-emerald-500 text-sm font-bold text-white transition-all hover:bg-emerald-400"
+                    onClick={() => {
+                      startSession(nextWorkouts[0]);
+                    }}
+                  >
+                    <Play size={16} className="fill-white" /> Iniciar
+                  </button>
+                )}
+              </div>
+              {nextWorkouts[0].status === 'in_progress' && nextWorkouts[0].trainingId && (
+                <div className="mt-4 pt-1 border-t border-white/10 brightness-110 contrast-125">
+                  <ActiveTrainingDetails training={trainings.find(t => t.id === nextWorkouts[0].trainingId)} />
+                </div>
+              )}
             </div>
-            <h2 className="text-lg font-black text-stone-950">Próximo atendimento</h2>
-          </div>
-          {nextWorkouts[0] ? (
-            <TrainerWorkoutCard
-              activeWorkoutId={activeWorkout?.id}
-              compact={false}
-              onFinish={() => setActiveWorkout(null)}
-              onStart={setActiveWorkout}
-              workout={nextWorkouts[0]}
-            />
-          ) : (
-            <p className="mt-4 text-sm text-stone-500">Nenhum treino agendado.</p>
           )}
         </section>
       </div>
+
+      {/* Unfinished Workouts Alert */}
+      {unfinishedPastWorkouts.length > 0 && (
+        <section className="mt-4 rounded-xl border border-rose-200 bg-rose-50 p-5">
+          <div className="flex items-center gap-2">
+            <AlertCircle className="text-rose-600" size={20} />
+            <h2 className="text-lg font-black text-rose-950">Treinos não finalizados</h2>
+          </div>
+          <p className="mt-1 text-sm text-rose-800">Você tem {unfinishedPastWorkouts.length} aula(s) que já passaram mas ainda não tiveram o status atualizado.</p>
+          <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3 stagger">
+            {unfinishedPastWorkouts.map(workout => (
+              <article key={workout.id} className="rounded-xl border border-rose-200 bg-white p-4">
+                <p className="text-sm font-bold text-rose-700">{formatDateTime(workout.startsAt)}</p>
+                <h3 className="mt-1 font-black text-stone-950">{workout.studentName}</h3>
+                <div className="mt-4 flex flex-col gap-2">
+                  <button onClick={() => completeSession(workout)} className="focus-ring flex h-9 items-center justify-center gap-2 rounded-lg bg-emerald-600 text-sm font-bold text-white hover:bg-emerald-700 transition-colors">
+                    <CheckCircle2 size={16} />
+                    Finalizar (Debitar)
+                  </button>
+                  <button onClick={() => markNoShow(workout)} className="focus-ring flex h-9 items-center justify-center gap-2 rounded-lg border border-stone-200 bg-stone-50 text-sm font-bold text-stone-600 hover:bg-stone-100 transition-colors">
+                    <FileX size={16} />
+                    Falta (Não realizado)
+                  </button>
+                </div>
+              </article>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* Solicitações de vínculo pendentes */}
       {pendingRequestCount > 0 && (
@@ -209,54 +210,68 @@ function TrainerDashboard() {
         estimatedRevenue={monthRevenue}
         presenceRate={presenceRate}
         noShowCount={noShowCount}
-        expiringCount={expiringCount}
+        remainingCreditsCount={remainingCreditsCount}
       />
 
       {/* Alunos do dia */}
-      <section className="mt-4 card p-5">
-        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center">
+      {/* Linha do Tempo: Alunos do dia */}
+      <section className="mt-6 card p-5 sm:p-8">
+        <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-100 pb-4">
           <div>
-            <h2 className="text-lg font-black text-stone-950">Alunos do dia</h2>
-            <p className="mt-1 text-sm text-stone-500">Inicie o treino direto pelo card do aluno.</p>
+            <h2 className="text-xl font-black text-stone-950 tracking-tight">Linha do tempo (Hoje)</h2>
+            <p className="mt-1 text-sm text-stone-500">Acompanhe sua agenda em formato cronológico.</p>
           </div>
-          <span className="badge badge-green text-sm px-3 py-1.5">{formatDate(new Date().toISOString())}</span>
+          <span className="badge badge-green text-sm px-3 py-1.5 font-bold shadow-sm">{formatDate(new Date().toISOString())}</span>
         </div>
-        <div className="mt-4 grid gap-3 lg:grid-cols-3 stagger">
+        
+        <div className="mt-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-stone-200 before:to-transparent">
           {todayWorkouts.length === 0 ? (
-            <p className="text-sm text-stone-400 col-span-full">Nenhum treino para hoje.</p>
+            <p className="text-sm text-stone-400 text-center py-10 italic">Nenhum compromisso marcado para hoje.</p>
           ) : (
-            todayWorkouts.map((workout) => (
-              <TrainerWorkoutCard
-                activeWorkoutId={activeWorkout?.id}
-                key={workout.id}
-                onFinish={() => setActiveWorkout(null)}
-                onStart={setActiveWorkout}
-                workout={workout}
-              />
-            ))
+            todayWorkouts.map((workout) => {
+              const isPast = new Date(workout.startsAt).getTime() < Date.now() && (workout.status === 'scheduled' || workout.status === 'in_progress');
+              const isDone = workout.status === 'completed' || workout.status === 'no_show';
+              return (
+                <div key={workout.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">
+                  <div className="flex items-center justify-center w-10 h-10 rounded-full border-4 border-white bg-emerald-100 text-emerald-600 shadow shrink-0 md:order-1 md:group-odd:-translate-x-1/2 md:group-even:translate-x-1/2 z-10 transition-colors group-hover:bg-emerald-200">
+                    <Clock size={16} strokeWidth={2.5} />
+                  </div>
+                  <div className="w-[calc(100%-4rem)] md:w-[calc(50%-2.5rem)] p-4 rounded-2xl border bg-white shadow-sm transition-all hover:shadow-md hover:border-emerald-200">
+                    <div className="flex items-center justify-between mb-1">
+                      <div className={["font-bold text-sm", isPast ? "text-rose-600" : "text-emerald-700"].join(" ")}>
+                        {formatFriendlyDateTime(workout.startsAt)}
+                      </div>
+                      <span className={["badge text-3xs font-bold uppercase", isDone ? "bg-stone-100 text-stone-500" : (isPast ? "bg-rose-100 text-rose-700" : "bg-emerald-50 text-emerald-700")].join(" ")}>
+                        {isDone ? (workout.status === 'completed' ? "Concluído" : "Falta") : (isPast ? "Atrasado" : "Pendente")}
+                      </span>
+                    </div>
+                    <h3 className="text-base font-black text-stone-900">{workout.studentName}</h3>
+                    <p className="text-sm text-stone-500 line-clamp-1">{workout.proposedWorkout ?? workout.title}</p>
+                    
+                    {!isDone && (
+                      <div className="mt-4 pt-3 border-t border-stone-100 flex gap-2">
+                        {workout.status === 'in_progress' ? (
+                          <button onClick={() => completeSession(workout)} className="focus-ring flex-1 h-9 rounded-lg bg-stone-900 text-white text-xs font-bold hover:bg-stone-800 transition-colors">
+                            Finalizar agora
+                          </button>
+                        ) : (
+                          <button onClick={() => startSession(workout)} className="focus-ring flex-1 h-9 rounded-lg bg-emerald-600 text-white text-xs font-bold hover:bg-emerald-500 transition-colors shadow-sm">
+                            Iniciar treino
+                          </button>
+                        )}
+                      </div>
+                    )}
+                    {workout.status === 'in_progress' && workout.trainingId && (
+                      <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
+                    )}
+                  </div>
+                </div>
+              );
+            })
           )}
         </div>
       </section>
 
-      {/* Active workout banner */}
-      {activeWorkout && (
-        <section className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5 animate-slide-up">
-          <div className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-center">
-            <div>
-              <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">Treino iniciado</p>
-              <h2 className="mt-1 text-2xl font-black text-stone-950">{activeWorkout.studentName}</h2>
-              <p className="mt-2 text-sm text-stone-600">
-                {activeWorkout.proposedWorkout ?? activeWorkout.title} · {formatDateTime(activeWorkout.startsAt)}
-              </p>
-              <p className="mt-1 text-sm text-stone-500">{activeWorkout.address}</p>
-            </div>
-            <button type="button" className="focus-ring btn btn-primary" onClick={() => setActiveWorkout(null)}>
-              <CheckCircle2 size={18} />
-              Finalizar atendimento
-            </button>
-          </div>
-        </section>
-      )}
 
       {/* Next workouts list */}
       <section className="mt-4 card p-5">
@@ -271,7 +286,7 @@ function TrainerDashboard() {
             <article key={workout.id} className="grid gap-3 rounded-xl border border-[var(--color-border)] p-4 sm:grid-cols-[1fr_auto]">
               <div>
                 <p className="font-black text-stone-950">{workout.studentName}</p>
-                <p className="mt-1 text-sm text-stone-500">{formatDateTime(workout.startsAt)}</p>
+                <p className="mt-1 text-sm text-stone-500">{formatFriendlyDateTime(workout.startsAt)}</p>
                 <p className="mt-2 text-sm font-semibold text-stone-700">{workout.proposedWorkout ?? workout.title}</p>
                 <p className="mt-1 text-xs text-stone-400">{workout.address}</p>
               </div>

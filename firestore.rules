@@ -389,5 +389,49 @@ service cloud.firestore {
         allow delete: if false;
       }
     }
+
+    // ─── Coleção raiz: trainings (prescrição de treinos) ─────────────────
+    match /trainings/{trainingId} {
+      // Trainer pode ler os seus treinos; aluno pode ler treinos atribuídos a ele.
+      allow read: if signedIn()
+        && (request.auth.uid == resource.data.trainerId
+            || request.auth.uid == resource.data.studentId);
+
+      // Trainer cria treinos para seus alunos.
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.trainerId;
+
+      // Trainer pode editar e excluir os seus treinos.
+      allow update, delete: if signedIn()
+        && request.auth.uid == resource.data.trainerId;
+    }
+
+    // ─── Coleção raiz: trainingLogs (registros de conclusão de treino) ───
+    match /trainingLogs/{logId} {
+      // Ambos (trainer e aluno) podem ler.
+      allow read: if signedIn()
+        && (request.auth.uid == resource.data.trainerId
+            || request.auth.uid == resource.data.studentId);
+
+      // Aluno cria o log ao marcar o treino como concluído.
+      // Deve entrar com completedByStudent = true e confirmedByTrainer = false.
+      allow create: if signedIn()
+        && request.auth.uid == request.resource.data.studentId
+        && request.resource.data.completedByStudent == true
+        && request.resource.data.confirmedByTrainer == false;
+
+      // Trainer pode confirmar (alterar confirmedByTrainer, confirmedAt).
+      // Aluno pode alterar apenas seus campos (studentNotes), nunca a confirmação.
+      allow update: if signedIn()
+        && (
+          request.auth.uid == resource.data.trainerId
+          || (
+            request.auth.uid == resource.data.studentId
+            && !request.resource.data.diff(resource.data).affectedKeys().hasAny(['confirmedByTrainer', 'confirmedAt'])
+          )
+        );
+
+      allow delete: if false;
+    }
   }
 }

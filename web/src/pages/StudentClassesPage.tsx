@@ -15,13 +15,14 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
-import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions } from "../lib/hooks";
+import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions, useCollection } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visibleToStudent } from "../lib/products";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { StudentAgenda } from "../features/dashboard/StudentAgenda";
-import type { ClassProduct, PurchaseStatus } from "../types/domain";
+import type { ClassProduct, PurchaseStatus, Training } from "../types/domain";
+import { where } from "firebase/firestore";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
   awaiting_payment: { label: "Aguardando pagamento", badge: "amber", icon: Clock },
@@ -50,6 +51,15 @@ export function StudentClassesPage() {
     [dbWorkouts, activeTrainerId],
   );
 
+  const { data: trainings } = useCollection<Training>(
+    "trainings",
+    user && activeTrainerId
+      ? [where("trainerId", "==", activeTrainerId)]
+      : [],
+    [],
+    [user?.uid, activeTrainerId]
+  );
+
   const team = dbTeam;
   const purchases = useMemo(
     () => (dbPurchases ?? []).filter((p) => !p.trainerId || p.trainerId === activeTrainerId),
@@ -68,10 +78,10 @@ export function StudentClassesPage() {
 
   const totalClasses = activeEnrollment?.classesQuota ?? 0;
   const usedClasses = activeEnrollment?.classesUsed ?? 0;
-  const remainingClasses = Math.max(0, totalClasses - usedClasses);
-  const usagePercent = totalClasses > 0 ? (usedClasses / totalClasses) * 100 : 0;
+  const remainingClasses = totalClasses - usedClasses;
+  const usagePercent = totalClasses > 0 ? Math.min((usedClasses / totalClasses) * 100, 100) : 0;
   const isLow = remainingClasses <= 2 && totalClasses > 0;
-  const isEmpty = remainingClasses === 0 && totalClasses > 0;
+  const isEmpty = remainingClasses <= 0 && totalClasses > 0;
 
   const progressVariant = isEmpty ? "danger" : isLow ? "warning" : "default";
 
@@ -154,7 +164,7 @@ export function StudentClassesPage() {
 
       {/* ── Agenda de treinos ────────────────────────────── */}
       <div className="mt-6">
-        <StudentAgenda workouts={workouts} />
+        <StudentAgenda workouts={workouts} trainings={trainings ?? []} />
       </div>
 
       {/* ── Saldo de aulas ───────────────────────────────── */}
