@@ -44,8 +44,8 @@ O formato de cada objeto no array JSON deve ser exatamente este:
   "videoUrl": "Link de pesquisa no youtube"
 }
 
-Para o \`videoUrl\`, use OBRIGATORIAMENTE o formato de link de pesquisa do YouTube, substituindo os espaços por '+':
-Exemplo: Se o exercício for "Supino Reto", o videoUrl deve ser "https://www.youtube.com/results?search_query=Supino+Reto+Execução"
+Para o \`videoUrl\`, tente gerar um link real e direto do YouTube para a execução do exercício.
+Exemplo: "https://www.youtube.com/watch?v=dQw4w9WgXcQ"
 
 Lembre-se: Retorne SOMENTE o JSON. Certifique-se de que é um array [].
 `;
