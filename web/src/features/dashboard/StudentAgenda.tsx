@@ -1,4 +1,4 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, Play, Dumbbell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, Play, PlayCircle, Dumbbell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
@@ -227,26 +227,53 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
                   <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>
                 )}
 
-                {ytId && (
+                {ex.videoUrl && (
                   <div className="mt-2">
                     <button
                       type="button"
                       className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
                       onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}
                     >
-                      <Play size={14} /> 
-                      {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
+                      <PlayCircle size={14} /> {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
                     </button>
-                    
+
                     {isVideoExpanded && (
-                      <div className="mt-2 overflow-hidden rounded-lg aspect-video bg-stone-900 animate-fade-in">
-                        <iframe
-                          className="w-full h-full"
-                          src={`https://www.youtube.com/embed/${ytId}`}
-                          title={ex.name}
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
+                      <div className="mt-3">
+                        {ytId ? (
+                          <div className="flex flex-col gap-2">
+                            <div className="aspect-video w-full overflow-hidden rounded-lg">
+                              <iframe
+                                src={`https://www.youtube.com/embed/${ytId}`}
+                                title={`Video: ${ex.name}`}
+                                className="h-full w-full border-0"
+                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                allowFullScreen
+                              />
+                            </div>
+                            <a
+                              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-center text-stone-500 hover:text-stone-700 underline"
+                            >
+                              Vídeo não carrega? Pesquisar no YouTube
+                            </a>
+                          </div>
+                        ) : (
+                          <div className="rounded-lg border border-stone-200 bg-white p-4 text-center">
+                            <p className="mb-3 text-xs text-stone-600">
+                              Este exercício não possui um vídeo direto para abrir na janelinha.
+                            </p>
+                            <a
+                              href={ex.videoUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                            >
+                              <PlayCircle size={14} /> Abrir pesquisa no YouTube
+                            </a>
+                          </div>
+                        )}
                       </div>
                     )}
                   </div>
