@@ -184,7 +184,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
         </p>
       )}
 
-      {training && !workout.studentCompletedAt && (
+      {!workout.studentCompletedAt && (
         <div className="mt-4 pt-4 border-t border-stone-100">
           <button
             type="button"
@@ -198,89 +198,102 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
         </div>
       )}
 
-      {expanded && training && (
+      {expanded && (
         <div className="mt-4 animate-slide-up space-y-3">
-          {training.exercises.map((ex, idx) => {
-            const ytId = getYouTubeId(ex.videoUrl || "");
-            const isVideoExpanded = expandedVideoIdx === idx;
+          {training ? (
+            training.exercises.map((ex, idx) => {
+              const ytId = getYouTubeId(ex.videoUrl || "");
+              const isVideoExpanded = expandedVideoIdx === idx;
 
-            return (
-              <div key={idx} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
-                <div className="flex justify-between items-start mb-2">
-                  <h4 className="font-bold text-stone-900 text-sm">
-                    {ex.order + 1}. {ex.name}
-                  </h4>
-                </div>
-                
-                <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
-                  <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
-                    <span className="font-bold text-stone-500 block text-[10px] uppercase">Séries</span>
-                    <span className="font-medium text-stone-900">{ex.sets || "-"}</span>
+              return (
+                <div key={idx} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
+                  <div className="flex justify-between items-start mb-2">
+                    <h4 className="font-bold text-stone-900 text-sm">
+                      {ex.order + 1}. {ex.name}
+                    </h4>
                   </div>
-                  <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
-                    <span className="font-bold text-stone-500 block text-[10px] uppercase">Pausa</span>
-                    <span className="font-medium text-stone-900">{ex.rest || "-"}</span>
+                  
+                  <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
+                    <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
+                      <span className="font-bold text-stone-500 block text-[10px] uppercase">Séries</span>
+                      <span className="font-medium text-stone-900">{ex.sets || "-"}</span>
+                    </div>
+                    <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
+                      <span className="font-bold text-stone-500 block text-[10px] uppercase">Pausa</span>
+                      <span className="font-medium text-stone-900">{ex.rest || "-"}</span>
+                    </div>
                   </div>
-                </div>
 
-                {ex.notes && (
-                  <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>
-                )}
+                  {ex.notes && (
+                    <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>
+                  )}
 
-                {ex.videoUrl && (
-                  <div className="mt-2">
-                    <button
-                      type="button"
-                      className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
-                      onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}
-                    >
-                      <PlayCircle size={14} /> {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
-                    </button>
+                  {ex.videoUrl && (
+                    <div className="mt-2">
+                      <button
+                        type="button"
+                        className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
+                        onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}
+                      >
+                        <PlayCircle size={14} /> {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
+                      </button>
 
-                    {isVideoExpanded && (
-                      <div className="mt-3">
-                        {ytId ? (
-                          <div className="flex flex-col gap-2">
-                            <div className="aspect-video w-full overflow-hidden rounded-lg">
-                              <iframe
-                                src={`https://www.youtube.com/embed/${ytId}`}
-                                title={`Video: ${ex.name}`}
-                                className="h-full w-full border-0"
-                                allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                allowFullScreen
-                              />
+                      {isVideoExpanded && (
+                        <div className="mt-3">
+                          {ytId ? (
+                            <div className="flex flex-col gap-2">
+                              <div className="aspect-video w-full overflow-hidden rounded-lg">
+                                <iframe
+                                  src={`https://www.youtube.com/embed/${ytId}`}
+                                  title={`Video: ${ex.name}`}
+                                  className="h-full w-full border-0"
+                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                  allowFullScreen
+                                />
+                              </div>
+                              <a
+                                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-xs text-center text-stone-500 hover:text-stone-700 underline"
+                              >
+                                Vídeo não carrega? Pesquisar no YouTube
+                              </a>
                             </div>
-                            <a
-                              href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="text-xs text-center text-stone-500 hover:text-stone-700 underline"
-                            >
-                              Vídeo não carrega? Pesquisar no YouTube
-                            </a>
-                          </div>
-                        ) : (
-                          <div className="rounded-lg border border-stone-200 bg-white p-4 text-center">
-                            <p className="mb-3 text-xs text-stone-600">
-                              Este exercício não possui um vídeo direto para abrir na janelinha.
-                            </p>
-                            <a
-                              href={ex.videoUrl}
-                              target="_blank"
-                              rel="noopener noreferrer"
-                              className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
-                            >
-                              <PlayCircle size={14} /> Abrir pesquisa no YouTube
-                            </a>
-                          </div>
-                        )}
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-            );
-          })}
+                          ) : (
+                            <div className="rounded-lg border border-stone-200 bg-white p-4 text-center">
+                              <p className="mb-3 text-xs text-stone-600">
+                                Este exercício não possui um vídeo direto para abrir na janelinha.
+                              </p>
+                              <a
+                                href={ex.videoUrl}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
+                              >
+                                <PlayCircle size={14} /> Abrir pesquisa no YouTube
+                              </a>
+                            </div>
+                          )}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              );
+            })
+          ) : (
+            <div className="rounded-xl border border-stone-200 bg-stone-50 p-4 text-center">
+              <p className="text-sm text-stone-600">Este é um treino livre agendado pelo seu treinador.</p>
+              {workout.exercises && workout.exercises.length > 0 && (
+                <div className="mt-4 flex flex-wrap justify-center gap-1.5">
+                  {workout.exercises.map((e) => (
+                    <span key={e} className="badge badge-green">{e}</span>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
 
           <div className="mt-4 pt-4 border-t border-stone-200">
             <button
