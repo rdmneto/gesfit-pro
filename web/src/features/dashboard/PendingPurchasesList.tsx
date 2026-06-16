@@ -3,7 +3,7 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { doc, updateDoc, increment } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
-import { usePendingPurchases } from "../../lib/hooks";
+import { usePendingPurchases, useTrainerStudents } from "../../lib/hooks";
 import { creditEnrollmentClasses } from "../../lib/enrollments";
 import { moneyFromCents } from "../../lib/format";
 import type { ClassPurchase, PurchaseStatus } from "../../types/domain";
@@ -18,6 +18,7 @@ const statusLabel: Record<PurchaseStatus, string> = {
 export function PendingPurchasesList({ teamId }: { teamId: string | null | undefined }) {
   const user = useSessionStore((state) => state.user);
   const { data: purchases = [], loading } = usePendingPurchases(teamId);
+  const { data: dbStudents } = useTrainerStudents(user?.uid);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -90,17 +91,19 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
       )}
 
       <div className="space-y-3 max-h-[350px] overflow-y-auto pr-1">
-        {purchases.map((purchase) => (
-          <article
-            key={purchase.id}
-            className="grid gap-3 rounded-xl border border-amber-200 p-4 sm:grid-cols-[1fr_auto] bg-amber-50 shadow-sm"
-          >
-            <div className="min-w-0">
-              <p className="font-bold text-stone-950 truncate">{purchase.productName}</p>
-              <p className="mt-0.5 text-xs text-stone-600">
-                <span className="font-bold">{purchase.studentName}</span> • {purchase.classesCount} aula{purchase.classesCount > 1 ? "s" : ""} -{" "}
-                <span className="font-bold text-stone-900">{moneyFromCents(purchase.amountCents)}</span>
-              </p>
+        {purchases.map((purchase) => {
+          const studentName = dbStudents?.find((s) => s.uid === purchase.studentId)?.displayName ?? "Aluno";
+          return (
+            <article
+              key={purchase.id}
+              className="grid gap-3 rounded-xl border border-amber-200 p-4 sm:grid-cols-[1fr_auto] bg-amber-50 shadow-sm"
+            >
+              <div className="min-w-0">
+                <p className="font-bold text-stone-950 truncate">{purchase.productName}</p>
+                <p className="mt-0.5 text-xs text-stone-600">
+                  <span className="font-bold">{studentName}</span> • {purchase.classesCount} aula{purchase.classesCount > 1 ? "s" : ""} -{" "}
+                  <span className="font-bold text-stone-900">{moneyFromCents(purchase.amountCents)}</span>
+                </p>
               <p className="mt-1 text-xs text-stone-500 italic truncate">
                 {purchase.proofFileName
                   ? `Doc: ${purchase.proofFileName}`
@@ -129,7 +132,7 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
               </button>
             </div>
           </article>
-        ))}
+        )})}
       </div>
     </div>
   );

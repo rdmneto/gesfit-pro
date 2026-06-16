@@ -8,15 +8,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { collection, addDoc, doc, increment, updateDoc, deleteDoc } from "firebase/firestore";
+import { collection, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useClassProducts, usePendingPurchases, useTrainerStudents } from "../lib/hooks";
-import { creditEnrollmentClasses } from "../lib/enrollments";
+import { useClassProducts, useTrainerStudents } from "../lib/hooks";
 import { remainingStock } from "../lib/products";
 import { moneyFromCents } from "../lib/format";
 import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
-import type { ClassProductType, ProductAudience, PurchaseStatus, ClassProduct, ClassPurchase, PromotionalPackage } from "../types/domain";
+import type { ClassProductType, ProductAudience, ClassProduct, PromotionalPackage } from "../types/domain";
 
 const AUDIENCE_OPTIONS: { value: ProductAudience; label: string }[] = [
   { value: "all", label: "Todos (vitrine pública)" },
@@ -31,6 +30,7 @@ export function PackagesPage() {
   const user = useSessionStore((state) => state.user);
 
   const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
+  const { data: dbStudents } = useTrainerStudents(user?.uid);
   const allProducts = dbProducts ?? [];
   const activeProducts = allProducts.filter(p => !(p as any).promotional);
   const promos = allProducts.filter(p => (p as any).promotional) as PromotionalPackage[];
@@ -153,6 +153,11 @@ export function PackagesPage() {
       availableUntilRemoved: true,
     };
 
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
+      return;
+    }
+    
     try {
       await addDoc(collection(db, "classProducts"), newPromo);
       setPromoName("");
@@ -168,6 +173,10 @@ export function PackagesPage() {
   }
 
   async function handleRemovePromo(id: string) {
+    if (!db) {
+      setError("Banco de dados indisponível no momento.");
+      return;
+    }
     try {
       await deleteDoc(doc(db, "classProducts", id));
       setMessage("Promoção removida.");
