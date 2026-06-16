@@ -17,7 +17,8 @@ import {
 } from "../features/dashboard/dashboardUtils";
 import { useAttendance } from "../features/dashboard/useAttendance";
 import { AlertCircle, FileX } from "lucide-react";
-import { useCollection } from "../lib/hooks";
+import { useCollection, usePendingPurchases } from "../lib/hooks";
+import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import { where } from "firebase/firestore";
 import type { Training } from "../types/domain";
 
@@ -80,6 +81,9 @@ function TrainerDashboard() {
     remainingCreditsCount,
     activeStudents,
   } = useDashboardMetrics(user?.uid, teamId);
+
+  const { data: pendingPurchases } = usePendingPurchases(teamId);
+  const pendingPurchasesCount = pendingPurchases?.length ?? 0;
 
   if (metricsLoading) {
     return (
@@ -202,6 +206,22 @@ function TrainerDashboard() {
           </p>
           <span className="text-sm font-bold text-amber-900">Revisar →</span>
         </Link>
+      )}
+
+      {/* Compras pendentes */}
+      {pendingPurchasesCount > 0 && (
+        <section className="mt-4 rounded-xl border border-emerald-200 bg-emerald-50 p-5">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="text-emerald-800" size={20} />
+            <h2 className="text-lg font-black text-emerald-950">
+              Pagamentos aguardando confirmação ({pendingPurchasesCount})
+            </h2>
+          </div>
+          <p className="mt-1 text-sm text-emerald-800 mb-4">
+            Você tem pagamentos pendentes de conferência. Confirme-os para liberar os créditos.
+          </p>
+          <PendingPurchasesList teamId={teamId} />
+        </section>
       )}
 
       {/* KPI Grid */}

@@ -8,13 +8,14 @@ import {
   XCircle,
 } from "lucide-react";
 import { useState, useEffect } from "react";
-import { collection, addDoc, doc, increment, updateDoc } from "firebase/firestore";
+import { collection, addDoc, doc, increment, updateDoc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useClassProducts, usePendingPurchases, useTrainerStudents } from "../lib/hooks";
 import { creditEnrollmentClasses } from "../lib/enrollments";
 import { remainingStock } from "../lib/products";
 import { moneyFromCents } from "../lib/format";
+import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import type { ClassProductType, ProductAudience, PurchaseStatus, ClassProduct, ClassPurchase, PromotionalPackage } from "../types/domain";
 
 const AUDIENCE_OPTIONS: { value: ProductAudience; label: string }[] = [
@@ -23,23 +24,16 @@ const AUDIENCE_OPTIONS: { value: ProductAudience; label: string }[] = [
   { value: "specific", label: "Alunos específicos" },
 ];
 
-const statusLabel: Record<PurchaseStatus, string> = {
-  awaiting_payment: "Aguardando pagamento",
-  payment_submitted: "Comprovante enviado",
-  paid: "Pagamento confirmado",
-  rejected: "Pagamento recusado",
-};
+
 
 export function PackagesPage() {
   const teamId = useSessionStore((state) => state.claims.teamId);
   const user = useSessionStore((state) => state.user);
 
   const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
-  const { data: dbPurchases, loading: loadingPurchases } = usePendingPurchases(teamId);
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
-
-  const activeProducts = dbProducts ?? [];
-  const purchases = dbPurchases ?? [];
+  const allProducts = dbProducts ?? [];
+  const activeProducts = allProducts.filter(p => !(p as any).promotional);
+  const promos = allProducts.filter(p => (p as any).promotional) as PromotionalPackage[];
   const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
 
   // Form states for new offer
@@ -58,7 +52,6 @@ export function PackagesPage() {
   const [promoPrice, setPromoPrice] = useState("");
   const [promoClasses, setPromoClasses] = useState("");
   const [promoQty, setPromoQty] = useState("");
-  const [promos, setPromos] = useState<PromotionalPackage[]>([]);
 
   useEffect(() => {
     if (user?.displayName && !orientador) {
@@ -144,7 +137,6 @@ export function PackagesPage() {
     }
 
     const newPromo = {
-      id: `promo-${Date.now()}`,
       teamId: teamId || "",
       trainerId: user?.uid || "",
       name: promoName,
@@ -161,68 +153,32 @@ export function PackagesPage() {
       availableUntilRemoved: true,
     };
 
-    setPromos((prev) => [newPromo, ...prev]);
-    setPromoName("");
-    setPromoPrice("");
-    setPromoClasses("");
-    setPromoQty("");
-    setMessage("Promoção criada com sucesso!");
-    setTimeout(() => setMessage(""), 3000);
-  }
-
-  function handleRemovePromo(id: string) {
-    setPromos((prev) => prev.filter((p) => p.id !== id));
-    setMessage("Promoção removida.");
-    setTimeout(() => setMessage(""), 3000);
-  }
-
-  async function handleReviewPurchase(purchase: ClassPurchase, status: "paid" | "rejected") {
-    if (!db) {
-      setError("Banco de dados indisponível no momento.");
-      return;
-    }
-
     try {
-      const ref = doc(db, "classPurchases", purchase.id);
-      await updateDoc(ref, {
-        status,
-        reviewedAt: new Date().toISOString(),
-        reviewedBy: user?.uid || "",
-      });
-
-      // Pagamento confirmado → credita as aulas no saldo do vínculo do aluno
-      // e contabiliza a venda no estoque da oferta.
-      if (status === "paid") {
-        const trainerId = purchase.trainerId || teamId || "";
-        if (purchase.studentId && trainerId && purchase.classesCount > 0) {
-          try {
-            await creditEnrollmentClasses(db, purchase.studentId, trainerId, purchase.classesCount);
-          } catch (creditErr) {
-            console.error("Falha ao creditar aulas no vínculo:", creditErr);
-          }
-        }
-        if (purchase.productId) {
-          try {
-            await updateDoc(doc(db, "classProducts", purchase.productId), {
-              soldQuantity: increment(1),
-            });
-          } catch (stockErr) {
-            console.error("Falha ao atualizar estoque da oferta:", stockErr);
-          }
-        }
-      }
-
-      setMessage(
-        status === "paid"
-          ? `Compra confirmada! ${purchase.classesCount} aula(s) creditada(s).`
-          : "Compra recusada.",
-      );
+      await addDoc(collection(db, "classProducts"), newPromo);
+      setPromoName("");
+      setPromoPrice("");
+      setPromoClasses("");
+      setPromoQty("");
+      setMessage("Promoção criada com sucesso!");
       setTimeout(() => setMessage(""), 3000);
     } catch (err: any) {
       console.error(err);
-      setError("Erro ao revisar compra: " + err.message);
+      setError("Erro ao criar promoção: " + err.message);
     }
   }
+
+  async function handleRemovePromo(id: string) {
+    try {
+      await deleteDoc(doc(db, "classProducts", id));
+      setMessage("Promoção removida.");
+      setTimeout(() => setMessage(""), 3000);
+    } catch (err: any) {
+      console.error(err);
+      setError("Erro ao remover promoção: " + err.message);
+    }
+  }
+
+
 
   return (
     <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
@@ -555,57 +511,7 @@ export function PackagesPage() {
           <p className="mt-1 text-xs text-stone-400">
             Aprovações pendentes de PIX para liberação imediata de créditos de aulas.
           </p>
-          <div className="mt-4 space-y-3 max-h-[350px] overflow-y-auto pr-1">
-            {loadingPurchases && (
-              <p className="text-sm text-stone-400">Carregando compras...</p>
-            )}
-            {purchases.length === 0 ? (
-              <p className="text-sm text-stone-400 italic py-8 text-center bg-stone-50 rounded-xl border border-dashed border-stone-200">
-                Nenhum comprovante pendente de conferência.
-              </p>
-            ) : (
-              purchases.map((purchase) => (
-                <article
-                  key={purchase.id}
-                  className="grid gap-3 rounded-xl border border-stone-200 p-4 sm:grid-cols-[1fr_auto] bg-stone-50/50"
-                >
-                  <div className="min-w-0">
-                    <p className="font-bold text-stone-950 truncate">{purchase.productName}</p>
-                    <p className="mt-0.5 text-xs text-stone-600">
-                      {purchase.classesCount} aula{purchase.classesCount > 1 ? "s" : ""} -{" "}
-                      <span className="font-bold text-stone-900">{moneyFromCents(purchase.amountCents)}</span>
-                    </p>
-                    <p className="mt-1 text-xs text-stone-500 italic truncate">
-                      {purchase.proofFileName
-                        ? `Doc: ${purchase.proofFileName}`
-                        : "Sem comprovante anexado"}
-                    </p>
-                    <span className="mt-2 inline-flex rounded bg-stone-150 px-2 py-0.5 text-2xs font-bold text-stone-600 border border-stone-200">
-                      {statusLabel[purchase.status] || purchase.status}
-                    </span>
-                  </div>
-                  <div className="flex flex-row sm:flex-col gap-2 justify-end">
-                    <button
-                      type="button"
-                      className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white hover:bg-emerald-600 transition-colors"
-                      onClick={() => handleReviewPurchase(purchase, "paid")}
-                    >
-                      <CheckCircle2 aria-hidden="true" size={13} />
-                      Confirmar
-                    </button>
-                    <button
-                      type="button"
-                      className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-50 transition-colors"
-                      onClick={() => handleReviewPurchase(purchase, "rejected")}
-                    >
-                      <XCircle aria-hidden="true" size={13} />
-                      Recusar
-                    </button>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
+          <PendingPurchasesList teamId={teamId} />
         </section>
       </div>
     </section>

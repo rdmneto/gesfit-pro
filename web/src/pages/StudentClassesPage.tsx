@@ -479,7 +479,7 @@ export function StudentClassesPage() {
                     ? "border-emerald-500 bg-emerald-50 shadow-md"
                     : "border-[var(--color-border)] bg-white hover:border-emerald-300 hover:shadow-sm",
                 ].join(" ")}
-                onClick={() => { setShowBuyForm(true); setSelectedProduct(product); }}
+                onClick={() => { setShowBuyForm(true); setSelectedProduct(product); window.scrollTo({ top: 0, behavior: "smooth" }); }}
               >
                 <div className="flex items-start justify-between gap-2">
                   <p className="font-black text-stone-900 text-sm">{product.name}</p>
@@ -497,7 +497,7 @@ export function StudentClassesPage() {
                   size="sm"
                   className="mt-3 w-full"
                   icon={<ShoppingBag size={14} />}
-                  onClick={(e) => { e.stopPropagation(); setShowBuyForm(true); setSelectedProduct(product); }}
+                  onClick={(e) => { e.stopPropagation(); setShowBuyForm(true); setSelectedProduct(product); window.scrollTo({ top: 0, behavior: "smooth" }); }}
                 >
                   Adquirir
                 </Button>

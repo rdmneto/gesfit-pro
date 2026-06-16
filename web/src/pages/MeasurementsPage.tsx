@@ -36,10 +36,12 @@ import {
   useStudent,
   useTeam,
   useTrainerStudents,
+  usePendingPurchases,
 } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { approveEnrollment } from "../lib/enrollments";
+import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import type { Enrollment, Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
 
 type StudentWithEnrollment = Student & { enrollment: Enrollment };
@@ -58,10 +60,14 @@ export function MeasurementsPage() {
 
 function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const user = useSessionStore((state) => state.user);
+  const teamId = useSessionStore((state) => state.claims.teamId);
   const { data: allStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
   const [query, setQuery] = useState("");
 
   const studentsList = useMemo<StudentWithEnrollment[]>(() => allStudents ?? [], [allStudents]);
+
+  const { data: pendingPurchases } = usePendingPurchases(teamId);
+  const pendingPurchasesCount = pendingPurchases?.length ?? 0;
 
   // Solicitações de vínculo aguardando aprovação do treinador.
   const pendingRequests = useMemo(
@@ -211,6 +217,22 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
               );
             })}
           </div>
+        </section>
+      )}
+
+      {/* Compras pendentes */}
+      {pendingPurchasesCount > 0 && (
+        <section className="mt-6 rounded-2xl border border-emerald-200 bg-emerald-50 p-5">
+          <div className="flex items-center gap-2">
+            <CheckCircle2 className="text-emerald-800" size={20} />
+            <h2 className="text-lg font-black text-emerald-950">
+              Pagamentos aguardando confirmação ({pendingPurchasesCount})
+            </h2>
+          </div>
+          <p className="mt-1 text-sm text-emerald-800 mb-4">
+            Você tem pagamentos pendentes de conferência. Confirme-os para liberar os créditos.
+          </p>
+          <PendingPurchasesList teamId={teamId} />
         </section>
       )}
 
