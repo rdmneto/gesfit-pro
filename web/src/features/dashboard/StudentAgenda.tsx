@@ -335,45 +335,43 @@ function WeekView({ workouts, reference, trainings }: { workouts: WorkoutSession
 
   return (
     <div className="mt-4">
-      <div className="overflow-x-auto pb-2">
-        <div className="grid min-w-[760px] grid-cols-7 gap-2">
-          {days.map((day) => {
-            const items = workouts.filter((w) => isSameDay(w.startsAt, day));
-            const isToday = isSameDay(day.toISOString(), new Date());
-            const isSel = selected && isSameDay(day.toISOString(), selected);
-            
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                onClick={() => setSelected(day)}
-                className={[
-                  "focus-ring text-left min-h-48 rounded-xl border p-2 transition-all",
-                  isSel ? "border-emerald-500 ring-1 ring-emerald-400 bg-emerald-50/30" : "border-stone-200 bg-stone-50 hover:border-emerald-300"
-                ].join(" ")}
-              >
-                <div className={["rounded-lg p-2 text-center shadow-2xs", isToday ? "bg-emerald-700 text-white" : "bg-white"].join(" ")}>
-                  <p className={["text-3xs font-bold uppercase", isToday ? "text-emerald-100" : "text-emerald-800"].join(" ")}>
-                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}
-                  </p>
-                  <p className={["mt-0.5 text-xl font-black", isToday ? "text-white" : "text-stone-900"].join(" ")}>{day.getDate()}</p>
-                </div>
-                <div className="mt-2 space-y-1.5">
-                  {items.length === 0 ? (
-                    <p className="rounded-lg border border-stone-200 bg-white p-2 text-center text-4xs font-semibold text-stone-300">—</p>
-                  ) : (
-                    items.map((w) => (
-                      <article key={w.id} className="overflow-hidden rounded-lg border border-emerald-200 bg-white p-1.5">
-                        <strong className="block text-3xs text-emerald-800">{fmtTime(w.startsAt)}</strong>
-                        <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">{w.title}</p>
-                      </article>
-                    ))
-                  )}
-                </div>
-              </button>
-            );
-          })}
-        </div>
+      <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 hide-scrollbar gap-3 sm:grid sm:min-w-0 sm:grid-cols-7 sm:gap-2">
+        {days.map((day) => {
+          const items = workouts.filter((w) => isSameDay(w.startsAt, day));
+          const isToday = isSameDay(day.toISOString(), new Date());
+          const isSel = selected && isSameDay(day.toISOString(), selected);
+          
+          return (
+            <button
+              key={day.toISOString()}
+              type="button"
+              onClick={() => setSelected(day)}
+              className={[
+                "w-[85vw] sm:w-auto shrink-0 snap-center focus-ring text-left min-h-64 rounded-2xl border p-2 transition-all flex flex-col",
+                isSel ? "border-emerald-500 ring-2 ring-emerald-400 ring-offset-2 bg-emerald-50/30" : "border-stone-200 bg-stone-50/50 hover:border-emerald-300"
+              ].join(" ")}
+            >
+              <div className={["rounded-xl p-3 text-center shadow-sm border", isToday ? "bg-emerald-700 text-white border-emerald-800" : "bg-white border-stone-100"].join(" ")}>
+                <p className={["text-3xs font-black uppercase tracking-widest", isToday ? "text-emerald-100" : "text-emerald-800"].join(" ")}>
+                  {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '')}
+                </p>
+                <p className={["mt-0.5 text-2xl font-black", isToday ? "text-white" : "text-stone-900"].join(" ")}>{day.getDate()}</p>
+              </div>
+              <div className="mt-2 space-y-1.5 flex-1">
+                {items.length === 0 ? (
+                  <p className="rounded-xl border border-stone-100 bg-white p-3 text-center text-xs font-semibold text-stone-300 shadow-sm">—</p>
+                ) : (
+                  items.map((w) => (
+                    <article key={w.id} className="overflow-hidden rounded-xl border border-emerald-200 bg-white p-2 shadow-sm transition-shadow hover:shadow-md">
+                      <strong className="block text-xs font-black text-emerald-800">{fmtTime(w.startsAt)}</strong>
+                      <p className="mt-1 break-words text-2xs font-bold leading-tight text-stone-600 line-clamp-2">{w.title}</p>
+                    </article>
+                  ))
+                )}
+              </div>
+            </button>
+          );
+        })}
       </div>
       
       {selected && (
@@ -407,21 +405,28 @@ function MonthView({ workouts, reference, trainings }: { workouts: WorkoutSessio
           const count = workouts.filter((w) => isSameDay(w.startsAt, day)).length;
           const inMonth = day.getMonth() === reference.getMonth();
           const isSel = selected && isSameDay(day.toISOString(), selected);
+          
+          let intensityClass = "bg-white border-stone-200";
+          if (!inMonth) intensityClass = "bg-stone-50 border-stone-150 opacity-40";
+          else if (count === 0) intensityClass = "bg-stone-50/50 border-stone-200 hover:bg-stone-100";
+          else if (count === 1) intensityClass = "bg-emerald-100 border-emerald-200 text-emerald-900 hover:bg-emerald-200";
+          else if (count >= 2) intensityClass = "bg-emerald-400 border-emerald-500 text-white hover:bg-emerald-500";
+
           return (
             <button
               key={day.toISOString()}
               type="button"
               onClick={() => setSelected(day)}
               className={[
-                "focus-ring flex min-h-16 flex-col rounded-xl border p-2 text-left transition-all",
-                inMonth ? "border-stone-200 bg-white hover:border-emerald-400" : "border-stone-150 bg-stone-50 opacity-40",
-                isSel ? "border-emerald-500 ring-1 ring-emerald-400" : "",
+                "focus-ring flex min-h-16 flex-col items-center justify-center rounded-xl border p-2 text-center transition-all shadow-sm relative",
+                intensityClass,
+                isSel ? "ring-2 ring-emerald-500 ring-offset-2 scale-105 z-10 shadow-md" : "hover:scale-105",
               ].join(" ")}
             >
-              <span className="text-xs font-black text-stone-800">{day.getDate()}</span>
+              <span className="text-sm font-black">{day.getDate()}</span>
               {count > 0 && (
-                <span className="mt-auto inline-flex w-max items-center rounded bg-emerald-50 px-1.5 py-0.5 text-3xs font-bold text-emerald-800">
-                  {count} treino{count > 1 ? "s" : ""}
+                <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/20 text-3xs font-bold text-white">
+                  {count}
                 </span>
               )}
             </button>

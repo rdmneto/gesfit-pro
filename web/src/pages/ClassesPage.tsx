@@ -855,8 +855,7 @@ function TrainerCalendarVisual({
     const days = weekDays(referenceDate);
     const weekdayKeys: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
     return (
-      <div className="mt-4 overflow-x-auto">
-        <div className="grid min-w-[760px] grid-cols-7 gap-2">
+        <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 hide-scrollbar gap-3 sm:grid sm:min-w-0 sm:grid-cols-7 sm:gap-2">
           {days.map((day) => {
             const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
             const dayAvail = availability.find((a) => a.weekday === weekdayKeys[day.getDay()]);
@@ -867,12 +866,12 @@ function TrainerCalendarVisual({
                 ]
               : [];
             return (
-              <section key={day.toISOString()} className="min-h-64 rounded-xl border border-stone-200 bg-stone-50 p-2">
-                <div className="rounded-lg bg-white p-2 text-center shadow-2xs">
-                  <p className="text-3xs font-bold uppercase text-emerald-800">
-                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day)}
+              <section key={day.toISOString()} className="w-[85vw] sm:w-auto shrink-0 snap-center min-h-64 rounded-2xl border border-stone-200 bg-stone-50/50 p-2 flex flex-col">
+                <div className="rounded-xl bg-white p-3 text-center shadow-sm border border-stone-100">
+                  <p className="text-3xs font-black uppercase tracking-widest text-emerald-800">
+                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '')}
                   </p>
-                  <p className="text-xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
+                  <p className="text-2xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
                 </div>
                 <div className="mt-2 space-y-1.5">
                   {slots.length === 0 && (
@@ -887,16 +886,16 @@ function TrainerCalendarVisual({
                         <article
                           key={slot}
                           className={[
-                            "overflow-hidden rounded-lg border bg-white p-1.5",
+                            "overflow-hidden rounded-xl border bg-white p-2 shadow-sm transition-shadow hover:shadow-md",
                             workout.status === "completed"
-                              ? "border-emerald-300"
+                              ? "border-emerald-300 bg-emerald-50/30"
                               : workout.status === "no_show"
-                                ? "border-rose-300"
-                                : "border-amber-200",
+                                ? "border-rose-300 bg-rose-50/30"
+                                : "border-amber-200 bg-amber-50/30",
                           ].join(" ")}
                         >
-                          <strong className="block text-3xs text-stone-900">{slot}</strong>
-                          <p className="mt-0.5 break-words text-4xs font-bold leading-tight text-stone-700 line-clamp-2">
+                          <strong className="block text-xs font-black text-stone-900">{slot}</strong>
+                          <p className="mt-1 break-words text-2xs font-bold leading-tight text-stone-600 line-clamp-2">
                             {workout.studentName}
                           </p>
                           <div className="mt-1 flex flex-wrap items-center justify-between gap-1">
@@ -925,14 +924,14 @@ function TrainerCalendarVisual({
                         disabled={isPast}
                         onClick={() => !isPast && onScheduleSlot(day, slot)}
                         className={[
-                          "focus-ring flex w-full items-center justify-between rounded-lg border px-2 py-1.5 text-3xs font-bold transition-colors",
+                          "focus-ring flex w-full items-center justify-between rounded-xl border px-3 py-2 text-xs font-bold transition-all",
                           isPast 
-                            ? "border-stone-200 bg-stone-100/50 text-stone-400 cursor-not-allowed" 
-                            : "border-emerald-200 bg-emerald-50/60 text-emerald-800 hover:bg-emerald-100"
+                            ? "border-transparent bg-stone-100/50 text-stone-400 cursor-not-allowed" 
+                            : "border-stone-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:shadow-md"
                         ].join(" ")}
                       >
-                        <span>{slot}</span>
-                        {!isPast && <span className="inline-flex items-center"><UserPlus size={12} /></span>}
+                        <span className="font-black text-stone-500">{slot}</span>
+                        {!isPast && <span className="inline-flex items-center text-emerald-600"><UserPlus size={14} /></span>}
                       </button>
                     );
                   })}
@@ -941,7 +940,6 @@ function TrainerCalendarVisual({
             );
           })}
         </div>
-      </div>
     );
   }
 
@@ -953,170 +951,162 @@ function TrainerCalendarVisual({
     if (selectedMonthDay) {
       const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, selectedMonthDay));
       return (
-        <div className="mt-4 rounded-xl border border-stone-200 bg-stone-50 p-4 animate-slide-up">
-          <div className="flex items-start justify-between gap-3 border-b border-stone-150 pb-3">
-            <div>
-              <p className="text-2xs font-bold uppercase tracking-wider text-emerald-800">Grade de horários do dia</p>
-              <h3 className="mt-0.5 text-xl font-black text-stone-950">{formatDate(selectedMonthDay.toISOString())}</h3>
+        <>
+          <div className="mt-4">
+            <div className="grid grid-cols-7 gap-1">
+              {WEEK_LABELS.map((d) => (
+                <p key={d} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{d}</p>
+              ))}
             </div>
-            <button
-              type="button"
-              aria-label="Fechar"
-              className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-stone-50"
-              onClick={onCloseMonthDay}
+            <div className="grid grid-cols-7 gap-1">
+              {days.map((day) => {
+                const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
+                const inCurrentMonth = day.getMonth() === today.getMonth();
+                
+                const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+                const weekday = weekdays[day.getDay()];
+                const dayAvail = availability.find((d) => d.weekday === weekday);
+                const hasExpediente = dayAvail && dayAvail.active;
+                
+                const occupancy = dayWorkouts.length;
+                let intensityClass = "bg-white border-stone-200";
+                if (!inCurrentMonth) intensityClass = "bg-stone-50 border-stone-150 opacity-40";
+                else if (!hasExpediente) intensityClass = "bg-stone-100/50 border-stone-200 text-stone-400";
+                else if (occupancy === 1 || occupancy === 2) intensityClass = "bg-emerald-100 border-emerald-200 text-emerald-900";
+                else if (occupancy === 3 || occupancy === 4) intensityClass = "bg-emerald-300 border-emerald-400 text-emerald-950";
+                else if (occupancy >= 5) intensityClass = "bg-emerald-500 border-emerald-600 text-white";
+
+                return (
+                  <button
+                    key={day.toISOString()}
+                    type="button"
+                    className={[
+                      "focus-ring min-h-16 rounded-xl border p-2 text-center transition-all hover:scale-105 shadow-sm flex items-center justify-center relative",
+                      intensityClass,
+                    ].join(" ")}
+                    onClick={() => onSelectMonthDay(day)}
+                  >
+                    <span className="text-sm font-black">{day.getDate()}</span>
+                    {occupancy > 0 && (
+                      <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/20 text-3xs font-bold text-white">
+                        {occupancy}
+                      </span>
+                    )}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in" onClick={onCloseMonthDay}>
+            <div 
+              className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slide-up"
+              onClick={e => e.stopPropagation()}
             >
-              <X size={15} />
-            </button>
-          </div>
-          
-          <div className="mt-4 grid gap-2.5">
-            {detailSlots.map((slot) => {
-              const workout = workoutAtSlot(dayWorkouts, slot);
-              
-              let isPast = false;
-              if (selectedMonthDay) {
-                const y = selectedMonthDay.getFullYear();
-                const m = String(selectedMonthDay.getMonth() + 1).padStart(2, "0");
-                const d = String(selectedMonthDay.getDate()).padStart(2, "0");
-                isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
-              }
-
-              return (
-                <article
-                  key={slot}
-                  className={[
-                    "grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[5rem_1fr_auto] items-center",
-                    workout ? "border-amber-200 bg-amber-50/40" : (isPast ? "border-stone-200 bg-stone-50" : "border-emerald-250 bg-emerald-50/45"),
-                  ].join(" ")}
-                >
-                  <p className={["font-black text-sm", workout ? "text-amber-800" : (isPast ? "text-stone-500" : "text-emerald-850")].join(" ")}>
-                    {slot}
-                  </p>
-                  {workout ? (
-                    <div>
-                      <p className="font-bold text-sm text-stone-950">{workout.studentName}</p>
-                      <p className="mt-0.5 text-xs text-stone-600 font-medium flex items-center gap-2 flex-wrap">
-                        <span>{workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min</span>
-                        {workout.assignedToName && (
-                          <span className="inline-flex rounded-full bg-emerald-50 px-1.5 py-0.5 text-2xs font-bold text-emerald-700 border border-emerald-200">
-                            <UserPlus size={10} className="mr-1" />
-                            {workout.assignedToName}
-                          </span>
-                        )}
-                      </p>
-                    </div>
-                  ) : (
-                    <p className={["font-bold text-xs", isPast ? "text-stone-500" : "text-emerald-800"].join(" ")}>Horário livre {isPast && "(Passado)"}</p>
-                  )}
-                  {workout ? (
-                    <div className="flex items-center gap-2">
-                      <AttendanceControl workout={workout} onStart={onStart} onComplete={onComplete} onNoShow={onNoShow} onUndo={onUndo} />
-                      <button
-                        type="button"
-                        aria-label="Excluir aula"
-                        className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
-                        onClick={() => onDelete(workout)}
-                      >
-                        <Trash2 size={13} />
-                      </button>
-                    </div>
-                  ) : (
-                    selectedMonthDay && (
-                      <button
-                        type="button"
-                        disabled={isPast}
-                        className={[
-                          "focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border px-3.5 text-2xs font-bold transition-colors",
-                          isPast ? "border-stone-200 bg-stone-100/50 text-stone-400 cursor-not-allowed" : "border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50"
-                        ].join(" ")}
-                        onClick={() => !isPast && onScheduleSlot(selectedMonthDay, slot)}
-                      >
-                        {isPast ? <X size={12} /> : <UserPlus size={12} />}
-                        {isPast ? "Indisponível" : "Agendar"}
-                      </button>
-                    )
-                  )}
-                  {workout?.status === 'in_progress' && workout.trainingId && (
-                    <div className="sm:col-span-3 mt-2 pt-2 border-t border-emerald-200">
-                      <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
-                    </div>
-                  )}
-                </article>
-              );
-            })}
-            {detailSlots.length === 0 && (
-              <p className="text-center text-xs text-stone-400 italic py-6 bg-white border border-stone-200 rounded-xl">
-                Você não tem horários de atendimento ativos configurados para este dia da semana.
-              </p>
-            )}
-          </div>
-        </div>
-      );
-    }
-
-    return (
-      <div className="mt-4">
-        <div className="grid grid-cols-7 gap-1">
-          {WEEK_LABELS.map((d) => (
-            <p key={d} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{d}</p>
-          ))}
-        </div>
-        <div className="grid grid-cols-7 gap-1">
-          {days.map((day) => {
-            const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
-            const inCurrentMonth = day.getMonth() === today.getMonth();
-            
-            // Calculate slots for dot grid
-            const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
-            const weekday = weekdays[day.getDay()];
-            const dayAvail = availability.find((d) => d.weekday === weekday);
-            const activeSlots = dayAvail && dayAvail.active 
-              ? [
-                  ...periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes),
-                  ...periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes),
-                ]
-              : [];
-
-            return (
-              <button
-                key={day.toISOString()}
-                type="button"
-                className={[
-                  "focus-ring min-h-20 rounded-xl border p-2 text-left transition-all hover:bg-stone-50/50 flex flex-col justify-between",
-                  inCurrentMonth
-                    ? "border-stone-200 bg-white hover:border-emerald-500"
-                    : "border-stone-150 bg-stone-50 opacity-40",
-                ].join(" ")}
-                onClick={() => onSelectMonthDay(day)}
-              >
-                <span className="text-xs font-black text-stone-800">{day.getDate()}</span>
-                <div className="mt-2 grid grid-cols-4 gap-0.5 w-full">
-                  {activeSlots.slice(0, 8).map((slot) => {
-                    const occupied = Boolean(workoutAtSlot(dayWorkouts, slot));
-                    return (
-                      <span
-                        key={slot}
-                        className={[
-                          "block h-2 rounded-xs",
-                          occupied ? "bg-red-400" : "bg-emerald-350",
-                        ].join(" ")}
-                        title={`${slot} ${occupied ? "ocupado" : "vago"}`}
-                      />
-                    );
-                  })}
-                  {activeSlots.length === 0 && (
-                    <span className="col-span-full h-1 w-full bg-stone-200 rounded-sm opacity-50" title="Sem expediente" />
-                  )}
+              <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
+                <div>
+                  <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Agenda do dia</p>
+                  <h3 className="mt-1 text-2xl font-black text-stone-900">{formatDate(selectedMonthDay.toISOString())}</h3>
                 </div>
-              </button>
-            );
-          })}
-        </div>
-      </div>
-    );
-  }
+                <button
+                  type="button"
+                  className="focus-ring flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-900 transition-colors"
+                  onClick={onCloseMonthDay}
+                >
+                  <X size={20} />
+                </button>
+              </div>
+              
+              <div className="overflow-y-auto p-6 flex flex-col gap-4">
+                {detailSlots.map((slot) => {
+                  const workout = workoutAtSlot(dayWorkouts, slot);
+                  let isPast = false;
+                  if (selectedMonthDay) {
+                    const y = selectedMonthDay.getFullYear();
+                    const m = String(selectedMonthDay.getMonth() + 1).padStart(2, "0");
+                    const d = String(selectedMonthDay.getDate()).padStart(2, "0");
+                    isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
+                  }
 
-  // Day view — agenda detalhada do dia selecionado (todos os horários)
+                  return (
+                    <article
+                      key={slot}
+                      className={[
+                        "grid gap-3 rounded-2xl border p-4 sm:grid-cols-[4rem_1fr_auto] items-center transition-all",
+                        workout ? "border-amber-200 bg-amber-50/40" : (isPast ? "border-stone-150 bg-stone-50" : "border-emerald-200 bg-white shadow-sm hover:shadow-md"),
+                      ].join(" ")}
+                    >
+                      <p className={["font-black text-base text-right sm:text-left", workout ? "text-amber-800" : (isPast ? "text-stone-400" : "text-emerald-800")].join(" ")}>
+                        {slot}
+                      </p>
+                      {workout ? (
+                        <div>
+                          <p className="font-bold text-base text-stone-950">{workout.studentName}</p>
+                          <p className="mt-0.5 text-sm text-stone-600 font-medium flex items-center gap-2 flex-wrap">
+                            <span>{workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min</span>
+                            {workout.assignedToName && (
+                              <span className="inline-flex rounded-full bg-emerald-100 px-2 py-0.5 text-xs font-bold text-emerald-800 border border-emerald-200">
+                                <UserPlus size={12} className="mr-1" />
+                                {workout.assignedToName}
+                              </span>
+                            )}
+                          </p>
+                        </div>
+                      ) : (
+                        <p className={["font-bold text-sm", isPast ? "text-stone-400" : "text-emerald-700"].join(" ")}>Horário livre {isPast && "(Passado)"}</p>
+                      )}
+                      {workout ? (
+                        <div className="flex items-center justify-end gap-2">
+                          <AttendanceControl workout={workout} onStart={onStart} onComplete={onComplete} onNoShow={onNoShow} onUndo={onUndo} />
+                          <button
+                            type="button"
+                            aria-label="Excluir aula"
+                            className="focus-ring flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-600 bg-white hover:bg-rose-50 shadow-sm"
+                            onClick={() => {
+                               onDelete(workout);
+                               onCloseMonthDay();
+                            }}
+                          >
+                            <Trash2 size={16} />
+                          </button>
+                        </div>
+                      ) : (
+                        selectedMonthDay && (
+                          <button
+                            type="button"
+                            disabled={isPast}
+                            className={[
+                              "focus-ring inline-flex h-10 items-center justify-center gap-2 rounded-xl border px-4 text-xs font-bold shadow-sm transition-all sm:w-auto w-full",
+                              isPast ? "border-transparent bg-stone-100/50 text-stone-400 cursor-not-allowed" : "border-emerald-300 bg-white text-emerald-800 hover:bg-emerald-50 hover:border-emerald-400 hover:shadow-md"
+                            ].join(" ")}
+                            onClick={() => {
+                               if (!isPast) {
+                                  onScheduleSlot(selectedMonthDay, slot);
+                                  onCloseMonthDay();
+                               }
+                            }}
+                          >
+                            {isPast ? <X size={16} /> : <UserPlus size={16} />}
+                            {isPast ? "Indisponível" : "Agendar Aluno"}
+                          </button>
+                        )
+                      )}
+                    </article>
+                  );
+                })}
+                {detailSlots.length === 0 && (
+                  <p className="text-center text-sm text-stone-500 italic py-10 bg-stone-50 border border-stone-200 rounded-2xl">
+                    Você não tem horários de expediente configurados para este dia da semana.
+                  </p>
+                )}
+              </div>
+            </div>
+          </div>
+        </>
+      );
+
+    }
+  }  // Day view — agenda detalhada do dia selecionado (todos os horários)
   const today = referenceDate;
   const dayWeekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
   const dayAvail = availability.find((a) => a.weekday === dayWeekdays[today.getDay()]);
@@ -1129,61 +1119,85 @@ function TrainerCalendarVisual({
   const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, today));
 
   return (
-    <div className="mt-4 grid gap-2.5">
+    <div className="mt-8 flex flex-col gap-5 relative">
+      <div className="absolute left-[2.25rem] sm:left-[3.25rem] top-4 bottom-4 w-px bg-stone-200 z-0 hidden sm:block" />
       {daySlots.length === 0 ? (
-        <p className="py-8 text-center text-sm text-stone-400 italic rounded-xl border border-stone-200 bg-white">
+        <p className="py-10 text-center text-sm font-medium text-stone-400 italic rounded-2xl border border-stone-200 bg-stone-50">
           Sem expediente configurado para hoje. Defina sua grade em Ajustes → Agenda.
         </p>
       ) : (
         daySlots.map((slot) => {
           const workout = workoutAtSlot(dayWorkouts, slot);
+          let isPast = false;
+          const y = today.getFullYear();
+          const m = String(today.getMonth() + 1).padStart(2, "0");
+          const d = String(today.getDate()).padStart(2, "0");
+          isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
+
           return (
-            <article
-              key={slot}
-              className={[
-                "grid gap-3 rounded-xl border p-3.5 sm:grid-cols-[5rem_1fr_auto] items-center",
-                workout ? "border-amber-200 bg-amber-50/40" : "border-emerald-250 bg-emerald-50/45",
-              ].join(" ")}
-            >
-              <p className={["font-black text-sm", workout ? "text-amber-800" : "text-emerald-850"].join(" ")}>{slot}</p>
-              {workout ? (
-                <div>
-                  <p className="font-bold text-sm text-stone-950">{workout.studentName}</p>
-                  <p className="mt-0.5 text-xs text-stone-600 font-medium">
-                    {workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min
+            <div key={slot} className="relative z-10 flex flex-col sm:flex-row sm:items-center gap-2 sm:gap-6">
+              <div className="w-[4rem] shrink-0 text-left sm:text-right font-black text-stone-400 text-sm py-1 sm:py-0">
+                {slot}
+              </div>
+              <div className="hidden sm:block h-3 w-3 rounded-full bg-white border-[3px] border-stone-300 shrink-0" />
+              
+              <article
+                className={[
+                  "flex-1 grid gap-3 rounded-2xl border p-4 sm:grid-cols-[1fr_auto] items-center transition-all shadow-sm group",
+                  workout ? "border-amber-200 bg-amber-50/60" : (isPast ? "border-transparent bg-stone-50/80" : "border-emerald-200 bg-white hover:border-emerald-400 hover:shadow-md cursor-pointer"),
+                ].join(" ")}
+                onClick={() => {
+                  if (!workout && !isPast) onScheduleSlot(today, slot);
+                }}
+              >
+                {workout ? (
+                  <div>
+                    <p className="font-black text-lg text-stone-900">{workout.studentName}</p>
+                    <p className="mt-1 text-sm text-stone-600 font-medium">
+                      {workout.proposedWorkout ?? workout.title} · <span className="font-bold">{workout.durationMinutes} min</span>
+                    </p>
+                  </div>
+                ) : (
+                  <p className={["font-bold text-sm", isPast ? "text-stone-400" : "text-emerald-700"].join(" ")}>
+                    Horário livre {isPast && "(Passado)"}
                   </p>
-                </div>
-              ) : (
-                <p className="font-bold text-xs text-emerald-800">Horário livre</p>
-              )}
-              {workout ? (
-                <div className="flex items-center gap-2">
-                  <AttendanceControl workout={workout} onStart={onStart} onComplete={onComplete} onNoShow={onNoShow} onUndo={onUndo} />
+                )}
+                
+                {workout ? (
+                  <div className="flex items-center gap-2" onClick={e => e.stopPropagation()}>
+                    <AttendanceControl workout={workout} onStart={onStart} onComplete={onComplete} onNoShow={onNoShow} onUndo={onUndo} />
+                    <button
+                      type="button"
+                      aria-label="Excluir aula"
+                      className="focus-ring flex h-10 w-10 items-center justify-center rounded-xl border border-rose-200 text-rose-600 bg-white hover:bg-rose-50 shadow-sm"
+                      onClick={() => onDelete(workout)}
+                    >
+                      <Trash2 size={16} />
+                    </button>
+                  </div>
+                ) : (
                   <button
                     type="button"
-                    aria-label="Excluir aula"
-                    className="focus-ring flex h-8 w-8 items-center justify-center rounded-lg border border-rose-200 text-rose-600 hover:bg-rose-50"
-                    onClick={() => onDelete(workout)}
+                    className={[
+                      "focus-ring inline-flex h-10 items-center gap-2 rounded-xl border px-4 text-xs font-bold transition-all sm:w-auto w-full justify-center",
+                      isPast ? "border-transparent text-stone-400 cursor-not-allowed hidden sm:flex" : "border-emerald-300 bg-emerald-50/50 text-emerald-800 hover:bg-emerald-100 opacity-100 sm:opacity-0 group-hover:opacity-100 shadow-sm"
+                    ].join(" ")}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (!isPast) onScheduleSlot(today, slot);
+                    }}
                   >
-                    <Trash2 size={13} />
+                    {!isPast && <UserPlus size={16} />}
+                    {isPast ? "Indisponível" : "Agendar Aluno"}
                   </button>
-                </div>
-              ) : (
-                <button
-                  type="button"
-                  className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border border-emerald-300 bg-white px-3.5 text-2xs font-bold text-emerald-800 transition-colors hover:bg-emerald-50"
-                  onClick={() => onScheduleSlot(today, slot)}
-                >
-                  <UserPlus size={12} />
-                  Agendar
-                </button>
-              )}
-              {workout?.status === 'in_progress' && workout.trainingId && (
-                <div className="sm:col-span-3 mt-2 pt-2 border-t border-emerald-200">
-                  <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
-                </div>
-              )}
-            </article>
+                )}
+                {workout?.status === 'in_progress' && workout.trainingId && (
+                  <div className="sm:col-span-2 mt-3 pt-3 border-t border-emerald-200/50" onClick={e => e.stopPropagation()}>
+                    <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
+                  </div>
+                )}
+              </article>
+            </div>
           );
         })
       )}
