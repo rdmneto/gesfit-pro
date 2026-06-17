@@ -1,18 +1,22 @@
 import { useEffect, useState, useRef } from "react";
-import { collection, query, orderBy, onSnapshot, addDoc } from "firebase/firestore";
+import { collection, query, orderBy, onSnapshot, addDoc, doc, updateDoc, arrayRemove } from "firebase/firestore";
 import { Send, UserCircle } from "lucide-react";
 import { db } from "../../lib/firebase";
 import type { ChatMessage } from "../../types/domain";
 
 interface ChatWindowProps {
-  enrollmentId: string;
+  chatId: string;
+  chatType: "enrollment" | "trainerChat";
   currentUserId: string;
   currentUserRole: "student" | "trainer";
+  otherUserId: string;
   otherUserName: string;
   otherUserPhoto?: string;
+  isBlockedByMe?: boolean;
+  amIBlocked?: boolean;
 }
 
-export function ChatWindow({ enrollmentId, currentUserId, currentUserRole, otherUserName, otherUserPhoto }: ChatWindowProps) {
+export function ChatWindow({ chatId, chatType, currentUserId, currentUserRole, otherUserId, otherUserName, otherUserPhoto, isBlockedByMe, amIBlocked }: ChatWindowProps) {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [newMessage, setNewMessage] = useState("");
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -20,7 +24,8 @@ export function ChatWindow({ enrollmentId, currentUserId, currentUserRole, other
   useEffect(() => {
     if (!db) return;
 
-    const messagesRef = collection(db, "enrollments", enrollmentId, "messages");
+    const collectionName = chatType === "enrollment" ? "enrollments" : "trainerChats";
+    const messagesRef = collection(db, collectionName, chatId, "messages");
     const q = query(messagesRef, orderBy("createdAt", "asc"));
 
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -35,8 +40,14 @@ export function ChatWindow({ enrollmentId, currentUserId, currentUserRole, other
       }, 100);
     });
 
+    // Mark as read when opening
+    const parentRef = doc(db, collectionName, chatId);
+    updateDoc(parentRef, {
+      unreadBy: arrayRemove(currentUserId)
+    }).catch(err => console.error("Failed to clear unread:", err));
+
     return () => unsubscribe();
-  }, [enrollmentId]);
+  }, [chatId, chatType]);
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();
@@ -45,13 +56,22 @@ export function ChatWindow({ enrollmentId, currentUserId, currentUserRole, other
     const text = newMessage;
     setNewMessage("");
 
-    const messagesRef = collection(db, "enrollments", enrollmentId, "messages");
+    const collectionName = chatType === "enrollment" ? "enrollments" : "trainerChats";
+    const messagesRef = collection(db, collectionName, chatId, "messages");
+    const now = new Date().toISOString();
     await addDoc(messagesRef, {
       text,
       senderId: currentUserId,
       senderRole: currentUserRole,
-      createdAt: new Date().toISOString(), // Using ISO string for simplicity, could use serverTimestamp()
+      createdAt: now, 
       read: false
+    });
+
+    const parentRef = doc(db, collectionName, chatId);
+    await updateDoc(parentRef, {
+      lastMessageAt: now,
+      lastMessageText: text,
+      unreadBy: [otherUserId]
     });
   }
 
@@ -106,22 +126,32 @@ export function ChatWindow({ enrollmentId, currentUserId, currentUserRole, other
 
       {/* Input */}
       <div className="p-3 bg-white border-t border-stone-200">
-        <form onSubmit={handleSendMessage} className="flex items-center gap-2">
-          <input
-            type="text"
-            value={newMessage}
-            onChange={(e) => setNewMessage(e.target.value)}
-            placeholder="Digite uma mensagem..."
-            className="flex-1 h-11 px-4 border border-stone-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
-          />
-          <button
-            type="submit"
-            disabled={!newMessage.trim()}
-            className="h-11 w-11 flex items-center justify-center rounded-full bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
-          >
-            <Send size={18} />
-          </button>
-        </form>
+        {isBlockedByMe ? (
+          <div className="h-11 flex items-center justify-center text-sm text-stone-500 bg-stone-100 rounded-full border border-stone-200">
+            Você bloqueou este contato.
+          </div>
+        ) : amIBlocked ? (
+          <div className="h-11 flex items-center justify-center text-sm text-stone-500 bg-stone-100 rounded-full border border-stone-200">
+            Você não pode enviar mensagens para este contato.
+          </div>
+        ) : (
+          <form onSubmit={handleSendMessage} className="flex items-center gap-2">
+            <input
+              type="text"
+              value={newMessage}
+              onChange={(e) => setNewMessage(e.target.value)}
+              placeholder="Digite uma mensagem..."
+              className="flex-1 h-11 px-4 border border-stone-300 rounded-full focus:outline-none focus:ring-2 focus:ring-emerald-500 focus:border-transparent text-sm"
+            />
+            <button
+              type="submit"
+              disabled={!newMessage.trim()}
+              className="h-11 w-11 flex items-center justify-center rounded-full bg-emerald-600 text-white disabled:opacity-50 disabled:cursor-not-allowed hover:bg-emerald-700 transition-colors"
+            >
+              <Send size={18} />
+            </button>
+          </form>
+        )}
       </div>
     </div>
   );

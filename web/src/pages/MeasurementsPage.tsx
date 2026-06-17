@@ -43,7 +43,6 @@ import { useActiveTrainer } from "../lib/activeTrainer";
 import { approveEnrollment } from "../lib/enrollments";
 import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import type { Enrollment, Student, StudentMeasurement, StudentMeasurementSubmission } from "../types/domain";
-import { ChatWindow } from "../components/chat/ChatWindow";
 
 type StudentWithEnrollment = Student & { enrollment: Enrollment };
 
@@ -784,11 +783,6 @@ function StudentProfileSummary({
   ).at(-1);
 
   const age = calculateAge(student.onboarding.birthDate, student.onboarding.idade);
-  const [showChat, setShowChat] = useState(false);
-  const currentUser = useSessionStore((state) => state.user);
-  
-  // O student aqui é um StudentWithEnrollment, vamos fazer o cast para acessar o enrollment
-  const enrollmentId = (student as StudentWithEnrollment).enrollment?.id;
 
   return (
     <section className="rounded-lg border border-stone-200 bg-white p-5">
@@ -810,15 +804,6 @@ function StudentProfileSummary({
               >
                 <MessageCircle size={14} /> WhatsApp do aluno
               </a>
-            )}
-            {enrollmentId && (
-              <button
-                type="button"
-                onClick={() => setShowChat(true)}
-                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg bg-stone-900 px-3 text-xs font-bold text-white hover:bg-stone-800"
-              >
-                <MessageCircle size={14} /> Chat Interno
-              </button>
             )}
           </div>
         </div>
@@ -856,31 +841,6 @@ function StudentProfileSummary({
                 <p className="text-sm text-stone-700 mt-1">{student.medicalData.orientacoes}</p>
               </div>
             )}
-          </div>
-        </div>
-      )}
-
-      {showChat && currentUser && enrollmentId && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
-          <div className="bg-white rounded-2xl w-full max-w-md h-[80vh] flex flex-col overflow-hidden shadow-2xl">
-            <div className="flex items-center justify-between p-4 border-b border-stone-200 bg-stone-50">
-              <h2 className="font-bold text-stone-900">Mensagens com {student.displayName}</h2>
-              <button 
-                onClick={() => setShowChat(false)}
-                className="p-2 rounded-full hover:bg-stone-200 text-stone-500 transition-colors"
-              >
-                <XCircle size={20} />
-              </button>
-            </div>
-            <div className="flex-1 overflow-hidden">
-              <ChatWindow 
-                enrollmentId={enrollmentId}
-                currentUserId={currentUser.uid}
-                currentUserRole="trainer"
-                otherUserName={student.displayName}
-                otherUserPhoto={student.photoURL}
-              />
-            </div>
           </div>
         </div>
       )}

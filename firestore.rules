@@ -216,10 +216,11 @@ service cloud.firestore {
         resource.data.ownerUid == request.auth.uid ||
         resource.data.subTrainerId == request.auth.uid
       );
-      // Somente o dono cria o convite
-      allow create: if signedIn()
-        && request.resource.data.ownerUid == request.auth.uid
-        && hasRoleInDoc('trainer');
+      // Dono cria convite OU Sub-treinador solicita entrada
+      allow create: if signedIn() && (hasRole('trainer') || hasRoleInDoc('trainer')) && (
+        request.resource.data.ownerUid == request.auth.uid ||
+        (request.resource.data.subTrainerId == request.auth.uid && request.resource.data.status == 'requesting_join')
+      );
       // Dono pode gerenciar; sub pode aceitar/recusar (atualizar status e acceptedAt)
       allow update: if signedIn() && (
         request.auth.uid == resource.data.ownerUid
@@ -229,6 +230,29 @@ service cloud.firestore {
         )
       );
       allow delete: if false;
+    }
+
+    match /trainerChats/{chatId} {
+      allow read: if signedIn() && (
+        resource.data.requesterId == request.auth.uid ||
+        resource.data.targetId == request.auth.uid
+      );
+      allow create: if signedIn() && request.resource.data.requesterId == request.auth.uid && (hasRole('trainer') || hasRoleInDoc('trainer'));
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.requesterId ||
+        request.auth.uid == resource.data.targetId
+      );
+      allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if signedIn() && (
+          get(/databases/$(database)/documents/trainerChats/$(chatId)).data.requesterId == request.auth.uid ||
+          get(/databases/$(database)/documents/trainerChats/$(chatId)).data.targetId == request.auth.uid
+        );
+        allow create: if signedIn() && request.resource.data.senderId == request.auth.uid;
+        allow update: if signedIn() && onlyChanged(['read']);
+        allow delete: if false;
+      }
     }
 
     // ─── Coleção raiz: workoutSessions (aulas agendadas) ─────────────────

@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useMemo } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -41,90 +41,108 @@ export function TeamManagementPanel() {
     [user?.uid]
   );
 
+  // Teams where the current user is a sub-trainer
+  const { data: teamsIPlayIn } = useCollection<TeamMember>(
+    "teamMembers",
+    user ? [where("subTrainerId", "==", user.uid), where("status", "==", "active")] : [],
+    [],
+    [user?.uid]
+  );
+
   const allMembers = [
     ...members,
     ...pendingMembers.filter((p) => !members.some((m) => m.id === p.id)),
   ];
 
-  const [inviteEmail, setInviteEmail] = useState("");
-  const [inviteLoading, setInviteLoading] = useState(false);
+  // Fetch trainers for search
+  const { data: allTrainers } = useCollection<any>(
+    "users",
+    [where("role", "==", "trainer")],
+    []
+  );
+
+  const [searchQuery, setSearchQuery] = useState("");
+  const [inviteLoadingId, setInviteLoadingId] = useState<string | null>(null);
   const [inviteError, setInviteError] = useState("");
   const [inviteSuccess, setInviteSuccess] = useState("");
 
-  async function handleInvite(e: React.FormEvent) {
-    e.preventDefault();
-    if (!db || !user || !inviteEmail.trim()) return;
+  const searchResults = useMemo(() => {
+    if (!searchQuery.trim() || searchQuery.length < 2) return [];
+    const q = searchQuery.toLowerCase();
+    return allTrainers
+      .filter((t) => t.id !== user?.uid && (t.name?.toLowerCase().includes(q) || t.email?.toLowerCase().includes(q)))
+      .slice(0, 5);
+  }, [allTrainers, searchQuery, user?.uid]);
 
-    setInviteLoading(true);
+  async function handleInviteTrainer(subTrainerId: string, subTrainerName: string, subTrainerEmail: string) {
+    if (!db || !user) return;
+
+    setInviteLoadingId(subTrainerId);
     setInviteError("");
     setInviteSuccess("");
 
     try {
-      // Search for the trainer by email in /users collection
-      const usersRef = collection(db, "users");
-      const q = query(usersRef, where("email", "==", inviteEmail.trim().toLowerCase()));
-      const snap = await getDocs(q);
-
-      if (snap.empty) {
-        setInviteError("Nenhum treinador encontrado com este e-mail. Verifique se ele já tem cadastro no Gesfit.");
-        return;
-      }
-
-      const subDoc = snap.docs[0];
-      const subData = subDoc.data();
-
-      if (subDoc.id === user.uid) {
-        setInviteError("Você não pode convidar a si mesmo.");
-        return;
-      }
-
-      if (subData.role !== "trainer") {
-        setInviteError("Este usuário não é um treinador.");
-        return;
-      }
-
       // Check if already a member
       const existingQ = query(
         collection(db, "teamMembers"),
         where("ownerUid", "==", user.uid),
-        where("subTrainerId", "==", subDoc.id)
+        where("subTrainerId", "==", subTrainerId)
       );
       const existingSnap = await getDocs(existingQ);
       if (!existingSnap.empty) {
         const existing = existingSnap.docs[0].data();
         if (existing.status !== "removed") {
-          setInviteError("Este treinador já faz parte do seu time ou tem convite pendente.");
+          setInviteError(`O treinador ${subTrainerName} já faz parte do seu time ou tem convite pendente.`);
           return;
         }
       }
 
-      const memberId = `${user.uid}__${subDoc.id}`;
+      const memberId = `${user.uid}__${subTrainerId}`;
       await addDoc(collection(db, "teamMembers"), {
         id: memberId,
         ownerUid: user.uid,
         ownerName: user.displayName || "",
-        subTrainerId: subDoc.id,
-        subTrainerName: subData.displayName || subData.name || "Treinador",
-        subTrainerEmail: inviteEmail.trim().toLowerCase(),
+        subTrainerId: subTrainerId,
+        subTrainerName: subTrainerName || "Treinador",
+        subTrainerEmail: subTrainerEmail,
         status: "pending",
         invitedAt: new Date().toISOString(),
       });
 
-      setInviteSuccess(`Convite enviado para ${subData.displayName || inviteEmail}! Ele verá o convite ao entrar no app.`);
-      setInviteEmail("");
+      setInviteSuccess(`Convite enviado para ${subTrainerName}! Ele verá o convite ao entrar no app.`);
+      setSearchQuery("");
     } catch (err: any) {
       console.error(err);
       setInviteError("Erro ao enviar convite: " + err.message);
     } finally {
-      setInviteLoading(false);
+      setInviteLoadingId(null);
     }
   }
 
+
   async function handleRemove(member: TeamMember) {
     if (!db) return;
-    if (!confirm(`Remover ${member.subTrainerName} do time? Aulas futuras atribuídas a ele não serão canceladas automaticamente.`)) return;
+    if (!confirm(`Tem certeza que deseja excluir ${member.subTrainerName} do seu time? Aulas futuras atribuídas a ele não serão canceladas automaticamente.`)) return;
     try {
       // Find the doc by querying (we don't store the docId directly)
+      const q = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", member.ownerUid),
+        where("subTrainerId", "==", member.subTrainerId)
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await updateDoc(snap.docs[0].ref, { status: "removed" });
+      }
+    } catch (err: any) {
+      console.error(err);
+    }
+  }
+
+  async function handleLeave(member: TeamMember) {
+    if (!db) return;
+    if (!confirm(`Tem certeza que deseja sair do time de ${member.ownerName}? Aulas futuras atribuídas a você deixarão de aparecer em sua agenda.`)) return;
+    try {
       const q = query(
         collection(db, "teamMembers"),
         where("ownerUid", "==", member.ownerUid),
@@ -154,37 +172,49 @@ export function TeamManagementPanel() {
           a eles mantendo o controle total do vínculo e créditos dos alunos.
         </p>
 
-        {/* Invite Form */}
-        <form onSubmit={handleInvite} className="mt-5 flex flex-col gap-3 sm:flex-row sm:items-end">
-          <label className="block flex-1">
+        {/* Invite Search */}
+        <div className="mt-5 relative">
+          <label className="block">
             <span className="text-xs font-bold uppercase tracking-wide text-stone-500">
-              E-mail do treinador
+              Buscar treinador
             </span>
             <div className="relative mt-1.5">
               <Mail className="absolute left-3 top-1/2 -translate-y-1/2 text-stone-400" size={16} />
               <input
-                type="email"
-                required
-                value={inviteEmail}
-                onChange={(e) => setInviteEmail(e.target.value)}
-                placeholder="treinador@email.com"
+                type="text"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                placeholder="Nome ou e-mail do treinador"
                 className="focus-ring h-11 w-full rounded-xl border border-stone-200 bg-white pl-9 pr-3 text-sm"
               />
             </div>
           </label>
-          <button
-            type="submit"
-            disabled={inviteLoading || !inviteEmail.trim()}
-            className="focus-ring inline-flex h-11 items-center gap-2 rounded-xl bg-emerald-700 px-5 text-sm font-bold text-white hover:bg-emerald-600 disabled:opacity-50 transition-colors shrink-0"
-          >
-            {inviteLoading ? (
-              <div className="h-4 w-4 animate-spin rounded-full border-2 border-white border-t-transparent" />
-            ) : (
-              <UserPlus size={16} />
-            )}
-            Enviar convite
-          </button>
-        </form>
+          
+          {searchResults.length > 0 && (
+            <div className="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-lg border border-stone-200 overflow-hidden divide-y divide-stone-100">
+              {searchResults.map(trainer => (
+                <div key={trainer.id} className="flex items-center justify-between p-3 hover:bg-stone-50 transition-colors">
+                  <div>
+                    <p className="font-bold text-sm text-stone-900">{trainer.name || "Treinador"}</p>
+                    <p className="text-xs text-stone-500">{trainer.email}</p>
+                  </div>
+                  <button
+                    onClick={() => handleInviteTrainer(trainer.id, trainer.name || "", trainer.email || "")}
+                    disabled={inviteLoadingId === trainer.id}
+                    className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-100 text-emerald-800 px-3 text-xs font-bold hover:bg-emerald-200 disabled:opacity-50 transition-colors shrink-0"
+                  >
+                    {inviteLoadingId === trainer.id ? "Aguarde..." : <><UserPlus size={14} /> Convidar</>}
+                  </button>
+                </div>
+              ))}
+            </div>
+          )}
+          {searchQuery.length >= 2 && searchResults.length === 0 && (
+            <div className="absolute z-10 w-full mt-2 bg-white rounded-xl shadow-lg border border-stone-200 p-4 text-center text-sm text-stone-500">
+              Nenhum treinador encontrado.
+            </div>
+          )}
+        </div>
 
         {inviteError && (
           <p className="mt-3 flex items-center gap-2 text-sm text-rose-600">
@@ -268,6 +298,45 @@ export function TeamManagementPanel() {
           </div>
         )}
       </section>
+
+      {/* Times que participo */}
+      {teamsIPlayIn && teamsIPlayIn.length > 0 && (
+        <section className="card p-5">
+          <div className="flex items-center gap-2">
+            <UserCheck aria-hidden="true" className="text-emerald-800" size={20} />
+            <h2 className="text-lg font-black text-stone-950">Times que participo</h2>
+          </div>
+          <div className="mt-4 divide-y divide-stone-100">
+            {teamsIPlayIn.map((member) => (
+              <div
+                key={`member-of-${member.ownerUid}`}
+                className="flex items-center justify-between gap-4 py-4"
+              >
+                <div className="flex items-center gap-3">
+                  <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-emerald-800">
+                    <Shield size={20} />
+                  </div>
+                  <div>
+                    <p className="font-bold text-stone-900">Time de {member.ownerName}</p>
+                    {member.acceptedAt && (
+                      <p className="mt-0.5 text-xs text-stone-400">
+                        Membro desde {new Date(member.acceptedAt).toLocaleDateString("pt-BR")}
+                      </p>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => handleLeave(member)}
+                  className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border border-stone-200 px-3 text-xs font-bold text-stone-600 hover:bg-rose-50 hover:text-rose-600 hover:border-rose-200 transition-colors"
+                >
+                  <XCircle size={14} /> Sair do time
+                </button>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
     </div>
   );
 }

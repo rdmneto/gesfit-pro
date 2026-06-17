@@ -1,10 +1,12 @@
-import { CalendarDays, Search, Tag } from "lucide-react";
+import { CalendarDays, Search, Tag, MessageSquare, UserPlus, UserCheck } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import type { Team } from "../types/domain";
-import { where } from "firebase/firestore";
+import { collection, getDocs, query, where, addDoc, setDoc, doc } from "firebase/firestore";
+import { db } from "../lib/firebase";
+import { useSessionStore } from "../store/session";
 
 export function TeamsPage() {
   const { data: dbTeams, loading } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
@@ -80,6 +82,7 @@ export function TeamsPage() {
 
 function TrainerListItem({ team }: { team: Team }) {
   const { data: dbProducts } = useClassProducts(team.id);
+  const user = useSessionStore((s) => s.user);
 
   const products = useMemo(
     () => (dbProducts || []).filter((p) => p.active && p.publicVisible),
@@ -89,16 +92,16 @@ function TrainerListItem({ team }: { team: Team }) {
   const single = useMemo(() => products.find((product) => product.type === "single"), [products]);
   const packages = useMemo(() => products.filter((product) => product.type === "package"), [products]);
 
+  const isTrainerAndNotMe = user?.role === "trainer" && user.uid !== team.ownerUid;
+
   return (
-    <Link
-      to={`/t/${team.slug}`}
-      className="focus-ring overflow-hidden rounded-lg border border-stone-200 bg-white hover:border-emerald-700 transition-all hover:shadow-[var(--shadow-md)]"
-    >
-      <img 
-        className="h-44 w-full object-cover" 
-        src={team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"} 
-        alt={`Banner de ${team.name}`} 
-      />
+    <div className="focus-ring overflow-hidden rounded-lg border border-stone-200 bg-white hover:border-emerald-700 transition-all hover:shadow-[var(--shadow-md)] flex flex-col">
+      <Link to={`/t/${team.slug}`} className="flex-1">
+        <img 
+          className="h-44 w-full object-cover" 
+          src={team.branding?.bannerPhotoURL || team.branding?.heroPhotoURL || "https://images.unsplash.com/photo-1541534741688-6078c6bfb5c5?auto=format&fit=crop&w=1600&q=80"} 
+          alt={`Banner de ${team.name}`} 
+        />
       <div className="p-5">
         <div className="flex flex-wrap items-start justify-between gap-3">
           <div className="flex items-center gap-2">
@@ -137,7 +140,157 @@ function TrainerListItem({ team }: { team: Team }) {
           ))}
         </div>
       </div>
-    </Link>
+      </Link>
+      {isTrainerAndNotMe && (
+        <div className="p-4 bg-stone-50 border-t border-stone-200 mt-auto">
+          <TrainerNetworkingActions team={team} currentUser={user} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUser: any }) {
+  const [loading, setLoading] = useState(false);
+  const [message, setMessage] = useState("");
+
+  async function handleRequestJoin() {
+    if (!db || !currentUser) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const existingQ = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", team.ownerUid),
+        where("subTrainerId", "==", currentUser.uid)
+      );
+      const snap = await getDocs(existingQ);
+      if (!snap.empty) {
+        setMessage("Vínculo ou convite já existente.");
+        setLoading(false);
+        return;
+      }
+      const memberId = `${team.ownerUid}__${currentUser.uid}`;
+      await addDoc(collection(db, "teamMembers"), {
+        id: memberId,
+        ownerUid: team.ownerUid,
+        ownerName: team.name,
+        subTrainerId: currentUser.uid,
+        subTrainerName: currentUser.displayName || "Treinador",
+        subTrainerEmail: currentUser.email,
+        status: "requesting_join",
+        invitedAt: new Date().toISOString(),
+      });
+      setMessage("Solicitação enviada!");
+    } catch (err: any) {
+      console.error(err);
+      setMessage("Erro: " + err.message);
+    }
+    setLoading(false);
+  }
+
+  async function handleInviteToMyTeam() {
+    if (!db || !currentUser) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      const existingQ = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", currentUser.uid),
+        where("subTrainerId", "==", team.ownerUid)
+      );
+      const snap = await getDocs(existingQ);
+      if (!snap.empty) {
+        setMessage("Vínculo ou convite já existente.");
+        setLoading(false);
+        return;
+      }
+      const memberId = `${currentUser.uid}__${team.ownerUid}`;
+      await setDoc(doc(db, "teamMembers", memberId), {
+        id: memberId,
+        ownerUid: currentUser.uid,
+        ownerName: currentUser.displayName || "",
+        subTrainerId: team.ownerUid,
+        subTrainerName: team.name,
+        subTrainerEmail: "", // We might not know it, but that's okay for display purposes
+        status: "pending",
+        invitedAt: new Date().toISOString(),
+      });
+      setMessage("Convite enviado!");
+    } catch (err: any) {
+      console.error(err);
+      setMessage("Erro: " + err.message);
+    }
+    setLoading(false);
+  }
+
+  async function handleStartChat() {
+    if (!db || !currentUser) return;
+    setLoading(true);
+    setMessage("");
+    try {
+      // Check if chat request already exists (we might need a smarter check, but for now we just try)
+      // Actually we don't have a good query to check both directions easily, so we just blindly create or assume it's fine.
+      // But we can construct the predictable ID!
+      const ids = [currentUser.uid, team.ownerUid].sort();
+      const chatId = `${ids[0]}__${ids[1]}`;
+      
+      await setDoc(doc(db, "trainerChats", chatId), {
+        id: chatId, 
+        requesterId: currentUser.uid,
+        requesterName: currentUser.displayName || "Treinador",
+        targetId: team.ownerUid,
+        targetName: team.name,
+        status: "accepted",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setMessage("");
+      window.dispatchEvent(new CustomEvent("openGlobalChat", { 
+        detail: { 
+          chatId, 
+          type: "trainerChat", 
+          otherUserId: team.ownerUid, 
+          otherUserName: team.name 
+        } 
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setMessage("Erro: " + err.message);
+    }
+    setLoading(false);
+  }
+
+  return (
+    <div className="flex flex-col gap-2">
+      <div className="flex flex-wrap gap-2">
+        <button
+          onClick={handleRequestJoin}
+          disabled={loading}
+          className="focus-ring flex items-center gap-1 rounded-md bg-stone-200 px-2 py-1.5 text-xs font-bold text-stone-700 hover:bg-stone-300 transition-colors disabled:opacity-50"
+          title="Solicitar entrada para o time deste personal"
+        >
+          <UserPlus size={14} /> Solicitar Entrada
+        </button>
+        <button
+          onClick={handleInviteToMyTeam}
+          disabled={loading}
+          className="focus-ring flex items-center gap-1 rounded-md bg-emerald-100 px-2 py-1.5 text-xs font-bold text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50"
+          title="Convidar este personal para ingressar no seu time"
+        >
+          <UserCheck size={14} /> Convidar para o meu time
+        </button>
+        <button
+          onClick={handleStartChat}
+          disabled={loading}
+          className="focus-ring flex items-center gap-1 rounded-md bg-blue-100 px-2 py-1.5 text-xs font-bold text-blue-800 hover:bg-blue-200 transition-colors disabled:opacity-50"
+          title="Iniciar um chat com este personal"
+        >
+          <MessageSquare size={14} /> Iniciar Chat
+        </button>
+      </div>
+      {message && <p className="text-xs text-stone-500 mt-1">{message}</p>}
+    </div>
   );
 }
 

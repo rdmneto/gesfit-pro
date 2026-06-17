@@ -6,7 +6,7 @@ export type BookingStatus = "scheduled" | "attended" | "no_show" | "cancelled";
 export type ClassProductType = "single" | "package";
 export type PurchaseStatus = "awaiting_payment" | "payment_submitted" | "paid" | "rejected";
 export type EnrollmentStatus = "pending" | "active" | "paused" | "cancelled";
-export type TeamMemberStatus = "pending" | "active" | "removed";
+export type TeamMemberStatus = "pending" | "requesting_join" | "active" | "removed";
 
 /**
  * Vínculo entre o treinador dono do time e um sub-treinador.
@@ -33,6 +33,21 @@ export type TrainingModality =
   | "Pilates"
   | "Ioga"
   | "HIIT";
+
+export interface TrainerChat {
+  id: string;              // `${trainer1Id}__${trainer2Id}` (alfabetico)
+  requesterId: string;     // Quem pediu
+  requesterName: string;
+  targetId: string;        // Quem recebe
+  targetName: string;
+  status: "pending" | "accepted" | "rejected";
+  createdAt: string;       // ISO date
+  updatedAt: string;
+  lastMessageAt?: string;
+  lastMessageText?: string;
+  unreadBy?: string[];
+  blockedBy?: string[];
+}
 
 export type GymLocationType = "gym" | "home" | "condo" | "outdoor";
 
@@ -208,6 +223,9 @@ export interface Enrollment {
   classesUsed: number;
   createdAt: string;
   approvedAt?: string;
+  lastMessageAt?: string;
+  lastMessageText?: string;
+  unreadBy?: string[];
 }
 
 export interface ClassPurchase {

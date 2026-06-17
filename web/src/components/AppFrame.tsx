@@ -6,6 +6,7 @@ import {
   House,
   LogIn,
   LogOut,
+  MessageSquare,
   Ruler,
   Settings,
   Users,
@@ -14,6 +15,7 @@ import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSessionStore } from "../store/session";
 import { useEnsureActiveTrainer } from "../lib/hooks";
 import { SubTrainerInviteBanner } from "../features/team/SubTrainerInviteBanner";
+import { GlobalChat } from "./chat/GlobalChat";
 
 interface NavItem {
   to: string;
@@ -112,6 +114,11 @@ export function AppFrame() {
               </NavLink>
             ))}
             {isLogged && (
+              <div className="flex items-center gap-1 border-l border-stone-200 pl-2 ml-1">
+                <GlobalChat />
+              </div>
+            )}
+            {isLogged && (
               <button
                 type="button"
                 className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg px-3 text-sm font-semibold text-stone-500 transition-all duration-150 hover:bg-red-50 hover:text-red-700"
@@ -126,7 +133,9 @@ export function AppFrame() {
           {/* Mobile: show logout if logged in, or login link if not */}
           <div className="flex items-center gap-2 md:hidden">
             {isLogged ? (
-              <button
+              <div className="flex items-center gap-1">
+                <GlobalChat />
+                <button
                 type="button"
                 className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg text-stone-500 hover:bg-stone-200"
                 onClick={() => logout()}
@@ -134,6 +143,7 @@ export function AppFrame() {
               >
                 <LogOut size={18} />
               </button>
+              </div>
             ) : (
               <NavLink
                 to="/login"

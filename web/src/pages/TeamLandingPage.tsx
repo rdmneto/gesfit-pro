@@ -1,5 +1,5 @@
-import { useMemo } from "react";
-import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag } from "lucide-react";
+import { useState, useMemo } from "react";
+import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag, MessageSquare, UserPlus, UserCheck } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visiblePublic } from "../lib/products";
@@ -8,7 +8,7 @@ import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
 import { db } from "../lib/firebase";
-import { where } from "firebase/firestore";
+import { collection, query, where, getDocs, addDoc, setDoc, doc } from "firebase/firestore";
 import type { PublicScheduleSlot, Team } from "../types/domain";
 
 export function TeamLandingPage() {
@@ -41,6 +41,9 @@ export function TeamLandingPage() {
 
   // Agenda pública divulgada — aguardando fonte de dados real no Firestore.
   const publicSlots: PublicScheduleSlot[] = [];
+
+  const [netLoading, setNetLoading] = useState(false);
+  const [netMessage, setNetMessage] = useState("");
 
   if (teamsLoading || productsLoading) {
     return (
@@ -94,6 +97,113 @@ export function TeamLandingPage() {
       }
     }
     navigate("/app/meus-treinadores");
+  }
+
+  const isTrainerAndNotMe = role === "trainer" && user?.uid !== team.ownerUid;
+  const isMyTeam = role === "trainer" && user?.uid === team.ownerUid;
+
+  async function handleRequestJoin() {
+    if (!db || !user || !team) return;
+    setNetLoading(true);
+    setNetMessage("");
+    try {
+      const existingQ = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", team.ownerUid),
+        where("subTrainerId", "==", user.uid)
+      );
+      const snap = await getDocs(existingQ);
+      if (!snap.empty) {
+        setNetMessage("Vínculo ou convite já existente.");
+        setNetLoading(false);
+        return;
+      }
+      const memberId = `${team.ownerUid}__${user.uid}`;
+      await setDoc(doc(db, "teamMembers", memberId), {
+        id: memberId,
+        ownerUid: team.ownerUid,
+        ownerName: team.name,
+        subTrainerId: user.uid,
+        subTrainerName: user.displayName || "Treinador",
+        subTrainerEmail: user.email,
+        status: "requesting_join",
+        invitedAt: new Date().toISOString(),
+      });
+      setNetMessage("Solicitação enviada!");
+    } catch (err: any) {
+      console.error(err);
+      setNetMessage("Erro: " + err.message);
+    }
+    setNetLoading(false);
+  }
+
+  async function handleInviteToMyTeam() {
+    if (!db || !user || !team) return;
+    setNetLoading(true);
+    setNetMessage("");
+    try {
+      const existingQ = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", user.uid),
+        where("subTrainerId", "==", team.ownerUid)
+      );
+      const snap = await getDocs(existingQ);
+      if (!snap.empty) {
+        setNetMessage("Vínculo ou convite já existente.");
+        setNetLoading(false);
+        return;
+      }
+      const memberId = `${user.uid}__${team.ownerUid}`;
+      await setDoc(doc(db, "teamMembers", memberId), {
+        id: memberId,
+        ownerUid: user.uid,
+        ownerName: user.displayName || "",
+        subTrainerId: team.ownerUid,
+        subTrainerName: team.name,
+        subTrainerEmail: "",
+        status: "pending",
+        invitedAt: new Date().toISOString(),
+      });
+      setNetMessage("Convite enviado!");
+    } catch (err: any) {
+      console.error(err);
+      setNetMessage("Erro: " + err.message);
+    }
+    setNetLoading(false);
+  }
+
+  async function handleStartChat() {
+    if (!db || !user || !team) return;
+    setNetLoading(true);
+    setNetMessage("");
+    try {
+      const ids = [user.uid, team.ownerUid].sort();
+      const chatId = `${ids[0]}__${ids[1]}`;
+      
+      await setDoc(doc(db, "trainerChats", chatId), {
+        id: chatId,
+        requesterId: user.uid,
+        requesterName: user.displayName || "Treinador",
+        targetId: team.ownerUid,
+        targetName: team.name,
+        status: "accepted",
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      });
+      setNetMessage("");
+      window.dispatchEvent(new CustomEvent("openGlobalChat", { 
+        detail: { 
+          chatId, 
+          type: "trainerChat", 
+          otherUserId: team.ownerUid, 
+          otherUserName: team.name 
+        } 
+      }));
+    } catch (err: any) {
+      console.error(err);
+      setNetMessage("Erro: " + err.message);
+    }
+    setNetLoading(false);
   }
 
   const primary = team.branding?.primaryColor || "#0f766e";
@@ -237,20 +347,53 @@ export function TeamLandingPage() {
       ) : null}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-stone-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-slide-up">
-        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+        <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
           <div>
             <h3 className="font-bold text-stone-900 hidden sm:block">Treine com {team.name}</h3>
             <p className="text-xs text-stone-500 hidden sm:block">A contratação é gratuita. Pague apenas pelas aulas.</p>
           </div>
-          <button
-            type="button"
-            className="focus-ring inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-md px-8 text-base font-black text-white shadow-lg hover:opacity-90 transition-opacity"
-            style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
-            onClick={handleContract}
-          >
-            Contratar Treinador
-            <ArrowRight aria-hidden="true" size={20} />
-          </button>
+          
+          {isTrainerAndNotMe ? (
+            <div className="flex flex-col sm:flex-row items-center gap-2 w-full sm:w-auto">
+              {netMessage && <p className="text-xs font-bold text-stone-600 mr-2">{netMessage}</p>}
+              <button
+                type="button"
+                onClick={handleRequestJoin}
+                disabled={netLoading}
+                className="focus-ring flex w-full sm:w-auto items-center justify-center gap-1 rounded-md bg-stone-200 px-4 py-3 text-sm font-bold text-stone-700 hover:bg-stone-300 transition-colors disabled:opacity-50"
+              >
+                <UserPlus size={16} /> Solicitar Entrada
+              </button>
+              <button
+                type="button"
+                onClick={handleInviteToMyTeam}
+                disabled={netLoading}
+                className="focus-ring flex w-full sm:w-auto items-center justify-center gap-1 rounded-md bg-emerald-100 px-4 py-3 text-sm font-bold text-emerald-800 hover:bg-emerald-200 transition-colors disabled:opacity-50"
+              >
+                <UserCheck size={16} /> Convidar para o meu time
+              </button>
+              <button
+                type="button"
+                onClick={handleStartChat}
+                disabled={netLoading}
+                className="focus-ring flex w-full sm:w-auto items-center justify-center gap-1 rounded-md bg-blue-100 px-4 py-3 text-sm font-bold text-blue-800 hover:bg-blue-200 transition-colors disabled:opacity-50"
+              >
+                <MessageSquare size={16} /> Iniciar Chat
+              </button>
+            </div>
+          ) : !isMyTeam ? (
+            <button
+              type="button"
+              className="focus-ring inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-md px-8 text-base font-black text-white shadow-lg hover:opacity-90 transition-opacity"
+              style={{ backgroundColor: primary }}
+              onClick={handleContract}
+            >
+              Contratar Treinador
+              <ArrowRight aria-hidden="true" size={20} />
+            </button>
+          ) : (
+            <p className="text-sm font-bold text-stone-500">Esta é a sua página de treinador.</p>
+          )}
         </div>
       </div>
     </div>

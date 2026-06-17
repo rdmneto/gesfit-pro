@@ -2,8 +2,8 @@ import { collection, getDocs, query, updateDoc, where } from "firebase/firestore
 import { Bell, CheckCircle2, X } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
-import { usePendingTeamInvites } from "../../lib/hooks";
-import type { TeamMember } from "../../types/domain";
+import { usePendingTeamInvites, useCollection, useTrainerChats } from "../../lib/hooks";
+import type { TeamMember, TrainerChat } from "../../types/domain";
 
 export function SubTrainerInviteBanner() {
   const user = useSessionStore((s) => s.user);
@@ -13,7 +13,19 @@ export function SubTrainerInviteBanner() {
     role === "trainer" ? user?.uid : null
   );
 
-  if (!user || role !== "trainer" || invites.length === 0) return null;
+  const { data: joinRequests } = useCollection<TeamMember>(
+    "teamMembers",
+    role === "trainer" && user ? [where("ownerUid", "==", user.uid), where("status", "==", "requesting_join")] : [],
+    [],
+    [user?.uid, role]
+  );
+
+  const { targetChats } = useTrainerChats(role === "trainer" ? user?.uid : null, true);
+  const chatRequests = (targetChats || []).filter((c) => c.status === "pending");
+
+  if (!user || role !== "trainer") return null;
+
+  if (invites.length === 0 && joinRequests.length === 0 && chatRequests.length === 0) return null;
 
   async function handleResponse(invite: TeamMember, accept: boolean) {
     if (!db) return;
@@ -29,6 +41,48 @@ export function SubTrainerInviteBanner() {
         await updateDoc(snap.docs[0].ref, {
           status: accept ? "active" : "removed",
           acceptedAt: accept ? new Date().toISOString() : undefined,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleJoinRequestResponse(joinReq: TeamMember, accept: boolean) {
+    if (!db) return;
+    try {
+      const q = query(
+        collection(db, "teamMembers"),
+        where("ownerUid", "==", joinReq.ownerUid),
+        where("subTrainerId", "==", joinReq.subTrainerId),
+        where("status", "==", "requesting_join")
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await updateDoc(snap.docs[0].ref, {
+          status: accept ? "active" : "removed",
+          acceptedAt: accept ? new Date().toISOString() : undefined,
+        });
+      }
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
+  async function handleChatRequestResponse(chatReq: TrainerChat, accept: boolean) {
+    if (!db) return;
+    try {
+      const q = query(
+        collection(db, "trainerChats"),
+        where("requesterId", "==", chatReq.requesterId),
+        where("targetId", "==", chatReq.targetId),
+        where("status", "==", "pending")
+      );
+      const snap = await getDocs(q);
+      if (!snap.empty) {
+        await updateDoc(snap.docs[0].ref, {
+          status: accept ? "accepted" : "rejected",
+          updatedAt: new Date().toISOString(),
         });
       }
     } catch (err) {
@@ -67,6 +121,73 @@ export function SubTrainerInviteBanner() {
               type="button"
               onClick={() => handleResponse(invite, false)}
               className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-4 text-xs font-bold text-stone-700 hover:bg-stone-50 transition-colors"
+            >
+              <X size={14} /> Recusar
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {joinRequests.map((joinReq) => (
+        <div
+          key={joinReq.id || joinReq.subTrainerId}
+          className="flex flex-col gap-3 rounded-xl border border-blue-200 bg-blue-50 p-4 sm:flex-row sm:items-center sm:justify-between animate-slide-up"
+        >
+          <div className="flex items-start gap-3">
+            <Bell className="mt-0.5 shrink-0 text-blue-600" size={18} />
+            <div>
+              <p className="text-sm font-bold text-blue-900">
+                <span className="text-blue-700">{joinReq.subTrainerName}</span> solicitou entrada no seu time
+              </p>
+              <p className="mt-0.5 text-xs text-blue-700">
+                Ao aceitar, você poderá delegar aulas para este treinador.
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
+            <button
+              type="button"
+              onClick={() => handleJoinRequestResponse(joinReq, true)}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg bg-blue-700 px-4 text-xs font-bold text-white hover:bg-blue-600 transition-colors"
+            >
+              <CheckCircle2 size={14} /> Aceitar
+            </button>
+            <button
+              type="button"
+              onClick={() => handleJoinRequestResponse(joinReq, false)}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-blue-200 bg-white px-4 text-xs font-bold text-blue-700 hover:bg-blue-50 transition-colors"
+            >
+              <X size={14} /> Recusar
+            </button>
+          </div>
+        </div>
+      ))}
+
+      {chatRequests.map((chatReq) => (
+        <div
+          key={chatReq.id || chatReq.requesterId}
+          className="flex flex-col gap-3 rounded-xl border border-purple-200 bg-purple-50 p-4 sm:flex-row sm:items-center sm:justify-between animate-slide-up"
+        >
+          <div className="flex items-start gap-3">
+            <Bell className="mt-0.5 shrink-0 text-purple-600" size={18} />
+            <div>
+              <p className="text-sm font-bold text-purple-900">
+                O professor <span className="text-purple-700">{chatReq.requesterName}</span> deseja iniciar um chat com você
+              </p>
+            </div>
+          </div>
+          <div className="flex shrink-0 gap-2 pl-7 sm:pl-0">
+            <button
+              type="button"
+              onClick={() => handleChatRequestResponse(chatReq, true)}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg bg-purple-700 px-4 text-xs font-bold text-white hover:bg-purple-600 transition-colors"
+            >
+              <CheckCircle2 size={14} /> Aceitar
+            </button>
+            <button
+              type="button"
+              onClick={() => handleChatRequestResponse(chatReq, false)}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-purple-200 bg-white px-4 text-xs font-bold text-purple-700 hover:bg-purple-50 transition-colors"
             >
               <X size={14} /> Recusar
             </button>

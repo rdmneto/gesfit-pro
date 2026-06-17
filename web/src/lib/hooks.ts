@@ -120,6 +120,7 @@ import type {
   StudentMeasurementSubmission,
   Team,
   TeamMember,
+  TrainerChat,
   WorkoutSession,
 } from "../types/domain";
 
@@ -365,4 +366,26 @@ export function useAssignedSessions(subTrainerId: string | null | undefined) {
     [],
     [subTrainerId]
   );
+}
+
+export function useTrainerChats(userId: string | null | undefined, asTargetOnly = false) {
+  // If asTargetOnly is true, we only fetch chats where the current user is the target (to show requests)
+  // For standard chat list, we need both (where requester = me, or target = me).
+  // Because Firestore limits OR queries without composite indexes perfectly matching, 
+  // we do two separate useCollections and merge them in the component.
+  const { data: requestedChats } = useCollection<TrainerChat>(
+    "trainerChats",
+    userId && !asTargetOnly ? [where("requesterId", "==", userId)] : [],
+    [],
+    [userId, asTargetOnly]
+  );
+  
+  const { data: targetChats } = useCollection<TrainerChat>(
+    "trainerChats",
+    userId ? [where("targetId", "==", userId)] : [],
+    [],
+    [userId]
+  );
+
+  return { requestedChats, targetChats };
 }
