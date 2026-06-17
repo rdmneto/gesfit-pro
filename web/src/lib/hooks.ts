@@ -119,6 +119,7 @@ import type {
   StudentMeasurement,
   StudentMeasurementSubmission,
   Team,
+  TeamMember,
   WorkoutSession,
 } from "../types/domain";
 
@@ -333,5 +334,35 @@ export function usePaidPurchases(teamId: string | null | undefined) {
     teamId ? [where("teamId", "==", teamId), where("status", "==", "paid")] : [],
     [],
     [teamId]
+  );
+}
+
+/** Sub-treinadores ativos de um time (pelo UID do dono) */
+export function useTeamMembers(ownerUid: string | null | undefined) {
+  return useCollection<TeamMember>(
+    "teamMembers",
+    ownerUid ? [where("ownerUid", "==", ownerUid), where("status", "==", "active")] : [],
+    [],
+    [ownerUid]
+  );
+}
+
+/** Convites de time pendentes recebidos por um sub-treinador */
+export function usePendingTeamInvites(subTrainerId: string | null | undefined) {
+  return useCollection<TeamMember>(
+    "teamMembers",
+    subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "pending")] : [],
+    [],
+    [subTrainerId]
+  );
+}
+
+/** Aulas delegadas a um sub-treinador (assignedToId) */
+export function useAssignedSessions(subTrainerId: string | null | undefined) {
+  return useCollection<WorkoutSession>(
+    "workoutSessions",
+    subTrainerId ? [where("assignedToId", "==", subTrainerId), orderBy("startsAt", "asc")] : [],
+    [],
+    [subTrainerId]
   );
 }

@@ -6,6 +6,23 @@ export type BookingStatus = "scheduled" | "attended" | "no_show" | "cancelled";
 export type ClassProductType = "single" | "package";
 export type PurchaseStatus = "awaiting_payment" | "payment_submitted" | "paid" | "rejected";
 export type EnrollmentStatus = "pending" | "active" | "paused" | "cancelled";
+export type TeamMemberStatus = "pending" | "active" | "removed";
+
+/**
+ * Vínculo entre o treinador dono do time e um sub-treinador.
+ * O sub-treinador continua tendo seu próprio perfil/time independente.
+ */
+export interface TeamMember {
+  id: string;              // `${ownerUid}__${subTrainerId}`
+  ownerUid: string;        // UID do treinador dono do time
+  ownerName?: string;      // nome denormalizado do dono
+  subTrainerId: string;    // UID do sub-treinador
+  subTrainerName: string;
+  subTrainerEmail: string;
+  status: TeamMemberStatus;
+  invitedAt: string;       // ISO date
+  acceptedAt?: string;
+}
 export type TrainingModality =
   | "Musculação"
   | "Funcional"
@@ -251,6 +268,10 @@ export interface WorkoutSession {
   actualDurationMinutes?: number;
   studentStartedAt?: string;
   studentCompletedAt?: string;
+  /** UID do sub-treinador que executa a aula. trainerId permanece o dono (para crédito). */
+  assignedToId?: string;
+  /** Nome denormalizado do sub-treinador */
+  assignedToName?: string;
 }
 
 export interface Booking {

@@ -19,10 +19,12 @@ import {
   Timer,
   ToggleRight,
   Trees,
+  Users,
   Video,
   X,
 } from "lucide-react";
 import { Link } from "react-router-dom";
+import { TeamManagementPanel } from "../features/team/TeamManagementPanel";
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
@@ -88,7 +90,7 @@ export function TrainerWorkspacePage() {
 
   // Sub-tab state
   const [activeSubTab, setActiveSubTab] = useState<
-    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes"
+    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes" | "time"
   >("cadastro");
 
   // Profile States
@@ -388,6 +390,7 @@ export function TrainerWorkspacePage() {
           { id: "locais", label: "Academias", icon: MapPin },
           { id: "agenda", label: "Agenda", icon: CalendarClock },
           { id: "pacotes", label: "Pacotes e promoções", icon: Package },
+          { id: "time", label: "Meu Time", icon: Users },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -759,6 +762,13 @@ export function TrainerWorkspacePage() {
         {activeSubTab === "pacotes" && (
           <div className="-mx-4">
             <PackagesPage />
+          </div>
+        )}
+
+        {/* ── Sub-tab: MEU TIME ───────────────────────────────────────── */}
+        {activeSubTab === "time" && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <TeamManagementPanel />
           </div>
         )}
       </div>

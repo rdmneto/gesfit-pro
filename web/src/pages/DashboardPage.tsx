@@ -80,6 +80,7 @@ function TrainerDashboard() {
     noShowCount,
     remainingCreditsCount,
     activeStudents,
+    subTrainersPerformance,
   } = useDashboardMetrics(user?.uid, teamId);
 
   const { data: pendingPurchases } = usePendingPurchases(teamId);
@@ -233,7 +234,26 @@ function TrainerDashboard() {
         remainingCreditsCount={remainingCreditsCount}
       />
 
-      {/* Alunos do dia */}
+      {/* Desempenho da Equipe */}
+      {subTrainersPerformance && subTrainersPerformance.length > 0 && (
+        <section className="mt-4 rounded-xl border border-stone-200 bg-white p-5 shadow-sm">
+          <div className="flex items-center gap-2 mb-4">
+            <Users className="text-emerald-700" size={20} />
+            <h2 className="text-lg font-black text-stone-950">Desempenho da Equipe (Mês atual)</h2>
+          </div>
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+            {subTrainersPerformance.map((sub) => (
+              <div key={sub.id} className="flex items-center justify-between rounded-lg border border-stone-100 bg-stone-50 p-3">
+                <span className="text-sm font-bold text-stone-700">{sub.name}</span>
+                <span className="inline-flex h-7 items-center justify-center rounded-full bg-emerald-100 px-3 text-xs font-black text-emerald-800">
+                  {sub.completed} aula{sub.completed !== 1 ? 's' : ''}
+                </span>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
+
       {/* Linha do Tempo: Alunos do dia */}
       <section className="mt-6 card p-5 sm:p-8">
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-100 pb-4">

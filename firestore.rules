@@ -209,13 +209,43 @@ service cloud.firestore {
       }
     }
 
+    // ─── Coleção raiz: teamMembers (sub-treinadores de um time) ─────────
+    match /teamMembers/{memberId} {
+      // Dono e sub-treinador podem ler o próprio vínculo
+      allow read: if signedIn() && (
+        resource.data.ownerUid == request.auth.uid ||
+        resource.data.subTrainerId == request.auth.uid
+      );
+      // Somente o dono cria o convite
+      allow create: if signedIn()
+        && request.resource.data.ownerUid == request.auth.uid
+        && hasRoleInDoc('trainer');
+      // Dono pode gerenciar; sub pode aceitar/recusar (atualizar status e acceptedAt)
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.ownerUid
+        || (
+          request.auth.uid == resource.data.subTrainerId
+          && onlyChanged(['status', 'acceptedAt'])
+        )
+      );
+      allow delete: if false;
+    }
+
     // ─── Coleção raiz: workoutSessions (aulas agendadas) ─────────────────
     match /workoutSessions/{id} {
+      // Treinador dono, aluno ou sub-treinador atribuído podem ler
       allow read: if signedIn()
         && (request.auth.uid == resource.data.trainerId
-            || request.auth.uid == resource.data.studentId);
+            || request.auth.uid == resource.data.studentId
+            || request.auth.uid == resource.data.assignedToId);
+      // Somente o treinador dono cria (ele define trainerId = seu UID)
       allow create: if signedIn() && request.auth.uid == request.resource.data.trainerId;
-      allow update, delete: if signedIn() && request.auth.uid == resource.data.trainerId;
+      // Treinador dono ou sub-treinador atribuído podem atualizar (iniciar/finalizar)
+      allow update: if signedIn() && (
+        request.auth.uid == resource.data.trainerId
+        || request.auth.uid == resource.data.assignedToId
+      );
+      allow delete: if signedIn() && request.auth.uid == resource.data.trainerId;
     }
 
     // ─── Coleção raiz: classProducts (ofertas/pacotes) ───────────────────

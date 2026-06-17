@@ -14,7 +14,7 @@ import { useState, useMemo, Fragment } from "react";
 import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection } from "../lib/hooks";
+import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions } from "../lib/hooks";
 import { DEFAULT_AVAILABILITY } from "../data/catalog";
 import {
   type CalendarView,
@@ -49,11 +49,34 @@ export function ClassesPage() {
     [user?.uid]
   );
 
+  // Sub-trainers logic
+  const isTrainerRole = useSessionStore((state) => state.claims.role === "trainer");
+  const { data: teamMembers } = useTeamMembers(isTrainerRole ? user?.uid : null);
+  const { data: assignedSessions } = useAssignedSessions(isTrainerRole ? user?.uid : null);
+  
+  // Filter for view (if a sub-trainer is selected to view their agenda)
+  const [viewSubTrainerId, setViewSubTrainerId] = useState<string>("all");
+  // Selection for assigning a class
+  const [assignSubTrainerId, setAssignSubTrainerId] = useState<string>("owner");
+
   const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
   const trainerWorkouts = useMemo(() => {
-    const list = dbWorkoutSessions ?? [];
-    return [...list].sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
-  }, [dbWorkoutSessions]);
+    let list = [...(dbWorkoutSessions ?? []), ...(assignedSessions ?? [])];
+    
+    // Deduplicate by ID just in case
+    const unique = new Map(list.map(w => [w.id, w]));
+    list = Array.from(unique.values());
+
+    if (viewSubTrainerId !== "all") {
+      if (viewSubTrainerId === "owner") {
+        list = list.filter(w => !w.assignedToId || w.assignedToId === user?.uid);
+      } else {
+        list = list.filter(w => w.assignedToId === viewSubTrainerId);
+      }
+    }
+
+    return list.sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
+  }, [dbWorkoutSessions, assignedSessions, viewSubTrainerId, user?.uid]);
 
   const availability: TrainerAvailabilityDay[] = dbTeam?.availability || DEFAULT_AVAILABILITY;
 
@@ -119,6 +142,17 @@ export function ClassesPage() {
         skipped++;
         continue;
       }
+      let assignedToId: string | undefined;
+      let assignedToName: string | undefined;
+
+      if (assignSubTrainerId && assignSubTrainerId !== "owner") {
+        const member = teamMembers.find(m => m.subTrainerId === assignSubTrainerId);
+        if (member) {
+          assignedToId = member.subTrainerId;
+          assignedToName = member.subTrainerName;
+        }
+      }
+
       sessions.push({
         studentId: opts.student.uid,
         studentName: opts.student.displayName,
@@ -133,6 +167,8 @@ export function ClassesPage() {
         status: "scheduled",
         exercises: training?.exercises?.map(e => e.name) || [],
         trainingId: opts.trainingId,
+        assignedToId,
+        assignedToName,
       });
     }
 
@@ -355,9 +391,28 @@ export function ClassesPage() {
       <div className="mt-6">
         <section className="card p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
-            <div>
+            <div className="flex-1">
               <h2 className="text-lg font-black text-stone-950">Visualização da Grade</h2>
-              <p className="mt-0.5 text-xs text-stone-500">Monitore sua disponibilidade semanal e mensal.</p>
+              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
+                <p className="text-xs text-stone-500">Monitore sua disponibilidade semanal e mensal.</p>
+                
+                {teamMembers && teamMembers.length > 0 && (
+                  <div className="flex items-center gap-2">
+                    <span className="text-xs font-bold text-stone-600">Ver Agenda:</span>
+                    <select
+                      className="focus-ring h-8 rounded-lg border border-stone-200 bg-stone-50 px-2 text-xs font-semibold text-stone-700"
+                      value={viewSubTrainerId}
+                      onChange={(e) => setViewSubTrainerId(e.target.value)}
+                    >
+                      <option value="all">Todo o Time</option>
+                      <option value="owner">Somente Minha</option>
+                      {teamMembers.map(m => (
+                        <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
+                      ))}
+                    </select>
+                  </div>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-1">
@@ -462,7 +517,15 @@ export function ClassesPage() {
                         <td className="border-b border-stone-100 py-3.5 text-xs font-semibold text-stone-700">{formatDateTime(workout.startsAt)}</td>
                         <td className="border-b border-stone-100 py-3.5 text-sm font-bold text-stone-900">{workout.studentName}</td>
                         <td className="border-b border-stone-100 py-3.5 text-xs text-stone-600 truncate max-w-48">{workout.address}</td>
-                        <td className="border-b border-stone-100 py-3.5 text-xs font-medium text-stone-700">{workout.proposedWorkout ?? workout.title}</td>
+                        <td className="border-b border-stone-100 py-3.5 text-xs font-medium text-stone-700">
+                          {workout.proposedWorkout ?? workout.title}
+                          {workout.assignedToName && (
+                            <div className="mt-1 inline-flex rounded-full bg-emerald-50 px-2 py-0.5 text-2xs font-bold text-emerald-700 border border-emerald-200">
+                              <UserPlus size={10} className="mr-1 inline" />
+                              {workout.assignedToName}
+                            </div>
+                          )}
+                        </td>
                         <td className="border-b border-stone-100 py-3.5">
                           <div className="flex items-center gap-2">
                             <AttendanceControl workout={workout} onStart={startSession} onComplete={completeSession} onNoShow={markNoShow} onUndo={undoAttendance} />
@@ -534,6 +597,22 @@ export function ClassesPage() {
                   ))}
                 </select>
               </label>
+
+              {teamMembers && teamMembers.length > 0 && (
+                <label className="block">
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Atribuir a (Sub-treinador)</span>
+                  <select
+                    className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm"
+                    value={assignSubTrainerId}
+                    onChange={(e) => setAssignSubTrainerId(e.target.value)}
+                  >
+                    <option value="owner">Eu mesmo (Dono do Time)</option>
+                    {teamMembers.map(m => (
+                      <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
+                    ))}
+                  </select>
+                </label>
+              )}
 
               <label className="block">
                 <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Treino (Biblioteca)</span>
@@ -916,8 +995,14 @@ function TrainerCalendarVisual({
                   {workout ? (
                     <div>
                       <p className="font-bold text-sm text-stone-950">{workout.studentName}</p>
-                      <p className="mt-0.5 text-xs text-stone-600 font-medium">
-                        {workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min
+                      <p className="mt-0.5 text-xs text-stone-600 font-medium flex items-center gap-2 flex-wrap">
+                        <span>{workout.proposedWorkout ?? workout.title} · {workout.durationMinutes} min</span>
+                        {workout.assignedToName && (
+                          <span className="inline-flex rounded-full bg-emerald-50 px-1.5 py-0.5 text-2xs font-bold text-emerald-700 border border-emerald-200">
+                            <UserPlus size={10} className="mr-1" />
+                            {workout.assignedToName}
+                          </span>
+                        )}
                       </p>
                     </div>
                   ) : (

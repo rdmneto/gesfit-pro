@@ -98,6 +98,28 @@ export function useDashboardMetrics(trainerId?: string, teamId?: string) {
     }, 0);
   }, [activeStudents]);
 
+  const subTrainersPerformance = useMemo(() => {
+    const now = new Date();
+    const ym = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}`;
+    
+    const stats: Record<string, { id: string; name: string; completed: number }> = {};
+    
+    for (const w of trainerWorkouts) {
+      if (w.assignedToId && w.status === "completed" && w.completedAt?.startsWith(ym)) {
+        if (!stats[w.assignedToId]) {
+          stats[w.assignedToId] = {
+            id: w.assignedToId,
+            name: w.assignedToName || "Sub-treinador",
+            completed: 0
+          };
+        }
+        stats[w.assignedToId].completed++;
+      }
+    }
+    
+    return Object.values(stats).sort((a, b) => b.completed - a.completed);
+  }, [trainerWorkouts]);
+
   return {
     loading,
     team,
@@ -111,6 +133,7 @@ export function useDashboardMetrics(trainerId?: string, teamId?: string) {
     monthRevenue,
     presenceRate,
     noShowCount,
-    remainingCreditsCount
+    remainingCreditsCount,
+    subTrainersPerformance,
   };
 }

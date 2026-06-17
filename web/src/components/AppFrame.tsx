@@ -13,6 +13,7 @@ import {
 import { NavLink, Outlet, useLocation } from "react-router-dom";
 import { useSessionStore } from "../store/session";
 import { useEnsureActiveTrainer } from "../lib/hooks";
+import { SubTrainerInviteBanner } from "../features/team/SubTrainerInviteBanner";
 
 interface NavItem {
   to: string;
@@ -148,6 +149,7 @@ export function AppFrame() {
 
       {/* ── Page Content ─────────────────────────────────── */}
       <main className={isLogged ? "has-bottom-nav" : ""}>
+        <SubTrainerInviteBanner />
         <Outlet />
       </main>
 
