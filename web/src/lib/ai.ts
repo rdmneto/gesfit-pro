@@ -1,8 +1,6 @@
+import { httpsCallable } from "firebase/functions";
+import { functions } from "./firebase";
 import type { Exercise } from "../types/domain";
-
-// A chave fornecida pelo usuário para a API da NVIDIA (DeepSeek)
-const apiKey = "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";
-const baseUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export interface WorkoutGenerationParams {
   durationMinutes: string;
@@ -40,30 +38,15 @@ Lembre-se: Retorne SOMENTE o JSON. Certifique-se de que é um array [].
 `;
 
   try {
-    const response = await fetch(baseUrl, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json",
-        "Authorization": `Bearer ${apiKey}`
-      },
-      body: JSON.stringify({
-        model: "deepseek-ai/deepseek-v4-pro",
-        messages: [{ role: "user", content: prompt }],
-        temperature: 1,
-        top_p: 0.95,
-        max_tokens: 16384,
-        stream: false,
-        chat_template_kwargs: { thinking: false }
-      })
-    });
-
-    if (!response.ok) {
-      const errorData = await response.json().catch(() => ({}));
-      throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+    if (!functions) {
+      throw new Error("Serviço de funções do Firebase não inicializado.");
     }
 
-    const data = await response.json();
-    const text = data.choices[0].message.content;
+    const generateWorkoutAIFn = httpsCallable<{ prompt: string }, { text: string }>(functions, "generateWorkoutAI");
+    const result = await generateWorkoutAIFn({ prompt });
+    
+    const text = result.data.text;
+
     
     // Limpeza de possíveis tags de markdown caso a IA inclua
     const cleanText = text.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();

@@ -18,4 +18,10 @@ export const app: FirebaseApp | null = hasConfig ? initializeApp(firebaseConfig)
 export const auth = app ? getAuth(app) : null;
 export const db = app ? getFirestore(app) : null;
 export const storage = app ? getStorage(app) : null;
+
+// Ensure firebase/functions is imported at the top
+import { getFunctions } from "firebase/functions";
+// Note: functions region is usually us-central1 by default unless configured otherwise.
+export const functions = app ? getFunctions(app, "us-central1") : null;
+
 export const firebaseConfigured = hasConfig;
