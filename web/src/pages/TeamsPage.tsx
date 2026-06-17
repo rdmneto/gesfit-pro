@@ -4,7 +4,7 @@ import { Link } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { useCollection, useClassProducts } from "../lib/hooks";
 import type { Team } from "../types/domain";
-import { collection, getDocs, query, where, addDoc, setDoc, doc } from "firebase/firestore";
+import { collection, getDocs, query, where, setDoc, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 
@@ -83,6 +83,7 @@ export function TeamsPage() {
 function TrainerListItem({ team }: { team: Team }) {
   const { data: dbProducts } = useClassProducts(team.id);
   const user = useSessionStore((s) => s.user);
+  const role = useSessionStore((s) => s.claims.role);
 
   const products = useMemo(
     () => (dbProducts || []).filter((p) => p.active && p.publicVisible),
@@ -92,7 +93,7 @@ function TrainerListItem({ team }: { team: Team }) {
   const single = useMemo(() => products.find((product) => product.type === "single"), [products]);
   const packages = useMemo(() => products.filter((product) => product.type === "package"), [products]);
 
-  const isTrainerAndNotMe = user?.role === "trainer" && user.uid !== team.ownerUid;
+  const isTrainerAndNotMe = role === "trainer" && user?.uid !== team.ownerUid;
 
   return (
     <div className="focus-ring overflow-hidden rounded-lg border border-stone-200 bg-white hover:border-emerald-700 transition-all hover:shadow-[var(--shadow-md)] flex flex-col">
@@ -171,7 +172,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         return;
       }
       const memberId = `${team.ownerUid}__${currentUser.uid}`;
-      await addDoc(collection(db, "teamMembers"), {
+      await setDoc(doc(db, "teamMembers", memberId), {
         id: memberId,
         ownerUid: team.ownerUid,
         ownerName: team.name,

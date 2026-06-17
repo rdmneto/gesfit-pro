@@ -226,6 +226,7 @@ export interface Enrollment {
   lastMessageAt?: string;
   lastMessageText?: string;
   unreadBy?: string[];
+  blockedBy?: string[];
 }
 
 export interface ClassPurchase {

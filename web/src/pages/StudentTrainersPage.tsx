@@ -7,7 +7,6 @@ import { useStudentEnrollments, useTeam } from "../lib/hooks";
 import { setEnrollmentStatus } from "../lib/enrollments";
 import { whatsappLink } from "../lib/format";
 import type { Enrollment, EnrollmentStatus } from "../types/domain";
-import { useState } from "react";
 
 const statusConfig: Record<EnrollmentStatus, { label: string; badge: string }> = {
   pending: { label: "Aguardando aprovação", badge: "bg-amber-50 text-amber-800 border-amber-200" },

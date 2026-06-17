@@ -25,6 +25,7 @@ import type { TeamMember } from "../../types/domain";
 
 const statusBadge: Record<TeamMember["status"], { label: string; cls: string }> = {
   pending: { label: "Aguardando", cls: "bg-amber-50 text-amber-800 border-amber-200" },
+  requesting_join: { label: "Solicitando", cls: "bg-blue-50 text-blue-800 border-blue-200" },
   active: { label: "Ativo", cls: "bg-emerald-50 text-emerald-800 border-emerald-200" },
   removed: { label: "Removido", cls: "bg-stone-100 text-stone-600 border-stone-200" },
 };

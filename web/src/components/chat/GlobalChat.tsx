@@ -1,12 +1,11 @@
 import { useState, useMemo, useEffect } from "react";
 import { createPortal } from "react-dom";
-import { MessageSquare, XCircle, UserCircle, BellRing, Ban } from "lucide-react";
+import { MessageSquare, XCircle, UserCircle, Ban } from "lucide-react";
 import { useSessionStore } from "../../store/session";
 import { useStudentEnrollments, useTrainerEnrollments, useTrainerChats } from "../../lib/hooks";
 import { db } from "../../lib/firebase";
 import { doc, updateDoc, arrayUnion, arrayRemove } from "firebase/firestore";
 import { ChatWindow } from "./ChatWindow";
-import type { Enrollment, TrainerChat } from "../../types/domain";
 
 export function GlobalChat() {
   const user = useSessionStore((s) => s.user);

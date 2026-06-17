@@ -8,7 +8,7 @@ import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
 import { db } from "../lib/firebase";
-import { collection, query, where, getDocs, addDoc, setDoc, doc } from "firebase/firestore";
+import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
 import type { PublicScheduleSlot, Team } from "../types/domain";
 
 export function TeamLandingPage() {

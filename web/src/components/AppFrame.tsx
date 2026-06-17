@@ -6,7 +6,6 @@ import {
   House,
   LogIn,
   LogOut,
-  MessageSquare,
   Ruler,
   Settings,
   Users,
