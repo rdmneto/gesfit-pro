@@ -1,13 +1,8 @@
-import { GoogleGenerativeAI } from "@google/generative-ai";
 import type { Exercise } from "../types/domain";
 
-// A chave será obtida do .env do Vite
-const apiKey = import.meta.env.VITE_GEMINI_API_KEY || "";
-
-let genAI: GoogleGenerativeAI | null = null;
-if (apiKey) {
-  genAI = new GoogleGenerativeAI(apiKey);
-}
+// A chave fornecida pelo usuário para a API da NVIDIA (DeepSeek)
+const apiKey = "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";
+const baseUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export interface WorkoutGenerationParams {
   durationMinutes: string;
@@ -17,12 +12,6 @@ export interface WorkoutGenerationParams {
 }
 
 export async function generateWorkout(params: WorkoutGenerationParams): Promise<Exercise[]> {
-  if (!genAI) {
-    throw new Error("Chave da API do Gemini (VITE_GEMINI_API_KEY) não está configurada. Adicione no arquivo .env");
-  }
-
-  const model = genAI.getGenerativeModel({ model: "gemini-flash-latest" });
-
   const prompt = `
 Você é um Personal Trainer de elite.
 Sua tarefa é gerar uma lista de exercícios para um treino.
@@ -51,8 +40,30 @@ Lembre-se: Retorne SOMENTE o JSON. Certifique-se de que é um array [].
 `;
 
   try {
-    const result = await model.generateContent(prompt);
-    const text = result.response.text();
+    const response = await fetch(baseUrl, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        "Authorization": `Bearer ${apiKey}`
+      },
+      body: JSON.stringify({
+        model: "deepseek-ai/deepseek-v4-pro",
+        messages: [{ role: "user", content: prompt }],
+        temperature: 1,
+        top_p: 0.95,
+        max_tokens: 16384,
+        stream: false,
+        chat_template_kwargs: { thinking: false }
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      throw new Error(errorData.message || `Erro HTTP: ${response.status}`);
+    }
+
+    const data = await response.json();
+    const text = data.choices[0].message.content;
     
     // Limpeza de possíveis tags de markdown caso a IA inclua
     const cleanText = text.replace(/^```json/g, "").replace(/^```/g, "").replace(/```$/g, "").trim();
