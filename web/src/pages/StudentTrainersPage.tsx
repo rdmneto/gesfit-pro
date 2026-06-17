@@ -7,6 +7,8 @@ import { useStudentEnrollments, useTeam } from "../lib/hooks";
 import { setEnrollmentStatus } from "../lib/enrollments";
 import { whatsappLink } from "../lib/format";
 import type { Enrollment, EnrollmentStatus } from "../types/domain";
+import { ChatWindow } from "../components/chat/ChatWindow";
+import { useState } from "react";
 
 const statusConfig: Record<EnrollmentStatus, { label: string; badge: string }> = {
   pending: { label: "Aguardando aprovação", badge: "bg-amber-50 text-amber-800 border-amber-200" },
@@ -102,9 +104,13 @@ function EnrollmentCard({
   const { data: team } = useTeam(enrollment.trainerId);
   const cfg = statusConfig[enrollment.status];
   const remaining = (enrollment.classesQuota ?? 0) - (enrollment.classesUsed ?? 0);
-  const wa = enrollment.status === "active" ? whatsappLink(team?.contactPhone) : null;
+  const isWhatsAppEnabled = team?.publicProfile?.enableWhatsAppContact;
+  const wa = enrollment.status === "active" && isWhatsAppEnabled ? whatsappLink(team?.contactPhone) : null;
   const primary = team?.branding?.primaryColor || "#0f766e";
   const secondary = team?.branding?.secondaryColor || "#f59e0b";
+  const currentUser = useSessionStore((state) => state.user);
+  
+  const [showChat, setShowChat] = useState(false);
 
   return (
     <article
@@ -150,18 +156,55 @@ function EnrollmentCard({
         </p>
       )}
 
-      {wa && (
-        <a
-          href={wa}
-          target="_blank"
-          rel="noreferrer"
-          className="focus-ring mt-4 inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-500"
-        >
-          <MessageCircle size={16} /> Falar no WhatsApp
-        </a>
+      {enrollment.status === "active" && (
+        <div className="mt-4 flex flex-wrap gap-2">
+          {wa && (
+            <a
+              href={wa}
+              target="_blank"
+              rel="noreferrer"
+              className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl bg-emerald-600 px-4 text-sm font-bold text-white hover:bg-emerald-500"
+            >
+              <MessageCircle size={16} /> Falar no WhatsApp
+            </a>
+          )}
+          {!wa && (
+            <p className="mt-3 text-xs text-stone-400">O treinador não disponibilizou WhatsApp.</p>
+          )}
+
+          <button
+            type="button"
+            onClick={() => setShowChat(true)}
+            className="focus-ring inline-flex h-10 items-center gap-2 rounded-xl bg-stone-900 px-4 text-sm font-bold text-white hover:bg-stone-800"
+          >
+            <MessageCircle size={16} /> Chat Interno
+          </button>
+        </div>
       )}
-      {enrollment.status === "active" && !wa && (
-        <p className="mt-3 text-xs text-stone-400">O treinador ainda não cadastrou um contato.</p>
+
+      {showChat && currentUser && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm animate-fade-in">
+          <div className="bg-white rounded-2xl w-full max-w-md h-[80vh] flex flex-col overflow-hidden shadow-2xl">
+            <div className="flex items-center justify-between p-4 border-b border-stone-200 bg-stone-50">
+              <h2 className="font-bold text-stone-900">Mensagens</h2>
+              <button 
+                onClick={() => setShowChat(false)}
+                className="p-2 rounded-full hover:bg-stone-200 text-stone-500 transition-colors"
+              >
+                <UserX size={20} />
+              </button>
+            </div>
+            <div className="flex-1 overflow-hidden">
+              <ChatWindow 
+                enrollmentId={enrollment.id}
+                currentUserId={currentUser.uid}
+                currentUserRole="student"
+                otherUserName={team?.name || "Treinador"}
+                otherUserPhoto={team?.branding?.trainerPhotoURL}
+              />
+            </div>
+          </div>
+        </div>
       )}
 
       <div className="mt-4 flex flex-wrap gap-2">

@@ -195,6 +195,18 @@ service cloud.firestore {
         );
 
       allow delete: if false;
+
+      match /messages/{msgId} {
+        allow read: if signedIn() && (
+          request.auth.uid == get(/databases/$(database)/documents/enrollments/$(enrollmentId)).data.studentId ||
+          request.auth.uid == get(/databases/$(database)/documents/enrollments/$(enrollmentId)).data.trainerId
+        );
+        allow create: if signedIn() && (
+          request.auth.uid == get(/databases/$(database)/documents/enrollments/$(enrollmentId)).data.studentId ||
+          request.auth.uid == get(/databases/$(database)/documents/enrollments/$(enrollmentId)).data.trainerId
+        ) && request.resource.data.senderId == request.auth.uid;
+        allow update, delete: if false;
+      }
     }
 
     // ─── Coleção raiz: workoutSessions (aulas agendadas) ─────────────────

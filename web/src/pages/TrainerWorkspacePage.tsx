@@ -102,6 +102,7 @@ export function TrainerWorkspacePage() {
   const [showAgenda, setShowAgenda] = useState(true);
   const [showPrices, setShowPrices] = useState(true);
   const [showPhotos, setShowPhotos] = useState(true);
+  const [enableWhatsAppContact, setEnableWhatsAppContact] = useState(true);
   const [modalities, setModalities] = useState<string[]>([]);
   const [trainerPhotoURL, setTrainerPhotoURL] = useState("");
   const [bannerPhotoURL, setBannerPhotoURL] = useState("");
@@ -134,6 +135,7 @@ export function TrainerWorkspacePage() {
     setShowAgenda(dbTeam.publicProfile?.showAgenda ?? true);
     setShowPrices(dbTeam.publicProfile?.showPrices ?? true);
     setShowPhotos(dbTeam.publicProfile?.showPhotos ?? true);
+    setEnableWhatsAppContact(dbTeam.publicProfile?.enableWhatsAppContact ?? true);
     setModalities(dbTeam.trainingModalities || []);
     setTrainerPhotoURL(dbTeam.branding?.trainerPhotoURL || "");
     setBannerPhotoURL(dbTeam.branding?.bannerPhotoURL || "");
@@ -265,7 +267,8 @@ export function TrainerWorkspacePage() {
         publicProfile: {
           showAgenda,
           showPrices,
-          showPhotos
+          showPhotos,
+          enableWhatsAppContact
         },
         worksAt: selectedGyms,
         acceptsHomeVisit: acceptsHome,
@@ -482,10 +485,11 @@ export function TrainerWorkspacePage() {
                 <ToggleRight aria-hidden="true" className="text-emerald-800" size={20} />
                 <h2 className="text-lg font-black text-stone-950">Divulgação na landing</h2>
               </div>
-              <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <div className="mt-4 grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
                 <Switch label="Mostrar agenda disponível" checked={showAgenda} onChange={setShowAgenda} />
-                <Switch label="Mostrar valores de aulas e pacotes" checked={showPrices} onChange={setShowPrices} />
-                <Switch label="Mostrar fotos do treinador/equipe" checked={showPhotos} onChange={setShowPhotos} />
+                <Switch label="Mostrar valores de aulas" checked={showPrices} onChange={setShowPrices} />
+                <Switch label="Mostrar fotos do treinador" checked={showPhotos} onChange={setShowPhotos} />
+                <Switch label="Liberar WhatsApp para alunos" checked={enableWhatsAppContact} onChange={setEnableWhatsAppContact} />
               </div>
             </section>
           </div>

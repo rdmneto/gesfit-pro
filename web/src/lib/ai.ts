@@ -2,7 +2,9 @@ import type { Exercise } from "../types/domain";
 
 // A chave fornecida pelo usuário para a API da NVIDIA (DeepSeek)
 const apiKey = "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";
-const baseUrl = "https://integrate.api.nvidia.com/v1/chat/completions";
+const baseUrl = import.meta.env.DEV 
+  ? "/api/nvidia/v1/chat/completions" 
+  : "https://integrate.api.nvidia.com/v1/chat/completions";
 
 export interface WorkoutGenerationParams {
   durationMinutes: string;

@@ -1,5 +1,6 @@
 import { useState } from "react";
 import { collection, doc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
+import { useNavigate } from "react-router-dom";
 import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
@@ -13,6 +14,7 @@ type Step = "role-select" | "contract" | "details-student" | "details-trainer";
 export function OnboardingPage() {
   const user = useSessionStore((state) => state.user);
   const setActiveTrainer = useActiveTrainer((state) => state.setActiveTrainer);
+  const navigate = useNavigate();
   const [step, setStep] = useState<Step>("role-select");
   const [pendingRole, setPendingRole] = useState<"student" | "trainer" | null>(null);
   const [contractAccepted, setContractAccepted] = useState(false);
@@ -26,6 +28,9 @@ export function OnboardingPage() {
   const [studentHeight, setStudentHeight] = useState("");
   const [studentWeight, setStudentWeight] = useState("");
   const [studentGoal, setStudentGoal] = useState("");
+  const [studentDoencas, setStudentDoencas] = useState("");
+  const [studentRestricoes, setStudentRestricoes] = useState("");
+  const [studentOrientacoes, setStudentOrientacoes] = useState("");
 
   // Trainer form state
   const [teamName, setTeamName] = useState("");
@@ -105,6 +110,11 @@ export function OnboardingPage() {
           alturaCm: Number(studentHeight) || null,
           pesoInicialKg: Number(studentWeight) || null,
         },
+        medicalData: {
+          doencas: studentDoencas,
+          restricoes: studentRestricoes,
+          orientacoes: studentOrientacoes,
+        },
         goal: studentGoal || "",
         createdAt: new Date().toISOString(),
       });
@@ -133,6 +143,11 @@ export function OnboardingPage() {
           teamId: undefined,
         },
       });
+
+      if (!trainerId) {
+        alert("Bem-vindo! Encontre o seu treinador ideal.");
+        navigate("/treinadores");
+      }
     } catch (err: unknown) {
       console.error(err);
       setError((err as { message?: string })?.message || "Erro ao salvar perfil. Tente novamente.");
@@ -446,6 +461,38 @@ export function OnboardingPage() {
                   className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
                   value={studentWeight}
                   onChange={(e) => setStudentWeight(e.target.value)}
+                />
+              </label>
+            </div>
+
+            <div className="mt-4 grid gap-4 sm:grid-cols-2">
+              <label className="block sm:col-span-2">
+                <span className="text-sm font-semibold text-stone-700">Doenças ou Condições pré-existentes</span>
+                <textarea
+                  placeholder="Ex: Hipertensão, Diabetes, Asma..."
+                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
+                  value={studentDoencas}
+                  onChange={(e) => setStudentDoencas(e.target.value)}
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-sm font-semibold text-stone-700">Restrições de movimento / Lesões</span>
+                <textarea
+                  placeholder="Ex: Dor no joelho, cirurgia no ombro..."
+                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
+                  value={studentRestricoes}
+                  onChange={(e) => setStudentRestricoes(e.target.value)}
+                />
+              </label>
+
+              <label className="block sm:col-span-2">
+                <span className="text-sm font-semibold text-stone-700">Orientações/Expectativas para o Treinador</span>
+                <textarea
+                  placeholder="O que você espera dos treinos e do acompanhamento?"
+                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
+                  value={studentOrientacoes}
+                  onChange={(e) => setStudentOrientacoes(e.target.value)}
                 />
               </label>
 

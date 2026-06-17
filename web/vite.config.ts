@@ -15,6 +15,13 @@ export default defineConfig({
     dedupe: ["react", "react-dom", "react-router-dom"],
   },
   server: {
+    proxy: {
+      "/api/nvidia": {
+        target: "https://integrate.api.nvidia.com",
+        changeOrigin: true,
+        rewrite: (path) => path.replace(/^\/api\/nvidia/, ""),
+      },
+    },
     fs: {
       // Allow Vite to serve files from the monorepo root node_modules
       allow: [path.resolve(__dirname, "../")],

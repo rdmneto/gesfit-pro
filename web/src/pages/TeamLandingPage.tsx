@@ -100,7 +100,7 @@ export function TeamLandingPage() {
   const secondary = team.branding?.secondaryColor || "#f59e0b";
 
   return (
-    <div>
+    <div className="pb-24">
       <section
         className="relative min-h-[64vh] bg-stone-950 text-white"
         style={{
@@ -121,15 +121,6 @@ export function TeamLandingPage() {
             {team.branding?.welcomeMessage || "Treino sério e acompanhamento personalizado."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
-            <button
-              type="button"
-              className="focus-ring inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-bold text-white hover:opacity-90 transition-opacity"
-              style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
-              onClick={handleContract}
-            >
-              Contratar {team.name}
-              <ArrowRight aria-hidden="true" size={18} />
-            </button>
             {!user && (
               <Link
                 className="focus-ring inline-flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-stone-950 hover:bg-stone-100 transition-colors"
@@ -139,9 +130,6 @@ export function TeamLandingPage() {
               </Link>
             )}
           </div>
-          <p className="mt-3 text-sm text-stone-300">
-            Contratar é gratuito — você passa a ser aluno deste treinador e compra aulas quando quiser.
-          </p>
         </div>
       </section>
 
@@ -247,6 +235,24 @@ export function TeamLandingPage() {
           </div>
         </section>
       ) : null}
+
+      <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-stone-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-slide-up">
+        <div className="max-w-6xl mx-auto flex items-center justify-between gap-4">
+          <div>
+            <h3 className="font-bold text-stone-900 hidden sm:block">Treine com {team.name}</h3>
+            <p className="text-xs text-stone-500 hidden sm:block">A contratação é gratuita. Pague apenas pelas aulas.</p>
+          </div>
+          <button
+            type="button"
+            className="focus-ring inline-flex h-12 w-full sm:w-auto items-center justify-center gap-2 rounded-md px-8 text-base font-black text-white shadow-lg hover:opacity-90 transition-opacity"
+            style={{ backgroundColor: team.branding?.primaryColor || "var(--color-primary)" }}
+            onClick={handleContract}
+          >
+            Contratar Treinador
+            <ArrowRight aria-hidden="true" size={20} />
+          </button>
+        </div>
+      </div>
     </div>
   );
 }

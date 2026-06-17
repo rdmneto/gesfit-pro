@@ -42,6 +42,7 @@ export interface PublicProfileSettings {
   showAgenda: boolean;
   showPrices: boolean;
   showPhotos: boolean;
+  enableWhatsAppContact?: boolean;
 }
 
 export interface TrainerAvailabilityDay {
@@ -150,6 +151,11 @@ export interface Student {
     alturaCm?: number;
     pesoInicialKg?: number;
   };
+  medicalData?: {
+    doencas?: string;
+    restricoes?: string;
+    orientacoes?: string;
+  };
   goal?: string;
   createdAt?: string;
   planId?: string;
@@ -158,6 +164,15 @@ export interface Student {
   lgpdConsentAt?: Timestamp;
   contractAcceptedAt?: Timestamp;
   contractVersion?: string;
+}
+
+export interface ChatMessage {
+  id: string;
+  text: string;
+  senderId: string;
+  senderRole: "student" | "trainer";
+  createdAt: string; // ISO format
+  read: boolean;
 }
 
 /**
