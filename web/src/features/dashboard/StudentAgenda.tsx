@@ -1,5 +1,5 @@
-import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle, Dumbbell, CheckCircle2, ChevronDown, ChevronUp } from "lucide-react";
-import { useMemo, useState } from "react";
+import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle, Dumbbell, CheckCircle2, ChevronDown, ChevronUp, X, Play } from "lucide-react";
+import { useMemo, useRef, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import type { WorkoutSession, Training } from "../../types/domain";
@@ -13,11 +13,17 @@ function fmtTime(iso: string) {
 function fmtDateTime(iso: string) {
   return new Intl.DateTimeFormat("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" }).format(new Date(iso));
 }
+function getInitials(name: string | undefined | null) {
+  if (!name) return "?";
+  const parts = name.trim().split(" ");
+  if (parts.length === 1) return parts[0].substring(0, 2).toUpperCase();
+  return (parts[0][0] + parts[parts.length - 1][0]).toUpperCase();
+}
 
-/** Agenda de treinos do aluno — apresentação em Lista ou Calendário (dia/semana/mês). */
-export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSession[], trainings?: Training[] }) {
+/** Agenda de treinos do aluno — Lista ou Calendário (dia-carrossel / semana-compacta / mês). */
+export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSession[]; trainings?: Training[] }) {
   const [mode, setMode] = useState<"calendar" | "list">("calendar");
-  const [view, setView] = useState<View>("week");
+  const [view, setView] = useState<View>("day");
   const [ref, setRef] = useState(new Date());
 
   const sorted = useMemo(
@@ -59,10 +65,7 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
                 <button
                   key={v}
                   type="button"
-                  className={[
-                    "focus-ring h-8 rounded-md px-3 text-xs font-semibold transition-all",
-                    view === v ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500",
-                  ].join(" ")}
+                  className={["focus-ring h-8 rounded-md px-3 text-xs font-semibold transition-all", view === v ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500"].join(" ")}
                   onClick={() => setView(v)}
                 >
                   {v === "day" ? "Dia" : v === "week" ? "Semana" : "Mês"}
@@ -75,10 +78,7 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
               <button
                 key={m}
                 type="button"
-                className={[
-                  "focus-ring inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-all",
-                  mode === m ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500",
-                ].join(" ")}
+                className={["focus-ring inline-flex h-8 items-center gap-1.5 rounded-md px-3 text-xs font-semibold transition-all", mode === m ? "bg-white text-emerald-900 shadow-sm font-black" : "text-stone-500"].join(" ")}
                 onClick={() => setMode(m)}
               >
                 {m === "calendar" ? <CalendarDays size={13} /> : <List size={13} />}
@@ -91,11 +91,10 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
 
       {mode === "list" ? (
         <div className="mt-4 grid gap-3">
-          {sorted.length === 0 ? (
-            <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado.</p>
-          ) : (
-            sorted.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
-          )}
+          {sorted.length === 0
+            ? <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado.</p>
+            : sorted.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
+          }
         </div>
       ) : (
         <>
@@ -112,9 +111,9 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
             </button>
           </div>
 
-          {view === "day" && <DayView workouts={sorted} day={ref} trainings={trainings} />}
-          {view === "week" && <WeekView workouts={sorted} reference={ref} trainings={trainings} />}
-          {view === "month" && <MonthView workouts={sorted} reference={ref} trainings={trainings} />}
+          {view === "day" && <StudentDayCarousel workouts={sorted} reference={ref} onNavigate={shift} trainings={trainings} />}
+          {view === "week" && <StudentWeekGrid workouts={sorted} reference={ref} trainings={trainings} />}
+          {view === "month" && <StudentMonthView workouts={sorted} reference={ref} trainings={trainings} />}
         </>
       )}
     </section>
@@ -127,7 +126,7 @@ function getYouTubeId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; trainings?: Training[] }) {
+function WorkoutCard({ workout, trainings, compact }: { workout: WorkoutSession; trainings?: Training[]; compact?: boolean }) {
   const [expanded, setExpanded] = useState(false);
   const [expandedVideoIdx, setExpandedVideoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -138,9 +137,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
     if (!db) return;
     setSubmitting(true);
     try {
-      await updateDoc(doc(db, "workoutSessions", workout.id), {
-        studentCompletedAt: new Date().toISOString(),
-      });
+      await updateDoc(doc(db, "workoutSessions", workout.id), { studentCompletedAt: new Date().toISOString() });
       setExpanded(false);
     } catch (e) {
       console.error(e);
@@ -169,15 +166,13 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
           )}
         </div>
       </div>
-      
+
       {!expanded && workout.exercises?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {workout.exercises.map((e) => (
-            <span key={e} className="badge badge-green">{e}</span>
-          ))}
+          {workout.exercises.map((e) => <span key={e} className="badge badge-green">{e}</span>)}
         </div>
       )}
-      
+
       {workout.plannedCalories > 0 && (
         <p className="mt-2 inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
           <Flame size={12} /> Meta {workout.plannedCalories} kcal
@@ -204,15 +199,11 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
             training.exercises.map((ex, idx) => {
               const ytId = getYouTubeId(ex.videoUrl || "");
               const isVideoExpanded = expandedVideoIdx === idx;
-
               return (
                 <div key={idx} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
                   <div className="flex justify-between items-start mb-2">
-                    <h4 className="font-bold text-stone-900 text-sm">
-                      {ex.order + 1}. {ex.name}
-                    </h4>
+                    <h4 className="font-bold text-stone-900 text-sm">{ex.order + 1}. {ex.name}</h4>
                   </div>
-                  
                   <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
                     <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
                       <span className="font-bold text-stone-500 block text-[10px] uppercase">Séries</span>
@@ -223,54 +214,27 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
                       <span className="font-medium text-stone-900">{ex.rest || "-"}</span>
                     </div>
                   </div>
-
-                  {ex.notes && (
-                    <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>
-                  )}
-
+                  {ex.notes && <p className="mb-2 text-xs italic text-stone-600">"{ex.notes}"</p>}
                   {ex.videoUrl && (
                     <div className="mt-2">
-                      <button
-                        type="button"
-                        className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
-                        onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}
-                      >
+                      <button type="button" className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700" onClick={() => setExpandedVideoIdx(isVideoExpanded ? null : idx)}>
                         <PlayCircle size={14} /> {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
                       </button>
-
                       {isVideoExpanded && (
                         <div className="mt-3">
                           {ytId ? (
                             <div className="flex flex-col gap-2">
                               <div className="aspect-video w-full overflow-hidden rounded-lg">
-                                <iframe
-                                  src={`https://www.youtube.com/embed/${ytId}`}
-                                  title={`Video: ${ex.name}`}
-                                  className="h-full w-full border-0"
-                                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                                  allowFullScreen
-                                />
+                                <iframe src={`https://www.youtube.com/embed/${ytId}`} title={`Video: ${ex.name}`} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                               </div>
-                              <a
-                                href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="text-xs text-center text-stone-500 hover:text-stone-700 underline"
-                              >
+                              <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`} target="_blank" rel="noopener noreferrer" className="text-xs text-center text-stone-500 hover:text-stone-700 underline">
                                 Vídeo não carrega? Pesquisar no YouTube
                               </a>
                             </div>
                           ) : (
                             <div className="rounded-lg border border-stone-200 bg-white p-4 text-center">
-                              <p className="mb-3 text-xs text-stone-600">
-                                Este exercício não possui um vídeo direto para abrir na janelinha.
-                              </p>
-                              <a
-                                href={ex.videoUrl}
-                                target="_blank"
-                                rel="noopener noreferrer"
-                                className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700"
-                              >
+                              <p className="mb-3 text-xs text-stone-600">Este exercício não possui um vídeo direto para abrir na janelinha.</p>
+                              <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
                                 <PlayCircle size={14} /> Abrir pesquisa no YouTube
                               </a>
                             </div>
@@ -287,21 +251,14 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
               <p className="text-sm text-stone-600">Este é um treino livre agendado pelo seu treinador.</p>
               {workout.exercises && workout.exercises.length > 0 && (
                 <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-                  {workout.exercises.map((e) => (
-                    <span key={e} className="badge badge-green">{e}</span>
-                  ))}
+                  {workout.exercises.map((e) => <span key={e} className="badge badge-green">{e}</span>)}
                 </div>
               )}
             </div>
           )}
 
           <div className="mt-4 pt-4 border-t border-stone-200">
-            <button
-              type="button"
-              className="focus-ring btn btn-primary w-full shadow-[var(--shadow-brand)] h-12"
-              disabled={submitting}
-              onClick={handleComplete}
-            >
+            <button type="button" className="focus-ring btn btn-primary w-full shadow-[var(--shadow-brand)] h-12" disabled={submitting} onClick={handleComplete}>
               <CheckCircle2 size={20} />
               {submitting ? "Registrando..." : "Concluir Treino"}
             </button>
@@ -315,135 +272,354 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
   );
 }
 
-function DayView({ workouts, day, trainings }: { workouts: WorkoutSession[]; day: Date; trainings?: Training[] }) {
-  const items = workouts.filter((w) => isSameDay(w.startsAt, day));
+// ── VISTA DIA — carrossel 3D (ontem | hoje | amanhã) ──────────────────────────
+function StudentDayCarousel({
+  workouts, reference, onNavigate, trainings,
+}: {
+  workouts: WorkoutSession[];
+  reference: Date;
+  onNavigate: (dir: 1 | -1) => void;
+  trainings?: Training[];
+}) {
+  const [dragStartX, setDragStartX] = useState<number | null>(null);
+  const [dragOffset, setDragOffset] = useState(0);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  const prevDay = new Date(reference);
+  prevDay.setDate(reference.getDate() - 1);
+  const nextDay = new Date(reference);
+  nextDay.setDate(reference.getDate() + 1);
+
+  function handleTouchStart(e: React.TouchEvent) {
+    setDragStartX(e.touches[0].clientX);
+    setDragOffset(0);
+  }
+  function handleTouchMove(e: React.TouchEvent) {
+    if (dragStartX === null) return;
+    setDragOffset(e.touches[0].clientX - dragStartX);
+  }
+  function handleTouchEnd() {
+    if (dragOffset < -60) onNavigate(1);
+    else if (dragOffset > 60) onNavigate(-1);
+    setDragStartX(null);
+    setDragOffset(0);
+  }
+
+  function renderHeader(day: Date, isCenter: boolean) {
+    const isToday = isSameDay(day.toISOString(), new Date());
+    return (
+      <div className={["px-3 py-4 text-center", isCenter ? (isToday ? "bg-emerald-600" : "bg-stone-800") : "bg-stone-200"].join(" ")}>
+        {isCenter ? (
+          <>
+            <p className="text-xs font-black uppercase tracking-wider text-white/70 capitalize">
+              {new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(day)}
+            </p>
+            <p className="text-5xl font-black text-white mt-1">{day.getDate()}</p>
+            <p className="text-xs text-white/60 capitalize mt-0.5">
+              {new Intl.DateTimeFormat("pt-BR", { month: "long", year: "numeric" }).format(day)}
+            </p>
+          </>
+        ) : (
+          <>
+            <p className="text-3xs font-black uppercase text-stone-400">
+              {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '')}
+            </p>
+            <p className="text-2xl font-black text-stone-400 mt-1">{day.getDate()}</p>
+          </>
+        )}
+      </div>
+    );
+  }
+
+  function renderSideDots(day: Date) {
+    const items = workouts.filter(w => isSameDay(w.startsAt, day));
+    return (
+      <div className="flex-1 flex flex-col items-center gap-1.5 py-4">
+        {items.length === 0
+          ? <span className="text-3xs text-stone-300 mt-2">—</span>
+          : items.map(w => <div key={w.id} className="w-2 h-2 rounded-full bg-emerald-400" />)
+        }
+      </div>
+    );
+  }
+
+  const centerItems = workouts.filter(w => isSameDay(w.startsAt, reference));
+
   return (
-    <div className="mt-4 grid gap-3">
-      {items.length === 0 ? (
-        <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino neste dia.</p>
-      ) : (
-        items.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
-      )}
+    <div
+      ref={containerRef}
+      className="mt-6 relative select-none"
+      onTouchStart={handleTouchStart}
+      onTouchMove={handleTouchMove}
+      onTouchEnd={handleTouchEnd}
+      style={{
+        transform: dragOffset !== 0 ? `translateX(${Math.sign(dragOffset) * Math.min(Math.abs(dragOffset) * 0.15, 18)}px)` : undefined,
+        transition: dragOffset === 0 ? "transform 0.3s ease" : "none",
+      }}
+    >
+      <div className="flex items-stretch justify-center gap-2 sm:gap-4">
+        {/* Dia anterior */}
+        <div
+          className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
+          onClick={() => onNavigate(-1)}
+          title="Dia anterior"
+        >
+          {renderHeader(prevDay, false)}
+          {renderSideDots(prevDay)}
+        </div>
+
+        {/* Dia atual — destacado */}
+        <div
+          className="flex-[1_0_60%] sm:flex-[1_0_55%] max-w-[72%] sm:max-w-[60%] flex flex-col rounded-2xl overflow-hidden border border-stone-200 bg-white shadow-2xl z-10"
+          style={{ transform: "translateY(-6px)" }}
+        >
+          {renderHeader(reference, true)}
+          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[60vh]">
+            {centerItems.length === 0 ? (
+              <div className="py-10 text-center">
+                <p className="text-sm font-semibold text-stone-400">Nenhum treino agendado para este dia.</p>
+              </div>
+            ) : (
+              centerItems.map(w => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
+            )}
+          </div>
+        </div>
+
+        {/* Próximo dia */}
+        <div
+          className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
+          onClick={() => onNavigate(1)}
+          title="Próximo dia"
+        >
+          {renderHeader(nextDay, false)}
+          {renderSideDots(nextDay)}
+        </div>
+      </div>
+
+      <p className="mt-3 text-center text-3xs text-stone-400 select-none">
+        ← Arraste ou clique nos painéis laterais para navegar →
+      </p>
     </div>
   );
 }
 
-function WeekView({ workouts, reference, trainings }: { workouts: WorkoutSession[]; reference: Date; trainings?: Training[] }) {
-  const [selected, setSelected] = useState<Date | null>(null);
+// ── VISTA SEMANA — grade compacta, clique para ampliar ────────────────────────
+function StudentWeekGrid({
+  workouts, reference, trainings,
+}: {
+  workouts: WorkoutSession[];
+  reference: Date;
+  trainings?: Training[];
+}) {
+  const [expandedWorkout, setExpandedWorkout] = useState<WorkoutSession | null>(null);
   const days = weekDays(reference);
-  const selectedItems = selected ? workouts.filter((w) => isSameDay(w.startsAt, selected)) : [];
+
+  // Coletar horários únicos de sessions da semana para formar as linhas
+  const weekWorkouts = useMemo(
+    () => workouts.filter(w => days.some(d => isSameDay(w.startsAt, d))),
+    [workouts, days]
+  );
+
+  // Agrupar horários por dia (coluna) — sem linhas de time-slots fixos
+  // Cada dia mostra suas sessions como blocos coloridos
 
   return (
-    <div className="mt-4">
-      <div className="flex overflow-x-auto snap-x snap-mandatory pb-4 hide-scrollbar gap-3 sm:grid sm:min-w-0 sm:grid-cols-7 sm:gap-2">
-        {days.map((day) => {
-          const items = workouts.filter((w) => isSameDay(w.startsAt, day));
-          const isToday = isSameDay(day.toISOString(), new Date());
-          const isSel = selected && isSameDay(day.toISOString(), selected);
-          
-          return (
-            <button
-              key={day.toISOString()}
-              type="button"
-              onClick={() => setSelected(day)}
-              className={[
-                "w-[85vw] sm:w-auto shrink-0 snap-center focus-ring text-left min-h-64 rounded-2xl border p-2 transition-all flex flex-col",
-                isSel ? "border-emerald-500 ring-2 ring-emerald-400 ring-offset-2 bg-emerald-50/30" : "border-stone-200 bg-stone-50/50 hover:border-emerald-300"
-              ].join(" ")}
-            >
-              <div className={["rounded-xl p-3 text-center shadow-sm border", isToday ? "bg-emerald-700 text-white border-emerald-800" : "bg-white border-stone-100"].join(" ")}>
-                <p className={["text-3xs font-black uppercase tracking-widest", isToday ? "text-emerald-100" : "text-emerald-800"].join(" ")}>
-                  {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '')}
-                </p>
-                <p className={["mt-0.5 text-2xl font-black", isToday ? "text-white" : "text-stone-900"].join(" ")}>{day.getDate()}</p>
+    <>
+      <div className="mt-4 overflow-x-auto rounded-xl">
+        <div className="min-w-[400px]">
+          {/* Cabeçalho dos dias */}
+          <div className="grid border-b border-stone-100 pb-2 mb-2" style={{ gridTemplateColumns: "repeat(7, 1fr)" }}>
+            {days.map(day => {
+              const isToday = isSameDay(day.toISOString(), new Date());
+              const count = workouts.filter(w => isSameDay(w.startsAt, day)).length;
+              return (
+                <div key={day.toISOString()} className="text-center py-1.5 px-0.5">
+                  <p className={["text-3xs font-black uppercase tracking-wider", isToday ? "text-emerald-700" : "text-stone-400"].join(" ")}>
+                    {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '').substring(0, 3)}
+                  </p>
+                  <div className={["mx-auto mt-0.5 flex h-7 w-7 items-center justify-center rounded-full text-sm font-black", isToday ? "bg-emerald-600 text-white" : "text-stone-800"].join(" ")}>
+                    {day.getDate()}
+                  </div>
+                  {count > 0 && <div className="mx-auto mt-1 h-1 w-1 rounded-full bg-emerald-500" />}
+                </div>
+              );
+            })}
+          </div>
+
+          {/* Coluna de sessions por dia */}
+          {weekWorkouts.length === 0 ? (
+            <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado para esta semana.</p>
+          ) : (
+            <div className="grid min-h-[8rem]" style={{ gridTemplateColumns: "repeat(7, 1fr)" }}>
+              {days.map(day => {
+                const items = workouts.filter(w => isSameDay(w.startsAt, day));
+                return (
+                  <div key={day.toISOString()} className="px-0.5 py-1 flex flex-col gap-1">
+                    {items.map(w => (
+                      <button
+                        key={w.id}
+                        type="button"
+                        onClick={() => setExpandedWorkout(w)}
+                        title={w.title}
+                        className="w-full rounded-lg py-1.5 px-1 text-center text-2xs font-black transition-all hover:scale-105 hover:shadow-md bg-rose-100 text-rose-800 border border-rose-200 hover:bg-rose-200 cursor-pointer focus-ring"
+                      >
+                        <span className="block">{fmtTime(w.startsAt)}</span>
+                        <span className="block mt-0.5 opacity-70">{getInitials(w.studentName)}</span>
+                      </button>
+                    ))}
+                  </div>
+                );
+              })}
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Modal flutuante do treino selecionado */}
+      {expandedWorkout && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 animate-fade-in"
+          onClick={() => setExpandedWorkout(null)}
+        >
+          <div
+            className="w-full max-w-sm rounded-2xl bg-white shadow-2xl overflow-hidden animate-scale-in"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="border-b border-stone-100 bg-stone-50 px-6 py-4 flex items-start justify-between">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wider text-emerald-700">{expandedWorkout.modality}</p>
+                <p className="mt-0.5 text-xl font-black text-stone-900">{expandedWorkout.title}</p>
+                <p className="mt-1 text-sm text-stone-500">{fmtDateTime(expandedWorkout.startsAt)}</p>
               </div>
-              <div className="mt-2 space-y-1.5 flex-1">
-                {items.length === 0 ? (
-                  <p className="rounded-xl border border-stone-100 bg-white p-3 text-center text-xs font-semibold text-stone-300 shadow-sm">—</p>
-                ) : (
-                  items.map((w) => (
-                    <article key={w.id} className="overflow-hidden rounded-xl border border-emerald-200 bg-white p-2 shadow-sm transition-shadow hover:shadow-md">
-                      <strong className="block text-xs font-black text-emerald-800">{fmtTime(w.startsAt)}</strong>
-                      <p className="mt-1 break-words text-2xs font-bold leading-tight text-stone-600 line-clamp-2">{w.title}</p>
-                    </article>
-                  ))
+              <button type="button" onClick={() => setExpandedWorkout(null)} className="mt-1 rounded-full p-1.5 hover:bg-stone-200 text-stone-400 hover:text-stone-700 transition-colors">
+                <X size={18} />
+              </button>
+            </div>
+            <div className="px-6 py-5">
+              <div className="flex items-center gap-3 mb-4">
+                <span className="inline-flex items-center gap-1 rounded-full bg-stone-100 px-2.5 py-1 text-xs font-bold text-stone-600">
+                  <Clock size={12} /> {expandedWorkout.durationMinutes} min
+                </span>
+                {expandedWorkout.studentCompletedAt && (
+                  <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-xs font-bold text-emerald-800">
+                    <CheckCircle2 size={12} /> Concluído
+                  </span>
+                )}
+                {expandedWorkout.plannedCalories > 0 && (
+                  <span className="inline-flex items-center gap-1 text-xs font-semibold text-amber-700">
+                    <Flame size={12} /> {expandedWorkout.plannedCalories} kcal
+                  </span>
                 )}
               </div>
-            </button>
-          );
-        })}
-      </div>
-      
-      {selected && (
-        <div className="mt-4 grid gap-3 animate-fade-in">
-          {selectedItems.length === 0 ? (
-            <p className="py-4 text-center text-sm italic text-stone-400">Nenhum treino em {selected.toLocaleDateString("pt-BR")}.</p>
-          ) : (
-            selectedItems.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
-          )}
+              {expandedWorkout.exercises?.length > 0 && (
+                <div className="flex flex-wrap gap-1.5 mb-4">
+                  {expandedWorkout.exercises.map(e => <span key={e} className="badge badge-green">{e}</span>)}
+                </div>
+              )}
+              <button
+                type="button"
+                className="w-full focus-ring flex items-center justify-center gap-2 rounded-xl border border-emerald-600 bg-emerald-50 px-4 py-3 text-sm font-bold text-emerald-800 transition-colors hover:bg-emerald-100"
+                onClick={() => setExpandedWorkout(null)}
+              >
+                <Play size={16} /> Ver treino completo
+              </button>
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
 
-function MonthView({ workouts, reference, trainings }: { workouts: WorkoutSession[]; reference: Date; trainings?: Training[] }) {
-  const [selected, setSelected] = useState<Date | null>(null);
+// ── VISTA MÊS — grade mensal, clique abre modal flutuante do dia ──────────────
+function StudentMonthView({
+  workouts, reference, trainings,
+}: {
+  workouts: WorkoutSession[];
+  reference: Date;
+  trainings?: Training[];
+}) {
+  const [selectedDay, setSelectedDay] = useState<Date | null>(null);
   const days = monthGridDays(reference);
   const labels = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
-  const selectedItems = selected ? workouts.filter((w) => isSameDay(w.startsAt, selected)) : [];
+
+  const selectedItems = selectedDay ? workouts.filter(w => isSameDay(w.startsAt, selectedDay)) : [];
 
   return (
-    <div className="mt-4">
-      <div className="grid grid-cols-7 gap-1">
-        {labels.map((l) => (
-          <p key={l} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{l}</p>
-        ))}
-      </div>
-      <div className="grid grid-cols-7 gap-1">
-        {days.map((day) => {
-          const count = workouts.filter((w) => isSameDay(w.startsAt, day)).length;
-          const inMonth = day.getMonth() === reference.getMonth();
-          const isSel = selected && isSameDay(day.toISOString(), selected);
-          
-          const radius = 16;
-          const circumference = 2 * Math.PI * radius;
-          const percentage = Math.min((count / 5) * 100, 100); // 5 workouts considered as a full day for student visual
-          const offset = circumference - (percentage / 100) * circumference;
+    <>
+      <div className="mt-4">
+        <div className="grid grid-cols-7 gap-1">
+          {labels.map(l => (
+            <p key={l} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{l}</p>
+          ))}
+        </div>
+        <div className="grid grid-cols-7 gap-1">
+          {days.map(day => {
+            const count = workouts.filter(w => isSameDay(w.startsAt, day)).length;
+            const inMonth = day.getMonth() === reference.getMonth();
+            const isSel = selectedDay && isSameDay(day.toISOString(), selectedDay);
+            const isToday = isSameDay(day.toISOString(), new Date());
 
-          return (
-            <button
-              key={day.toISOString()}
-              type="button"
-              onClick={() => setSelected(day)}
-              className={[
-                "focus-ring flex min-h-16 flex-col items-center justify-center rounded-xl border p-1 sm:p-2 text-center transition-all shadow-sm relative",
-                inMonth ? "bg-white border-stone-200 hover:scale-105 hover:border-emerald-300 hover:shadow-md z-10" : "bg-stone-50 border-stone-150 opacity-40",
-                isSel ? "ring-2 ring-emerald-500 ring-offset-1 scale-105 z-20 shadow-md" : "",
-              ].join(" ")}
-            >
-              <div className="relative flex items-center justify-center w-10 h-10">
-                <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
-                  <circle cx="20" cy="20" r={radius} className="stroke-stone-100" strokeWidth="3" fill="none" />
-                  {count > 0 && (
-                    <circle cx="20" cy="20" r={radius} className="stroke-emerald-500 transition-all duration-500 ease-out" strokeWidth="3" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
-                  )}
-                </svg>
-                <span className="relative text-sm font-black z-10 text-stone-900">{day.getDate()}</span>
-              </div>
-            </button>
-          );
-        })}
+            const radius = 16;
+            const circumference = 2 * Math.PI * radius;
+            const percentage = Math.min((count / 5) * 100, 100);
+            const offset = circumference - (percentage / 100) * circumference;
+
+            return (
+              <button
+                key={day.toISOString()}
+                type="button"
+                onClick={() => setSelectedDay(day)}
+                className={[
+                  "focus-ring flex min-h-16 flex-col items-center justify-center rounded-xl border p-1 sm:p-2 text-center transition-all shadow-sm relative",
+                  inMonth ? "bg-white border-stone-200 hover:scale-105 hover:border-emerald-300 hover:shadow-md z-10" : "bg-stone-50 border-stone-150 opacity-40",
+                  isSel ? "ring-2 ring-emerald-500 ring-offset-1 scale-105 z-20 shadow-md" : "",
+                ].join(" ")}
+              >
+                <div className="relative flex items-center justify-center w-10 h-10">
+                  <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
+                    <circle cx="20" cy="20" r={radius} className="stroke-stone-100" strokeWidth="3" fill="none" />
+                    {count > 0 && <circle cx="20" cy="20" r={radius} className="stroke-emerald-500 transition-all duration-500 ease-out" strokeWidth="3" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />}
+                  </svg>
+                  <span className={["relative text-sm font-black z-10", isToday ? "text-emerald-700" : "text-stone-900"].join(" ")}>{day.getDate()}</span>
+                </div>
+              </button>
+            );
+          })}
+        </div>
       </div>
-      {selected && (
-        <div className="mt-4 grid gap-3">
-          {selectedItems.length === 0 ? (
-            <p className="py-4 text-center text-sm italic text-stone-400">Nenhum treino em {selected.toLocaleDateString("pt-BR")}.</p>
-          ) : (
-            selectedItems.map((w) => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
-          )}
+
+      {/* Modal flutuante do dia selecionado */}
+      {selectedDay && (
+        <div
+          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in"
+          onClick={() => setSelectedDay(null)}
+        >
+          <div
+            className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slide-up"
+            onClick={e => e.stopPropagation()}
+          >
+            <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
+              <div>
+                <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Treinos do dia</p>
+                <h3 className="mt-1 text-2xl font-black text-stone-900">
+                  {selectedDay.toLocaleDateString("pt-BR", { weekday: "long", day: "2-digit", month: "long" })}
+                </h3>
+              </div>
+              <button type="button" className="focus-ring flex h-10 w-10 items-center justify-center rounded-full bg-stone-100 text-stone-500 hover:bg-stone-200 hover:text-stone-900 transition-colors" onClick={() => setSelectedDay(null)}>
+                <X size={20} />
+              </button>
+            </div>
+            <div className="overflow-y-auto p-6 flex flex-col gap-4">
+              {selectedItems.length === 0 ? (
+                <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado para este dia.</p>
+              ) : (
+                selectedItems.map(w => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
+              )}
+            </div>
+          </div>
         </div>
       )}
-    </div>
+    </>
   );
 }
