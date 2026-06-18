@@ -112,7 +112,7 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
           </div>
 
           {view === "day" && <StudentDayCarousel workouts={sorted} reference={ref} onNavigate={shift} trainings={trainings} />}
-          {view === "week" && <StudentWeekGrid workouts={sorted} reference={ref} trainings={trainings} />}
+          {view === "week" && <StudentWeekGrid workouts={sorted} reference={ref} />}
           {view === "month" && <StudentMonthView workouts={sorted} reference={ref} trainings={trainings} />}
         </>
       )}
@@ -126,7 +126,7 @@ function getYouTubeId(url: string): string | null {
   return match ? match[1] : null;
 }
 
-function WorkoutCard({ workout, trainings, compact }: { workout: WorkoutSession; trainings?: Training[]; compact?: boolean }) {
+function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; trainings?: Training[] }) {
   const [expanded, setExpanded] = useState(false);
   const [expandedVideoIdx, setExpandedVideoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
@@ -405,11 +405,10 @@ function StudentDayCarousel({
 
 // ── VISTA SEMANA — grade compacta, clique para ampliar ────────────────────────
 function StudentWeekGrid({
-  workouts, reference, trainings,
+  workouts, reference,
 }: {
   workouts: WorkoutSession[];
   reference: Date;
-  trainings?: Training[];
 }) {
   const [expandedWorkout, setExpandedWorkout] = useState<WorkoutSession | null>(null);
   const days = weekDays(reference);
