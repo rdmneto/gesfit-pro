@@ -888,8 +888,8 @@ function TrainerCalendarVisual({
 
         {/* Modal flutuante do dia selecionado */}
         {selectedMonthDay && (
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in" onClick={onCloseMonthDay}>
-            <div className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slide-up" onClick={e => e.stopPropagation()}>
+          <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 animate-fade-in" onClick={onCloseMonthDay}>
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Agenda do dia</p>

@@ -21,7 +21,7 @@ function getInitials(name: string | undefined | null) {
 }
 
 /** Agenda de treinos do aluno — Lista ou Calendário (dia-carrossel / semana-compacta / mês). */
-export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSession[]; trainings?: Training[] }) {
+export function StudentAgenda({ workouts, trainings, trainerName }: { workouts: WorkoutSession[]; trainings?: Training[]; trainerName?: string }) {
   const [mode, setMode] = useState<"calendar" | "list">("calendar");
   const [view, setView] = useState<View>("day");
   const [ref, setRef] = useState(new Date());
@@ -112,7 +112,7 @@ export function StudentAgenda({ workouts, trainings }: { workouts: WorkoutSessio
           </div>
 
           {view === "day" && <StudentDayCarousel workouts={sorted} reference={ref} onNavigate={shift} trainings={trainings} />}
-          {view === "week" && <StudentWeekGrid workouts={sorted} reference={ref} />}
+          {view === "week" && <StudentWeekGrid workouts={sorted} reference={ref} trainerName={trainerName} />}
           {view === "month" && <StudentMonthView workouts={sorted} reference={ref} trainings={trainings} />}
         </>
       )}
@@ -405,10 +405,11 @@ function StudentDayCarousel({
 
 // ── VISTA SEMANA — grade compacta, clique para ampliar ────────────────────────
 function StudentWeekGrid({
-  workouts, reference,
+  workouts, reference, trainerName,
 }: {
   workouts: WorkoutSession[];
   reference: Date;
+  trainerName?: string;
 }) {
   const [expandedWorkout, setExpandedWorkout] = useState<WorkoutSession | null>(null);
   const days = weekDays(reference);
@@ -463,7 +464,7 @@ function StudentWeekGrid({
                         className="w-full rounded-lg py-1.5 px-1 text-center text-2xs font-black transition-all hover:scale-105 hover:shadow-md bg-rose-100 text-rose-800 border border-rose-200 hover:bg-rose-200 cursor-pointer focus-ring"
                       >
                         <span className="block">{fmtTime(w.startsAt)}</span>
-                        <span className="block mt-0.5 opacity-70">{getInitials(w.studentName)}</span>
+                        <span className="block mt-0.5 opacity-70">{getInitials(trainerName)}</span>
                       </button>
                     ))}
                   </div>
@@ -591,11 +592,11 @@ function StudentMonthView({
       {/* Modal flutuante do dia selecionado */}
       {selectedDay && (
         <div
-          className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in"
+          className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 animate-fade-in"
           onClick={() => setSelectedDay(null)}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slide-up"
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-in"
             onClick={e => e.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">

@@ -164,7 +164,7 @@ export function StudentClassesPage() {
 
       {/* ── Agenda de treinos ────────────────────────────── */}
       <div className="mt-6">
-        <StudentAgenda workouts={workouts} trainings={trainings ?? []} />
+        <StudentAgenda workouts={workouts} trainings={trainings ?? []} trainerName={team?.name} />
       </div>
 
       {/* ── Saldo de aulas ───────────────────────────────── */}
