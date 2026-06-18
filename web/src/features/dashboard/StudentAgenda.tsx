@@ -406,11 +406,10 @@ function MonthView({ workouts, reference, trainings }: { workouts: WorkoutSessio
           const inMonth = day.getMonth() === reference.getMonth();
           const isSel = selected && isSameDay(day.toISOString(), selected);
           
-          let intensityClass = "bg-white border-stone-200";
-          if (!inMonth) intensityClass = "bg-stone-50 border-stone-150 opacity-40";
-          else if (count === 0) intensityClass = "bg-stone-50/50 border-stone-200 hover:bg-stone-100";
-          else if (count === 1) intensityClass = "bg-emerald-100 border-emerald-200 text-emerald-900 hover:bg-emerald-200";
-          else if (count >= 2) intensityClass = "bg-emerald-400 border-emerald-500 text-white hover:bg-emerald-500";
+          const radius = 16;
+          const circumference = 2 * Math.PI * radius;
+          const percentage = Math.min((count / 5) * 100, 100); // 5 workouts considered as a full day for student visual
+          const offset = circumference - (percentage / 100) * circumference;
 
           return (
             <button
@@ -418,17 +417,20 @@ function MonthView({ workouts, reference, trainings }: { workouts: WorkoutSessio
               type="button"
               onClick={() => setSelected(day)}
               className={[
-                "focus-ring flex min-h-16 flex-col items-center justify-center rounded-xl border p-2 text-center transition-all shadow-sm relative",
-                intensityClass,
-                isSel ? "ring-2 ring-emerald-500 ring-offset-2 scale-105 z-10 shadow-md" : "hover:scale-105",
+                "focus-ring flex min-h-16 flex-col items-center justify-center rounded-xl border p-1 sm:p-2 text-center transition-all shadow-sm relative",
+                inMonth ? "bg-white border-stone-200 hover:scale-105 hover:border-emerald-300 hover:shadow-md z-10" : "bg-stone-50 border-stone-150 opacity-40",
+                isSel ? "ring-2 ring-emerald-500 ring-offset-1 scale-105 z-20 shadow-md" : "",
               ].join(" ")}
             >
-              <span className="text-sm font-black">{day.getDate()}</span>
-              {count > 0 && (
-                <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/20 text-3xs font-bold text-white">
-                  {count}
-                </span>
-              )}
+              <div className="relative flex items-center justify-center w-10 h-10">
+                <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
+                  <circle cx="20" cy="20" r={radius} className="stroke-stone-100" strokeWidth="3" fill="none" />
+                  {count > 0 && (
+                    <circle cx="20" cy="20" r={radius} className="stroke-emerald-500 transition-all duration-500 ease-out" strokeWidth="3" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+                  )}
+                </svg>
+                <span className="relative text-sm font-black z-10 text-stone-900">{day.getDate()}</span>
+              </div>
             </button>
           );
         })}

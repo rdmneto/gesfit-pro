@@ -948,57 +948,65 @@ function TrainerCalendarVisual({
     const days = monthGridDays(today);
     const WEEK_LABELS = ["Dom", "Seg", "Ter", "Qua", "Qui", "Sex", "Sáb"];
 
-    if (selectedMonthDay) {
-      const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, selectedMonthDay));
-      return (
-        <>
-          <div className="mt-4">
-            <div className="grid grid-cols-7 gap-1">
-              {WEEK_LABELS.map((d) => (
-                <p key={d} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{d}</p>
-              ))}
-            </div>
-            <div className="grid grid-cols-7 gap-1">
-              {days.map((day) => {
-                const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
-                const inCurrentMonth = day.getMonth() === today.getMonth();
-                
-                const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
-                const weekday = weekdays[day.getDay()];
-                const dayAvail = availability.find((d) => d.weekday === weekday);
-                const hasExpediente = dayAvail && dayAvail.active;
-                
-                const occupancy = dayWorkouts.length;
-                let intensityClass = "bg-white border-stone-200";
-                if (!inCurrentMonth) intensityClass = "bg-stone-50 border-stone-150 opacity-40";
-                else if (!hasExpediente) intensityClass = "bg-stone-100/50 border-stone-200 text-stone-400";
-                else if (occupancy === 1 || occupancy === 2) intensityClass = "bg-emerald-100 border-emerald-200 text-emerald-900";
-                else if (occupancy === 3 || occupancy === 4) intensityClass = "bg-emerald-300 border-emerald-400 text-emerald-950";
-                else if (occupancy >= 5) intensityClass = "bg-emerald-500 border-emerald-600 text-white";
+    const selectedDayWorkouts = selectedMonthDay ? workouts.filter((w) => isSameDay(w.startsAt, selectedMonthDay)) : [];
 
-                return (
-                  <button
-                    key={day.toISOString()}
-                    type="button"
-                    className={[
-                      "focus-ring min-h-16 rounded-xl border p-2 text-center transition-all hover:scale-105 shadow-sm flex items-center justify-center relative",
-                      intensityClass,
-                    ].join(" ")}
-                    onClick={() => onSelectMonthDay(day)}
-                  >
-                    <span className="text-sm font-black">{day.getDate()}</span>
-                    {occupancy > 0 && (
-                      <span className="absolute bottom-1 right-1 flex h-4 w-4 items-center justify-center rounded-full bg-black/20 text-3xs font-bold text-white">
-                        {occupancy}
-                      </span>
-                    )}
-                  </button>
-                );
-              })}
-            </div>
+    return (
+      <>
+        <div className="mt-4">
+          <div className="grid grid-cols-7 gap-1">
+            {WEEK_LABELS.map((d) => (
+              <p key={d} className="py-2 text-center text-3xs font-black uppercase text-stone-450">{d}</p>
+            ))}
           </div>
+          <div className="grid grid-cols-7 gap-1">
+            {days.map((day) => {
+              const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
+              const inCurrentMonth = day.getMonth() === today.getMonth();
+              
+              const weekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
+              const weekday = weekdays[day.getDay()];
+              const dayAvail = availability.find((d) => d.weekday === weekday);
+              const hasExpediente = dayAvail && dayAvail.active;
+              
+              const occupancy = dayWorkouts.length;
+              const isSel = selectedMonthDay && isSameDay(day.toISOString(), selectedMonthDay);
+              
+              const totalSlots = dayAvail && dayAvail.active ? (periodSlots(dayAvail.morningStartTime, dayAvail.morningEndTime, dayAvail.classDurationMinutes).length + periodSlots(dayAvail.afternoonStartTime, dayAvail.afternoonEndTime, dayAvail.classDurationMinutes).length) : 0;
+              const radius = 16;
+              const circumference = 2 * Math.PI * radius;
+              const percentage = totalSlots > 0 ? Math.min((occupancy / totalSlots) * 100, 100) : 0;
+              const offset = circumference - (percentage / 100) * circumference;
 
-          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in" onClick={onCloseMonthDay}>
+              return (
+                <button
+                  key={day.toISOString()}
+                  type="button"
+                  className={[
+                    "focus-ring min-h-16 rounded-xl border p-1 sm:p-2 text-center transition-all flex items-center justify-center relative",
+                    inCurrentMonth ? "bg-white border-stone-200 hover:scale-105 hover:border-emerald-300 shadow-sm hover:shadow-md z-10" : "bg-stone-50 border-stone-150 opacity-40",
+                    !hasExpediente && inCurrentMonth ? "bg-stone-50/50" : "",
+                    isSel ? "ring-2 ring-emerald-500 ring-offset-1 scale-105 z-20 shadow-md" : ""
+                  ].join(" ")}
+                  onClick={() => onSelectMonthDay(day)}
+                >
+                  <div className="relative flex items-center justify-center w-10 h-10">
+                    <svg className="absolute inset-0 w-full h-full -rotate-90" viewBox="0 0 40 40">
+                      {hasExpediente && (
+                        <circle cx="20" cy="20" r={radius} className="stroke-stone-100" strokeWidth="3" fill="none" />
+                      )}
+                      {hasExpediente && occupancy > 0 && (
+                        <circle cx="20" cy="20" r={radius} className="stroke-emerald-500 transition-all duration-500 ease-out" strokeWidth="3" fill="none" strokeDasharray={circumference} strokeDashoffset={offset} strokeLinecap="round" />
+                      )}
+                    </svg>
+                    <span className={["relative text-sm font-black z-10", hasExpediente ? "text-stone-900" : "text-stone-400"].join(" ")}>{day.getDate()}</span>
+                  </div>
+                </button>
+              );
+            })}
+          </div>
+        </div>
+
+        {selectedMonthDay && (          <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center bg-stone-900/40 backdrop-blur-sm p-0 sm:p-4 animate-fade-in" onClick={onCloseMonthDay}>
             <div 
               className="w-full max-w-2xl bg-white rounded-t-3xl sm:rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-slide-up"
               onClick={e => e.stopPropagation()}
@@ -1019,7 +1027,7 @@ function TrainerCalendarVisual({
               
               <div className="overflow-y-auto p-6 flex flex-col gap-4">
                 {detailSlots.map((slot) => {
-                  const workout = workoutAtSlot(dayWorkouts, slot);
+                  const workout = workoutAtSlot(selectedDayWorkouts, slot);
                   let isPast = false;
                   if (selectedMonthDay) {
                     const y = selectedMonthDay.getFullYear();
@@ -1102,11 +1110,12 @@ function TrainerCalendarVisual({
               </div>
             </div>
           </div>
-        </>
-      );
-
-    }
-  }  // Day view — agenda detalhada do dia selecionado (todos os horários)
+        )}
+      </>
+    );
+  }
+  
+  // Day view — agenda detalhada do dia selecionado (todos os horários)
   const today = referenceDate;
   const dayWeekdays: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
   const dayAvail = availability.find((a) => a.weekday === dayWeekdays[today.getDay()]);
