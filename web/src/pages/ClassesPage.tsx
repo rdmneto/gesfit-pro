@@ -889,7 +889,7 @@ function TrainerCalendarVisual({
         {/* Modal flutuante do dia selecionado */}
         {selectedMonthDay && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 animate-fade-in" onClick={onCloseMonthDay}>
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[80vh] animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Agenda do dia</p>
@@ -899,7 +899,7 @@ function TrainerCalendarVisual({
                   <X size={20} />
                 </button>
               </div>
-              <div className="overflow-y-auto p-6 flex flex-col gap-4">
+              <div className="overflow-y-auto px-6 pt-6 pb-10 flex flex-col gap-4">
                 {detailSlots.map((slot) => {
                   const workout = workoutAtSlot(selectedDayWorkouts, slot);
                   let isPast = false;
@@ -1146,7 +1146,7 @@ function TrainerCalendarVisual({
         {/* Dia atual — destaque */}
         <div className="flex-[1_0_60%] sm:flex-[1_0_55%] max-w-[72%] sm:max-w-[60%] flex flex-col rounded-2xl overflow-hidden border border-stone-200 bg-white shadow-2xl z-10" style={{ transform: "translateY(-6px)" }}>
           {renderDayHeader(referenceDate, true)}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[60vh]">
+          <div className="p-4 space-y-3 pb-6">
             {renderCarouselDaySlots(referenceDate)}
           </div>
         </div>

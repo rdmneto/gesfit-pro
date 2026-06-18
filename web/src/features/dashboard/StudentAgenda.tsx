@@ -374,7 +374,7 @@ function StudentDayCarousel({
           style={{ transform: "translateY(-6px)" }}
         >
           {renderHeader(reference, true)}
-          <div className="flex-1 overflow-y-auto p-4 space-y-3 max-h-[60vh]">
+          <div className="p-4 space-y-3 pb-6">
             {centerItems.length === 0 ? (
               <div className="py-10 text-center">
                 <p className="text-sm font-semibold text-stone-400">Nenhum treino agendado para este dia.</p>
@@ -596,7 +596,7 @@ function StudentMonthView({
           onClick={() => setSelectedDay(null)}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[85vh] animate-scale-in"
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in"
             onClick={e => e.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
@@ -610,7 +610,7 @@ function StudentMonthView({
                 <X size={20} />
               </button>
             </div>
-            <div className="overflow-y-auto p-6 flex flex-col gap-4">
+            <div className="overflow-y-auto px-6 pt-6 pb-10 flex flex-col gap-4">
               {selectedItems.length === 0 ? (
                 <p className="py-8 text-center text-sm italic text-stone-400">Nenhum treino agendado para este dia.</p>
               ) : (
