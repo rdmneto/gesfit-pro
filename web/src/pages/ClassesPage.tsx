@@ -10,7 +10,7 @@ import {
   UserPlus,
   X,
 } from "lucide-react";
-import { useState, useMemo, Fragment } from "react";
+import { useState, useMemo, Fragment, useRef, useEffect } from "react";
 import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
@@ -867,8 +867,51 @@ function TrainerCalendarVisual({
     const todayInWeek = days.find(d => isSameDay(d.toISOString(), new Date()));
     const activeDay = isSelectedInWeek ? selectedWeekDay : (todayInWeek || days[0]);
 
+    const scrollRef = useRef<HTMLDivElement>(null);
+
+    useEffect(() => {
+       if (scrollRef.current && window.innerWidth < 640) {
+          const idx = days.findIndex(d => isSameDay(d.toISOString(), activeDay!));
+          if (idx !== -1) {
+             const el = scrollRef.current;
+             const children = Array.from(el.children) as HTMLElement[];
+             if (children[idx]) {
+                const targetLeft = children[idx].offsetLeft - (el.clientWidth / 2) + (children[idx].clientWidth / 2);
+                el.scrollTo({ left: targetLeft, behavior: 'smooth' });
+             }
+          }
+       }
+    }, [activeDay, days]);
+
+    const handleScroll = (e: React.UIEvent<HTMLDivElement>) => {
+       if (window.innerWidth >= 640) return; // Only update state on mobile scroll
+       const el = e.currentTarget;
+       const scrollCenter = el.scrollLeft + el.clientWidth / 2;
+       let closestIdx = 0;
+       let minDiff = Infinity;
+       
+       const children = Array.from(el.children) as HTMLElement[];
+       children.forEach((child, idx) => {
+          const childCenter = child.offsetLeft + child.clientWidth / 2;
+          const diff = Math.abs(childCenter - scrollCenter);
+          if (diff < minDiff) {
+             minDiff = diff;
+             closestIdx = idx;
+          }
+       });
+
+       const newActiveDay = days[closestIdx];
+       if (newActiveDay && (!selectedWeekDay || !isSameDay(newActiveDay.toISOString(), selectedWeekDay))) {
+          setSelectedWeekDay(newActiveDay);
+       }
+    };
+
     return (
-        <div className="flex overflow-x-auto pb-4 hide-scrollbar gap-2 sm:gap-4 items-start sm:items-stretch h-full">
+        <div 
+          ref={scrollRef} 
+          onScroll={handleScroll}
+          className="flex overflow-x-auto snap-x snap-mandatory pb-4 hide-scrollbar gap-3 sm:grid sm:min-w-0 sm:grid-cols-7 sm:gap-2 items-center sm:items-stretch h-full px-[10vw] sm:px-0"
+        >
           {days.map((day) => {
             const dayWorkouts = workouts.filter((w) => isSameDay(w.startsAt, day));
             const dayAvail = availability.find((a) => a.weekday === weekdayKeys[day.getDay()]);
@@ -880,13 +923,19 @@ function TrainerCalendarVisual({
                 ]
               : [];
               
-            if (!isSel) {
-              return (
-                <button
-                  key={day.toISOString()}
-                  onClick={() => setSelectedWeekDay(day)}
-                  className="focus-ring flex flex-col items-center gap-2 p-2 rounded-full hover:bg-stone-100 transition-colors shrink-0"
-                >
+            return (
+              <section
+                key={day.toISOString()}
+                onClick={() => setSelectedWeekDay(day)}
+                className={[
+                  "relative w-[80vw] sm:w-auto shrink-0 snap-center rounded-3xl p-3 sm:p-2 flex flex-col transition-all duration-300",
+                  isSel
+                    ? "min-h-64 border border-emerald-200 bg-emerald-50/20 shadow-lg ring-4 ring-emerald-500/10 scale-100 z-10 opacity-100 blur-none"
+                    : "min-h-48 border border-stone-200 bg-stone-50/40 shadow-sm opacity-60 blur-[1px] scale-95 cursor-pointer sm:opacity-100 sm:blur-none sm:scale-100 sm:border-emerald-200 sm:bg-emerald-50/20 sm:shadow-lg sm:ring-0 sm:min-h-64 sm:cursor-default"
+                ].join(" ")}
+              >
+                {/* Mobile Minimal Content (hidden on Desktop, hidden on Mobile if selected) */}
+                <div className={`sm:hidden flex flex-col items-center gap-2 ${isSel ? 'hidden' : 'flex'}`}>
                   <span className="text-3xs font-black uppercase text-stone-400">{new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).charAt(0)}</span>
                   <div className={["flex items-center justify-center w-8 h-8 rounded-full", isSameDay(day.toISOString(), new Date()) ? "bg-emerald-600 text-white" : "text-stone-600 font-bold"].join(" ")}>
                     <span className="text-sm">{day.getDate()}</span>
@@ -901,92 +950,91 @@ function TrainerCalendarVisual({
                       return <div key={slot} className={["w-1.5 h-1.5 rounded-full", w ? "bg-emerald-500" : (isPast ? "bg-stone-200" : "bg-emerald-200")].join(" ")} />
                     })}
                   </div>
-                </button>
-              );
-            }
-
-            return (
-              <section key={day.toISOString()} className="flex-1 min-w-[280px] sm:min-w-[320px] max-w-full shrink-0 min-h-64 rounded-3xl border border-emerald-200 bg-emerald-50/20 p-3 sm:p-4 flex flex-col shadow-lg ring-4 ring-emerald-500/10 transition-all animate-fade-in">
-                <div className="rounded-xl bg-white p-3 text-center shadow-sm border border-stone-100 flex items-center justify-between px-6">
-                  <p className="text-sm font-black uppercase tracking-widest text-emerald-800">
-                    {new Intl.DateTimeFormat("pt-BR", { weekday: "long" }).format(day)}
-                  </p>
-                  <p className="text-2xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
                 </div>
-                <div className="mt-4 space-y-2">
-                  {slots.length === 0 && (
-                    <p className="rounded-lg border border-stone-200 bg-white p-4 text-center text-xs font-semibold text-stone-400 shadow-sm">
-                      Sem expediente configurado
+
+                {/* Full Content (visible on Desktop always, visible on Mobile only if selected) */}
+                <div className={`flex-col ${isSel ? 'flex' : 'hidden sm:flex'}`}>
+                  <div className="rounded-xl bg-white p-3 text-center shadow-sm border border-stone-100 flex items-center justify-between px-4 sm:px-2 md:px-4">
+                    <p className="text-xs sm:text-[10px] md:text-xs font-black uppercase tracking-widest text-emerald-800">
+                      {new Intl.DateTimeFormat("pt-BR", { weekday: "short" }).format(day).replace('.', '')}
                     </p>
-                  )}
-                  {slots.map((slot) => {
-                    const workout = workoutAtSlot(dayWorkouts, slot);
-                    if (workout) {
+                    <p className="text-2xl sm:text-xl md:text-2xl font-black text-stone-900 mt-0.5">{day.getDate()}</p>
+                  </div>
+                  <div className="mt-4 space-y-2">
+                    {slots.length === 0 && (
+                      <p className="rounded-lg border border-stone-200 bg-white p-4 text-center text-xs font-semibold text-stone-400 shadow-sm">
+                        Sem expediente configurado
+                      </p>
+                    )}
+                    {slots.map((slot) => {
+                      const workout = workoutAtSlot(dayWorkouts, slot);
+                      if (workout) {
+                        return (
+                          <article
+                            key={slot}
+                            className={[
+                              "group relative overflow-visible rounded-xl border bg-white p-1.5 sm:p-1 md:p-1.5 shadow-sm transition-all hover:scale-[1.02] hover:shadow-xl hover:z-50 cursor-pointer flex items-center justify-between gap-1",
+                              workout.status === "completed"
+                                ? "border-emerald-300 bg-emerald-50/30"
+                                : workout.status === "no_show"
+                                  ? "border-rose-300 bg-rose-50/30"
+                                  : "border-amber-200 bg-amber-50/30",
+                            ].join(" ")}
+                          >
+                            <div className="flex items-center gap-1">
+                              <strong className="text-3xs font-black text-stone-900 w-8 text-center">{slot}</strong>
+                              <span className="flex h-6 w-6 sm:h-5 sm:w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-white shadow-sm text-[8px] sm:text-[7px] md:text-[8px] font-black text-emerald-800 border border-emerald-100">
+                                {getInitials(workout.studentName)}
+                              </span>
+                              <span className="absolute left-16 opacity-0 group-hover:opacity-100 transition-opacity bg-white px-2 py-1 shadow-lg rounded-lg border border-stone-200 text-xs font-bold text-stone-800 z-50 pointer-events-none whitespace-nowrap">
+                                {workout.studentName}
+                              </span>
+                            </div>
+                            <div className="flex items-center gap-0.5 sm:gap-0 md:gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                              {workout.status !== 'completed' && (
+                                <button onClick={(e) => { e.stopPropagation(); onStart(workout); }} className="flex h-6 w-6 sm:h-5 sm:w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 shadow-sm" title="Iniciar Treino">
+                                  <Play size={10} className="ml-0.5" />
+                                </button>
+                              )}
+                              {workout.status === 'completed' && (
+                                <button onClick={(e) => { e.stopPropagation(); onUndo(workout); }} className="flex h-6 w-6 sm:h-5 sm:w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-stone-100 text-stone-700 hover:bg-stone-200 shadow-sm" title="Desfazer">
+                                  <Square size={10} />
+                                </button>
+                              )}
+                              <button onClick={(e) => { e.stopPropagation(); onNoShow(workout); }} className="flex h-6 w-6 sm:h-5 sm:w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-rose-100 text-rose-700 hover:bg-rose-200 shadow-sm" title="Faltou">
+                                <X size={10} />
+                              </button>
+                              <button onClick={(e) => { e.stopPropagation(); onDelete(workout); }} className="flex h-6 w-6 sm:h-5 sm:w-5 md:h-6 md:w-6 items-center justify-center rounded-full bg-stone-100 text-stone-700 hover:bg-stone-200 shadow-sm" title="Excluir">
+                                <Trash2 size={10} />
+                              </button>
+                            </div>
+                          </article>
+                        );
+                      }
+                      const y = day.getFullYear();
+                      const m = String(day.getMonth() + 1).padStart(2, "0");
+                      const d = String(day.getDate()).padStart(2, "0");
+                      const isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
+
                       return (
-                        <article
+                        <button
                           key={slot}
+                          type="button"
+                          disabled={isPast}
+                          onClick={() => !isPast && onScheduleSlot(day, slot)}
                           className={[
-                            "group relative overflow-visible rounded-xl border bg-white p-2 shadow-sm transition-all hover:scale-[1.02] hover:shadow-xl hover:z-50 cursor-pointer flex items-center justify-between gap-2",
-                            workout.status === "completed"
-                              ? "border-emerald-300 bg-emerald-50/30"
-                              : workout.status === "no_show"
-                                ? "border-rose-300 bg-rose-50/30"
-                                : "border-amber-200 bg-amber-50/30",
+                            "group relative focus-ring flex w-full items-center justify-between rounded-xl border px-2 py-1.5 text-xs font-bold transition-all",
+                            isPast 
+                              ? "border-transparent bg-stone-100/50 text-stone-400 cursor-not-allowed" 
+                              : "border-stone-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:shadow-md hover:scale-[1.01] hover:z-10"
                           ].join(" ")}
                         >
-                          <div className="flex items-center gap-2">
-                            <strong className="text-xs font-black text-stone-900 w-10 text-center">{slot}</strong>
-                            <span className="flex h-7 w-7 items-center justify-center rounded-full bg-white shadow-sm text-3xs font-black text-emerald-800 border border-emerald-100">
-                              {getInitials(workout.studentName)}
-                            </span>
-                            <span className="absolute left-20 opacity-0 group-hover:opacity-100 transition-opacity bg-white px-3 py-1.5 shadow-lg rounded-lg border border-stone-200 text-xs font-bold text-stone-800 z-50 pointer-events-none whitespace-nowrap">
-                              {workout.studentName}
-                            </span>
-                          </div>
-                          <div className="flex items-center gap-1.5 opacity-0 group-hover:opacity-100 transition-opacity">
-                            {workout.status !== 'completed' && (
-                              <button onClick={(e) => { e.stopPropagation(); onStart(workout); }} className="flex h-7 w-7 items-center justify-center rounded-full bg-emerald-100 text-emerald-700 hover:bg-emerald-200 shadow-sm" title="Iniciar Treino">
-                                <Play size={12} className="ml-0.5" />
-                              </button>
-                            )}
-                            {workout.status === 'completed' && (
-                              <button onClick={(e) => { e.stopPropagation(); onUndo(workout); }} className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-700 hover:bg-stone-200 shadow-sm" title="Desfazer">
-                                <Square size={12} />
-                              </button>
-                            )}
-                            <button onClick={(e) => { e.stopPropagation(); onNoShow(workout); }} className="flex h-7 w-7 items-center justify-center rounded-full bg-rose-100 text-rose-700 hover:bg-rose-200 shadow-sm" title="Faltou">
-                              <X size={12} />
-                            </button>
-                            <button onClick={(e) => { e.stopPropagation(); onDelete(workout); }} className="flex h-7 w-7 items-center justify-center rounded-full bg-stone-100 text-stone-700 hover:bg-stone-200 shadow-sm" title="Excluir">
-                              <Trash2 size={12} />
-                            </button>
-                          </div>
-                        </article>
+                          <span className="font-black text-stone-500 w-8 text-center text-3xs">{slot}</span>
+                          {!isPast && <span className="inline-flex items-center text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"><UserPlus size={14} /></span>}
+                        </button>
                       );
-                    }
-                    const y = day.getFullYear();
-                    const m = String(day.getMonth() + 1).padStart(2, "0");
-                    const d = String(day.getDate()).padStart(2, "0");
-                    const isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
-
-                    return (
-                      <button
-                        key={slot}
-                        type="button"
-                        disabled={isPast}
-                        onClick={() => !isPast && onScheduleSlot(day, slot)}
-                        className={[
-                          "group relative focus-ring flex w-full items-center justify-between rounded-xl border px-3 py-2.5 text-xs font-bold transition-all",
-                          isPast 
-                            ? "border-transparent bg-stone-100/50 text-stone-400 cursor-not-allowed" 
-                            : "border-stone-200 bg-white text-emerald-800 shadow-sm hover:border-emerald-300 hover:shadow-md hover:scale-[1.01] hover:z-10"
-                        ].join(" ")}
-                      >
-                        <span className="font-black text-stone-500 w-10 text-center">{slot}</span>
-                        {!isPast && <span className="inline-flex items-center text-emerald-600 opacity-0 group-hover:opacity-100 transition-opacity"><UserPlus size={16} /></span>}
-                      </button>
-                    );
-                  })}
+                    })}
+                  </div>
                 </div>
               </section>
             );
