@@ -2,10 +2,14 @@ import { useState } from "react";
 import { Dumbbell, PlayCircle } from "lucide-react";
 import type { Training } from "../../types/domain";
 
-function getYouTubeId(url: string): string | null {
+function getEmbedUrl(url: string): string | null {
   if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  return match ? match[1] : null;
+  // Already an embed URL
+  if (/youtube\.com\/embed\/([\w-]{11})/.test(url)) return url.split("?")[0];
+  // All other YouTube URL patterns (watch, shorts, youtu.be, mobile)
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:v\/|watch\?v=|watch\?.+[&?]v=|shorts\/))([\w-]{11})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
 }
 
 export function ActiveTrainingDetails({ training }: { training?: Training }) {
@@ -28,7 +32,7 @@ export function ActiveTrainingDetails({ training }: { training?: Training }) {
       </div>
       <div className="grid gap-2">
         {training.exercises.map((ex, i) => {
-          const ytId = getYouTubeId(ex.videoUrl || "");
+          const embedUrl = getEmbedUrl(ex.videoUrl || "");
           const isExpanded = expandedVideoIdx === i;
           return (
             <div key={i} className="rounded-xl border border-stone-200 bg-white p-3">
@@ -54,25 +58,15 @@ export function ActiveTrainingDetails({ training }: { training?: Training }) {
               </div>
               {isExpanded && ex.videoUrl && (
                 <div className="mt-3">
-                  {ytId ? (
-                    <div className="flex flex-col gap-2">
-                      <div className="aspect-video w-full overflow-hidden rounded-lg">
-                        <iframe
-                          src={`https://www.youtube.com/embed/${ytId}`}
-                          title={`Vídeo: ${ex.name}`}
-                          className="h-full w-full border-0"
-                          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-                          allowFullScreen
-                        />
-                      </div>
-                      <a
-                        href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-xs text-center text-stone-500 hover:text-stone-700 underline"
-                      >
-                        Vídeo não carrega? Pesquisar no YouTube
-                      </a>
+                  {embedUrl ? (
+                    <div className="aspect-video w-full overflow-hidden rounded-lg">
+                      <iframe
+                        src={embedUrl}
+                        title={`Vídeo: ${ex.name}`}
+                        className="h-full w-full border-0"
+                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                        allowFullScreen
+                      />
                     </div>
                   ) : (
                     <a

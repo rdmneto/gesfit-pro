@@ -119,10 +119,12 @@ export function StudentAgenda({ workouts, trainings, trainerName }: { workouts: 
   );
 }
 
-function getYouTubeId(url: string): string | null {
+function getEmbedUrl(url: string): string | null {
   if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  return match ? match[1] : null;
+  if (/youtube\.com\/embed\/([\w-]{11})/.test(url)) return url.split("?")[0];
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:v\/|watch\?v=|watch\?.+[&?]v=|shorts\/))([\w-]{11})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
 }
 
 function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; trainings?: Training[] }) {
@@ -196,7 +198,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
         <div className="mt-4 animate-slide-up space-y-3">
           {training ? (
             training.exercises.map((ex, idx) => {
-              const ytId = getYouTubeId(ex.videoUrl || "");
+              const embedUrl = getEmbedUrl(ex.videoUrl || "");
               const isVideoExpanded = expandedVideoIdx === idx;
               return (
                 <div key={idx} className="rounded-xl border border-stone-200 bg-stone-50 p-3">
@@ -221,22 +223,14 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
                       </button>
                       {isVideoExpanded && (
                         <div className="mt-3">
-                          {ytId ? (
-                            <div className="flex flex-col gap-2">
-                              <div className="aspect-video w-full overflow-hidden rounded-lg">
-                                <iframe src={`https://www.youtube.com/embed/${ytId}`} title={`Video: ${ex.name}`} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
-                              </div>
-                              <a href={`https://www.youtube.com/results?search_query=${encodeURIComponent(ex.name + " execução")}`} target="_blank" rel="noopener noreferrer" className="text-xs text-center text-stone-500 hover:text-stone-700 underline">
-                                Vídeo não carrega? Pesquisar no YouTube
-                              </a>
+                          {embedUrl ? (
+                            <div className="aspect-video w-full overflow-hidden rounded-lg">
+                              <iframe src={embedUrl} title={`Vídeo: ${ex.name}`} className="h-full w-full border-0" allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture" allowFullScreen />
                             </div>
                           ) : (
-                            <div className="rounded-lg border border-stone-200 bg-white p-4 text-center">
-                              <p className="mb-3 text-xs text-stone-600">Este exercício não possui um vídeo direto para abrir na janelinha.</p>
-                              <a href={ex.videoUrl} target="_blank" rel="noopener noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
-                                <PlayCircle size={14} /> Abrir pesquisa no YouTube
-                              </a>
-                            </div>
+                            <a href={ex.videoUrl} target="_blank" rel="noreferrer" className="inline-flex items-center gap-2 rounded-lg bg-rose-600 px-4 py-2 text-xs font-bold text-white hover:bg-rose-700">
+                              <PlayCircle size={14} /> Abrir vídeo
+                            </a>
                           )}
                         </div>
                       )}
