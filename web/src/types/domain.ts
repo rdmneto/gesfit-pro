@@ -122,6 +122,8 @@ export interface Team {
   acceptsCondoGym: boolean;
   /** Grade de horários do treinador */
   availability?: TrainerAvailabilityDay[];
+  /** Chave PIX para recebimento de pagamentos */
+  pixKey?: string;
 }
 
 export interface Plan {

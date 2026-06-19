@@ -98,6 +98,7 @@ export function TrainerWorkspacePage() {
   const [welcomeMessage, setWelcomeMessage] = useState("");
   const [city, setCity] = useState(DEFAULT_CITY);
   const [contactPhone, setContactPhone] = useState("");
+  const [pixKey, setPixKey] = useState("");
   const [primaryColor, setPrimaryColor] = useState("");
   const [secondaryColor, setSecondaryColor] = useState("");
   const [bio, setBio] = useState("");
@@ -131,6 +132,7 @@ export function TrainerWorkspacePage() {
     setWelcomeMessage(dbTeam.branding?.welcomeMessage || "");
     setCity(dbTeam.city || DEFAULT_CITY);
     setContactPhone(dbTeam.contactPhone || "");
+    setPixKey(dbTeam.pixKey || "");
     setPrimaryColor(dbTeam.branding?.primaryColor || "#0f766e");
     setSecondaryColor(dbTeam.branding?.secondaryColor || "#f59e0b");
     setBio(dbTeam.branding?.bio || "");
@@ -266,6 +268,7 @@ export function TrainerWorkspacePage() {
         trainingModalities: modalities,
         city,
         contactPhone,
+        pixKey,
         publicProfile: {
           showAgenda,
           showPrices,
@@ -440,6 +443,12 @@ export function TrainerWorkspacePage() {
                     value={contactPhone}
                     onChange={setContactPhone}
                     placeholder="+55 85 99999-9999"
+                  />
+                  <Field
+                    label="Chave PIX"
+                    value={pixKey}
+                    onChange={setPixKey}
+                    placeholder="CPF, e-mail, telefone ou chave aleatória"
                   />
                   <ColorField label="Cor primária" value={primaryColor} onChange={setPrimaryColor} />
                   <ColorField label="Cor secundária" value={secondaryColor} onChange={setSecondaryColor} />

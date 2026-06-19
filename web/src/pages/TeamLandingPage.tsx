@@ -1,5 +1,5 @@
 import { useState, useMemo } from "react";
-import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag, MessageSquare, UserPlus, UserCheck } from "lucide-react";
+import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag, MessageSquare, UserPlus, UserCheck, MapPin, Home, Building2, Clock, Copy, CheckCheck } from "lucide-react";
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visiblePublic } from "../lib/products";
@@ -9,7 +9,7 @@ import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
-import type { PublicScheduleSlot, Team } from "../types/domain";
+import type { Team } from "../types/domain";
 
 export function TeamLandingPage() {
   const { slug } = useParams();
@@ -39,11 +39,10 @@ export function TeamLandingPage() {
     [dbProducts],
   );
 
-  // Agenda pública divulgada — aguardando fonte de dados real no Firestore.
-  const publicSlots: PublicScheduleSlot[] = [];
 
   const [netLoading, setNetLoading] = useState(false);
   const [netMessage, setNetMessage] = useState("");
+  const [copiedPix, setCopiedPix] = useState(false);
 
   if (teamsLoading || productsLoading) {
     return (
@@ -338,11 +337,7 @@ export function TeamLandingPage() {
                       navigate(`/login?signup=1&treinador=${team?.slug ?? ""}`);
                       return;
                     }
-                    if (role === "trainer") {
-                      handleStartChat();
-                    } else {
-                      handleStartChat();
-                    }
+                    handleStartChat();
                   }}
                 >
                   <MessageSquare size={16} />
@@ -354,29 +349,100 @@ export function TeamLandingPage() {
         </div>
       </section>
 
-      {team.publicProfile?.showAgenda && publicSlots.length > 0 ? (
-        <section className="mx-auto max-w-6xl px-4 pb-10">
+      {/* Locais de atendimento */}
+      {((team.worksAt?.length ?? 0) > 0 || team.acceptsHomeVisit || team.acceptsCondoGym) && (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
           <div className="rounded-lg border border-stone-200 bg-white p-5">
             <div className="flex items-center gap-2">
-              <CalendarDays aria-hidden="true" className="text-emerald-800" size={22} />
-              <h2 className="text-xl font-black text-stone-900" style={{ fontFamily: "var(--font-display)" }}>Agenda divulgada</h2>
+              <MapPin aria-hidden="true" className="text-emerald-800" size={20} />
+              <h2 className="text-xl font-black text-stone-900" style={{ fontFamily: "var(--font-display)" }}>Onde atendo</h2>
             </div>
-            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
-              {publicSlots.map((slot) => (
-                <article key={slot.id} className="rounded-md border border-stone-200 p-4">
-                  <p className="text-xs font-semibold text-stone-500">{slot.trainerName}</p>
-                  <p className="mt-1 text-lg font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
-                    {slot.weekday} {slot.time}
-                  </p>
-                  <p className="mt-2 text-xs text-stone-600">
-                    {slot.available}/{slot.capacity} vagas disponíveis
-                  </p>
-                </article>
+            <div className="mt-4 flex flex-wrap gap-2">
+              {(team.worksAt ?? []).map((gym) => (
+                <span key={gym.id} className="inline-flex items-center gap-1.5 rounded-lg border border-blue-100 bg-blue-50 px-3 py-1.5 text-xs font-bold text-blue-700">
+                  <Building2 size={13} /> {gym.name}
+                </span>
               ))}
+              {team.acceptsHomeVisit && (
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-emerald-100 bg-emerald-50 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                  <Home size={13} /> Atendimento domiciliar
+                </span>
+              )}
+              {team.acceptsCondoGym && (
+                <span className="inline-flex items-center gap-1.5 rounded-lg border border-violet-100 bg-violet-50 px-3 py-1.5 text-xs font-bold text-violet-700">
+                  <Building2 size={13} /> Academia de condomínio
+                </span>
+              )}
             </div>
           </div>
         </section>
-      ) : null}
+      )}
+
+      {/* Horários disponíveis */}
+      {team.publicProfile?.showAgenda && (team.availability ?? []).filter(d => d.active).length > 0 && (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <div className="rounded-lg border border-stone-200 bg-white p-5">
+            <div className="flex items-center gap-2">
+              <CalendarDays aria-hidden="true" className="text-emerald-800" size={20} />
+              <h2 className="text-xl font-black text-stone-900" style={{ fontFamily: "var(--font-display)" }}>Horários disponíveis</h2>
+            </div>
+            <div className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+              {(team.availability ?? []).filter(d => d.active).map((day) => {
+                const labels: Record<string, string> = {
+                  segunda: "Segunda", terca: "Terça", quarta: "Quarta",
+                  quinta: "Quinta", sexta: "Sexta", sabado: "Sábado", domingo: "Domingo",
+                };
+                return (
+                  <article key={day.weekday} className="rounded-lg border border-stone-200 p-3">
+                    <p className="text-sm font-black text-stone-900">{labels[day.weekday] ?? day.weekday}</p>
+                    <div className="mt-1.5 space-y-1">
+                      {day.morningStartTime && day.morningEndTime && (
+                        <p className="flex items-center gap-1 text-xs text-stone-600">
+                          <Clock size={11} className="text-emerald-600" />
+                          {day.morningStartTime} – {day.morningEndTime}
+                        </p>
+                      )}
+                      {day.afternoonStartTime && day.afternoonEndTime && (
+                        <p className="flex items-center gap-1 text-xs text-stone-600">
+                          <Clock size={11} className="text-amber-500" />
+                          {day.afternoonStartTime} – {day.afternoonEndTime}
+                        </p>
+                      )}
+                    </div>
+                  </article>
+                );
+              })}
+            </div>
+          </div>
+        </section>
+      )}
+
+      {/* Chave PIX — visível apenas para alunos logados */}
+      {role === "student" && team.pixKey && (
+        <section className="mx-auto max-w-6xl px-4 pb-6">
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-5">
+            <div className="flex items-center justify-between gap-4">
+              <div>
+                <p className="text-xs font-bold uppercase tracking-wide text-emerald-700">Pagamento via PIX</p>
+                <p className="mt-1 font-black text-stone-900">{team.pixKey}</p>
+              </div>
+              <button
+                type="button"
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-emerald-200 bg-white px-3 text-xs font-bold text-emerald-800 hover:bg-emerald-100 transition-colors"
+                onClick={() => {
+                  navigator.clipboard.writeText(team.pixKey ?? "").then(() => {
+                    setCopiedPix(true);
+                    setTimeout(() => setCopiedPix(false), 2000);
+                  });
+                }}
+              >
+                {copiedPix ? <CheckCheck size={14} /> : <Copy size={14} />}
+                {copiedPix ? "Copiado!" : "Copiar"}
+              </button>
+            </div>
+          </div>
+        </section>
+      )}
 
       <div className="fixed bottom-0 left-0 right-0 z-50 p-4 bg-white border-t border-stone-200 shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.1)] animate-slide-up">
         <div className="max-w-6xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
