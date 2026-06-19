@@ -30,6 +30,7 @@ import {
 } from "../features/dashboard/dashboardUtils";
 import { ActiveTrainingDetails } from "../features/dashboard/ActiveTrainingDetails";
 import type { WorkoutSession, TrainerAvailabilityDay, Training } from "../types/domain";
+import { WorkoutSummaryModal, type WorkoutSummaryData } from "../components/WorkoutSummaryModal";
 
 
 export function ClassesPage() {
@@ -55,6 +56,7 @@ export function ClassesPage() {
 
   const [viewSubTrainerId, setViewSubTrainerId] = useState<string>("all");
   const [assignSubTrainerId, setAssignSubTrainerId] = useState<string>("owner");
+  const [completedSummary, setCompletedSummary] = useState<WorkoutSummaryData | null>(null);
 
   const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
   const trainerWorkouts = useMemo(() => {
@@ -176,7 +178,13 @@ export function ClassesPage() {
       batch.update(doc(db, "workoutSessions", workout.id), { status: "completed", completedAt: now.toISOString(), actualDurationMinutes });
       batch.update(doc(db, "enrollments", enrollmentId), { classesUsed: increment(1) });
       await batch.commit();
-      setError(""); setMessage(`Aula concluída! Duração: ${actualDurationMinutes} min. Crédito debitado.`); setTimeout(() => setMessage(""), 4000);
+      setError("");
+      setCompletedSummary({
+        studentFirstName: (workout.studentName || "Aluno").split(" ")[0],
+        focus: workout.proposedWorkout || workout.title || "Treino",
+        durationMinutes: actualDurationMinutes,
+        calories: workout.plannedCalories || Math.round(actualDurationMinutes * 6),
+      });
     } catch (err: any) { console.error(err); setError("Erro ao concluir aula: " + err.message); }
   }
 
@@ -489,6 +497,13 @@ export function ClassesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {completedSummary && (
+        <WorkoutSummaryModal
+          {...completedSummary}
+          onClose={() => setCompletedSummary(null)}
+        />
       )}
     </section>
   );

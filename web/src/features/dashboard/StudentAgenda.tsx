@@ -5,6 +5,7 @@ import { db } from "../../lib/firebase";
 import { useDocument } from "../../lib/hooks";
 import type { WorkoutSession, Training } from "../../types/domain";
 import { isSameDay, monthGridDays, weekDays } from "./dashboardUtils";
+import { WorkoutSummaryModal } from "../../components/WorkoutSummaryModal";
 
 type View = "day" | "week" | "month";
 
@@ -132,6 +133,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
   const [expanded, setExpanded] = useState(false);
   const [expandedVideoIdx, setExpandedVideoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
+  const [showSummary, setShowSummary] = useState(false);
 
   const trainingFromParent = workout.trainingId ? trainings?.find((t) => t.id === workout.trainingId) : undefined;
   const { data: trainingFetched } = useDocument<Training>("trainings", !trainingFromParent && workout.trainingId ? workout.trainingId : null);
@@ -143,6 +145,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
     try {
       await updateDoc(doc(db, "workoutSessions", workout.id), { studentCompletedAt: new Date().toISOString() });
       setExpanded(false);
+      setShowSummary(true);
     } catch (e) {
       console.error(e);
       alert("Erro ao concluir treino.");
@@ -263,6 +266,16 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
             </p>
           </div>
         </div>
+      )}
+
+      {showSummary && (
+        <WorkoutSummaryModal
+          studentFirstName={(workout.studentName || "Aluno").split(" ")[0]}
+          focus={workout.proposedWorkout || workout.title || "Treino"}
+          durationMinutes={workout.durationMinutes}
+          calories={workout.plannedCalories || Math.round(workout.durationMinutes * 6)}
+          onClose={() => setShowSummary(false)}
+        />
       )}
     </article>
   );
