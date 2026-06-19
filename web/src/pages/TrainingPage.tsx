@@ -1,21 +1,17 @@
 import { useState } from 'react';
-import { collection, addDoc, updateDoc, doc, deleteDoc, writeBatch, increment } from 'firebase/firestore';
+import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useSessionStore } from '../store/session';
-import { useTrainerStudents, useCollection } from '../lib/hooks';
+import { useCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
-import type { Training, TrainingLog, Exercise } from '../types/domain';
-import { Dumbbell, Plus, Trash2, ChevronDown, ChevronUp, Check, Clock, Archive, X, Sparkles, Loader2 } from 'lucide-react';
-import { formatDateTime } from '../features/dashboard/dashboardUtils';
+import type { Training, Exercise } from '../types/domain';
+import { Dumbbell, Plus, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2 } from 'lucide-react';
 import { generateWorkout } from '../lib/ai';
 
 export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
   
   // Hooks
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
-  const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
-
   const { data: trainings } = useCollection<Training>(
     'trainings',
     user ? [where('trainerId', '==', user.uid), orderBy('createdAt', 'desc')] : [],
@@ -23,15 +19,7 @@ export function TrainingPage() {
     [user?.uid]
   );
 
-  const { data: pendingLogs } = useCollection<TrainingLog>(
-    'trainingLogs',
-    user ? [where('trainerId', '==', user.uid), where('confirmedByTrainer', '==', false)] : [],
-    [],
-    [user?.uid]
-  );
-
   // States
-  const [activeTab, setActiveTab] = useState<"active" | "pending">("active");
   const [showForm, setShowForm] = useState(false);
   const [saving, setSaving] = useState(false);
   
@@ -142,83 +130,27 @@ export function TrainingPage() {
     }
   };
 
-  const confirmLog = async (log: TrainingLog) => {
-    if (!db) return;
-    try {
-      const batch = writeBatch(db);
-      batch.update(doc(db, 'trainingLogs', log.id), {
-        confirmedByTrainer: true,
-        confirmedAt: new Date().toISOString(),
-      });
-      batch.update(doc(db, 'enrollments', log.enrollmentId), {
-        classesUsed: increment(1),
-      });
-      await batch.commit();
-    } catch (e) {
-      console.error(e);
-      alert("Erro ao confirmar conclusão.");
-    }
-  };
-
   const activeTrainings = (trainings ?? []).filter(t => t.status === 'active');
-  const logs = pendingLogs ?? [];
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Acompanhamento de Alunos
-          </p>
-          <h1 className="text-3xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
-            Biblioteca de Treinos
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-500">
-            Cadastre modelos de treinos na sua biblioteca para atribuir aos alunos durante as aulas.
-          </p>
-        </div>
+    <section className="mx-auto max-w-6xl px-4 pt-4 pb-6 animate-fade-in">
+      <div className="flex items-center justify-between mb-6">
+        <h1 className="text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
+          Biblioteca de Treinos
+        </h1>
+        {!showForm && (
+          <button
+            type="button"
+            className="focus-ring btn btn-primary"
+            onClick={() => setShowForm(true)}
+          >
+            <Plus size={18} /> Novo Treino
+          </button>
+        )}
       </div>
 
-      <div className="mt-8 flex gap-4 border-b border-stone-200">
-        <button
-          type="button"
-          className={[
-            "px-4 py-2 font-bold transition-all border-b-2",
-            activeTab === "active" ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-700"
-          ].join(" ")}
-          onClick={() => setActiveTab("active")}
-        >
-          Meus Treinos
-        </button>
-        <button
-          type="button"
-          className={[
-            "px-4 py-2 font-bold transition-all border-b-2",
-            activeTab === "pending" ? "border-emerald-600 text-emerald-800" : "border-transparent text-stone-500 hover:text-stone-700"
-          ].join(" ")}
-          onClick={() => setActiveTab("pending")}
-        >
-          Pendentes de Confirmação
-          {logs.length > 0 && (
-            <span className="ml-2 inline-flex h-5 items-center justify-center rounded-full bg-amber-100 px-2 text-xs font-bold text-amber-800">
-              {logs.length}
-            </span>
-          )}
-        </button>
-      </div>
-
-      <div className="mt-6">
-        {activeTab === "active" && (
-          <div className="space-y-6">
-            {!showForm && (
-              <button
-                type="button"
-                className="focus-ring btn btn-primary w-full sm:w-auto"
-                onClick={() => setShowForm(true)}
-              >
-                <Plus size={18} /> Novo Treino
-              </button>
-            )}
+      <div className="space-y-6">
+            {/* spacer — keeps the form aligned with the list below */}
 
             {showForm && (
               <div className="card p-5 animate-slide-up bg-stone-50 border-emerald-200 border-2">
@@ -429,42 +361,6 @@ export function TrainingPage() {
                 ))
               )}
             </div>
-          </div>
-        )}
-
-        {activeTab === "pending" && (
-          <div className="grid gap-4">
-            {logs.length === 0 ? (
-              <p className="py-8 text-center text-sm text-stone-500 italic">Nenhuma confirmação pendente.</p>
-            ) : (
-              logs.map(log => (
-                <article key={log.id} className="card flex flex-col sm:flex-row justify-between gap-4 p-5 border-l-4 border-l-amber-400">
-                  <div>
-                    <h3 className="text-lg font-black text-stone-900">{log.trainingTitle}</h3>
-                    <p className="text-sm font-bold text-stone-700">Aluno: {students.find(s => s.uid === log.studentId)?.displayName || 'Desconhecido'}</p>
-                    <p className="mt-1 flex items-center gap-1 text-xs text-stone-500">
-                      <Clock size={12}/> Concluído em: {log.completedAt ? formatDateTime(log.completedAt) : 'N/A'}
-                    </p>
-                    {log.studentNotes && (
-                      <div className="mt-2 rounded-lg bg-stone-50 p-2 text-sm italic text-stone-600 border border-stone-200">
-                        "{log.studentNotes}"
-                      </div>
-                    )}
-                  </div>
-                  <div className="flex items-center">
-                    <button
-                      type="button"
-                      className="focus-ring btn btn-primary whitespace-nowrap bg-amber-600 hover:bg-amber-700 border-amber-600 shadow-[var(--shadow-brand)]"
-                      onClick={() => confirmLog(log)}
-                    >
-                      <Check size={16}/> Confirmar & Debitar Aula
-                    </button>
-                  </div>
-                </article>
-              ))
-            )}
-          </div>
-        )}
       </div>
     </section>
   );
