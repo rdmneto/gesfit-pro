@@ -5,7 +5,7 @@ import { useSessionStore } from '../store/session';
 import { useCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, Exercise } from '../types/domain';
-import { Dumbbell, Plus, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2 } from 'lucide-react';
+import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2 } from 'lucide-react';
 import { generateWorkout } from '../lib/ai';
 
 export function TrainingPage() {
@@ -21,8 +21,9 @@ export function TrainingPage() {
 
   // States
   const [showForm, setShowForm] = useState(false);
+  const [editingTrainingId, setEditingTrainingId] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
-  
+
   // Form states
   const [title, setTitle] = useState("");
   const [description, setDescription] = useState("");
@@ -83,25 +84,46 @@ export function TrainingPage() {
     setExercises(newEx);
   };
 
+  function closeForm() {
+    setShowForm(false);
+    setEditingTrainingId(null);
+    setTitle("");
+    setDescription("");
+    setExercises([]);
+  }
+
+  function startEditing(training: Training) {
+    setEditingTrainingId(training.id);
+    setTitle(training.title);
+    setDescription(training.description ?? "");
+    setExercises(training.exercises.map((e, i) => ({ ...e, order: i })));
+    setShowForm(true);
+    window.scrollTo({ top: 0, behavior: "smooth" });
+  }
+
   const handleSaveTraining = async () => {
     if (!db || !user || !title || exercises.length === 0) return;
     setSaving(true);
-
     try {
-      await addDoc(collection(db, 'trainings'), {
-        trainerId: user.uid,
-        title,
-        description,
-        exercises,
-        status: 'active',
-        createdAt: new Date().toISOString(),
-        updatedAt: new Date().toISOString()
-      });
-      
-      setShowForm(false);
-      setTitle("");
-      setDescription("");
-      setExercises([]);
+      if (editingTrainingId) {
+        await updateDoc(doc(db, 'trainings', editingTrainingId), {
+          title,
+          description,
+          exercises,
+          updatedAt: new Date().toISOString(),
+        });
+      } else {
+        await addDoc(collection(db, 'trainings'), {
+          trainerId: user.uid,
+          title,
+          description,
+          exercises,
+          status: 'active',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        });
+      }
+      closeForm();
     } catch (error) {
       console.error(error);
       alert("Erro ao salvar o treino.");
@@ -155,8 +177,10 @@ export function TrainingPage() {
             {showForm && (
               <div className="card p-5 animate-slide-up bg-stone-50 border-emerald-200 border-2">
                 <div className="flex justify-between items-start">
-                  <h2 className="text-lg font-black text-emerald-900">Criar Novo Treino</h2>
-                  <button type="button" onClick={() => setShowForm(false)} className="text-stone-400 hover:text-stone-600"><X size={20}/></button>
+                  <h2 className="text-lg font-black text-emerald-900">
+                    {editingTrainingId ? "Editar Treino" : "Criar Novo Treino"}
+                  </h2>
+                  <button type="button" onClick={closeForm} className="text-stone-400 hover:text-stone-600"><X size={20}/></button>
                 </div>
                 
                 <div className="mt-4 grid gap-4">
@@ -332,7 +356,7 @@ export function TrainingPage() {
                 )}
                 
                 <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" className="btn btn-secondary" onClick={() => setShowForm(false)}>Cancelar</button>
+                  <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancelar</button>
                   <button type="button" className="btn btn-primary" disabled={saving || !title || exercises.length === 0} onClick={handleSaveTraining}>
                     {saving ? "Salvando..." : "Salvar Treino"}
                   </button>
@@ -350,6 +374,7 @@ export function TrainingPage() {
                       <div className="flex justify-between items-start">
                         <span className="badge badge-green">Ativo</span>
                         <div className="flex gap-2">
+                          <button type="button" className="text-stone-400 hover:text-emerald-600" title="Editar" onClick={() => startEditing(training)}><Pencil size={16}/></button>
                           <button type="button" className="text-stone-400 hover:text-amber-600" title="Arquivar" onClick={() => archiveTraining(training.id)}><Archive size={16}/></button>
                           <button type="button" className="text-stone-400 hover:text-rose-600" title="Excluir" onClick={() => deleteTraining(training.id)}><Trash2 size={16}/></button>
                         </div>
