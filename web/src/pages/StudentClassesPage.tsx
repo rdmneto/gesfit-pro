@@ -13,7 +13,7 @@ import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
-import { Badge, CardHeader, EmptyState, ProgressBar, SectionHeader } from "../components/ui/Primitives";
+import { Badge, CardHeader, EmptyState, ProgressBar } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
 import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions, useCollection } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
@@ -128,12 +128,7 @@ export function StudentClassesPage() {
   }
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
-      <SectionHeader
-        eyebrow="Aulas"
-        title="Treinos e aulas"
-        description="Veja sua agenda de treinos, acompanhe seu saldo e adquira mais aulas quando precisar."
-      />
+    <section className="mx-auto max-w-6xl px-4 pt-4 pb-6 animate-fade-in">
 
       {/* ── Contexto do treinador ativo ──────────────────── */}
       {!activeTrainerId ? (

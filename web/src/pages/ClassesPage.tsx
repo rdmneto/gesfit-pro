@@ -3,6 +3,7 @@ import {
   Check,
   ChevronLeft,
   ChevronRight,
+  Dumbbell,
   List,
   Play,
   Square,
@@ -270,50 +271,35 @@ export function ClassesPage() {
   })();
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8 animate-fade-in">
-      <div className="flex flex-col justify-between gap-4 sm:flex-row sm:items-end">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">Agenda do Treinador</p>
-          <h1 className="text-3xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>
-            Controle de Grade e Agendamentos
-          </h1>
-          <p className="mt-2 max-w-3xl text-sm leading-6 text-stone-500">
-            Gerencie seus compromissos, visualize horários livres e marque novos atendimentos para seus alunos.
-          </p>
-        </div>
-      </div>
-
+    <section className="mx-auto max-w-6xl px-4 pt-4 pb-6 animate-fade-in">
       {message && (
-        <div className="mt-4 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-sm font-semibold text-emerald-800 animate-slide-up">{message}</div>
+        <div className="mb-4 rounded-xl bg-emerald-50 border border-emerald-200 p-3.5 text-sm font-semibold text-emerald-800 animate-slide-up">{message}</div>
       )}
       {error && (
-        <div className="mt-4 rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-sm font-semibold text-rose-800 animate-slide-up">{error}</div>
+        <div className="mb-4 rounded-xl bg-rose-50 border border-rose-200 p-3.5 text-sm font-semibold text-rose-800 animate-slide-up">{error}</div>
       )}
 
-      <div className="mt-6">
+      <div>
         <section className="card p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
             <div className="flex-1">
-              <h2 className="text-lg font-black text-stone-950">Visualização da Grade</h2>
-              <div className="mt-2 flex flex-col gap-2 sm:flex-row sm:items-center sm:gap-4">
-                <p className="text-xs text-stone-500">Monitore sua disponibilidade semanal e mensal.</p>
-                {teamMembers && teamMembers.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    <span className="text-xs font-bold text-stone-600">Ver Agenda:</span>
-                    <select
-                      className="focus-ring h-8 rounded-lg border border-stone-200 bg-stone-50 px-2 text-xs font-semibold text-stone-700"
-                      value={viewSubTrainerId}
-                      onChange={(e) => setViewSubTrainerId(e.target.value)}
-                    >
-                      <option value="all">Todo o Time</option>
-                      <option value="owner">Somente Minha</option>
-                      {teamMembers.map(m => (
-                        <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
-                      ))}
-                    </select>
-                  </div>
-                )}
-              </div>
+              <h2 className="text-lg font-black text-stone-950">Agenda do Treinador</h2>
+              {teamMembers && teamMembers.length > 0 && (
+                <div className="mt-1 flex items-center gap-2">
+                  <span className="text-xs font-bold text-stone-600">Ver Agenda:</span>
+                  <select
+                    className="focus-ring h-8 rounded-lg border border-stone-200 bg-stone-50 px-2 text-xs font-semibold text-stone-700"
+                    value={viewSubTrainerId}
+                    onChange={(e) => setViewSubTrainerId(e.target.value)}
+                  >
+                    <option value="all">Todo o Time</option>
+                    <option value="owner">Somente Minha</option>
+                    {teamMembers.map(m => (
+                      <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
+                    ))}
+                  </select>
+                </div>
+              )}
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-1">
@@ -648,6 +634,7 @@ function TrainerCalendarVisual({
   const [expandedCell, setExpandedCell] = useState<{ day: Date; slot: string; workout: WorkoutSession | null } | null>(null);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
+  const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
   const weekdayKeys: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
@@ -889,7 +876,7 @@ function TrainerCalendarVisual({
         {/* Modal flutuante do dia selecionado */}
         {selectedMonthDay && (
           <div className="fixed inset-0 z-50 flex items-center justify-center bg-stone-900/40 backdrop-blur-sm p-4 animate-fade-in" onClick={onCloseMonthDay}>
-            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in" onClick={e => e.stopPropagation()}>
+            <div className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] animate-scale-in" onClick={e => e.stopPropagation()}>
               <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
                 <div>
                   <p className="text-xs font-black uppercase tracking-wider text-emerald-600">Agenda do dia</p>
@@ -1040,9 +1027,19 @@ function TrainerCalendarVisual({
                 <Trash2 size={14} />
               </button>
             </div>
-            {workout.status === 'in_progress' && workout.trainingId && (
-              <div className="mt-3 pt-3 border-t border-amber-200/50">
-                <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
+            {workout.trainingId && (
+              <div className="mt-3 pt-3 border-t border-stone-100">
+                <button
+                  type="button"
+                  onClick={() => setExpandedTrainingId(expandedTrainingId === workout.id ? null : workout.id)}
+                  className="flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900 mb-2"
+                >
+                  <Dumbbell size={13} />
+                  {expandedTrainingId === workout.id ? "Ocultar treino" : "Ver treino"}
+                </button>
+                {expandedTrainingId === workout.id && (
+                  <ActiveTrainingDetails training={trainings.find(t => t.id === workout.trainingId)} />
+                )}
               </div>
             )}
           </article>

@@ -55,8 +55,7 @@ export function StudentAgenda({ workouts, trainings, trainerName }: { workouts: 
     <section className="card p-5">
       <div className="flex flex-col justify-between gap-3 border-b border-stone-150 pb-4 sm:flex-row sm:items-center">
         <div>
-          <h2 className="text-lg font-black text-stone-950">Agenda de treinos</h2>
-          <p className="mt-0.5 text-xs text-stone-500">Seus treinos com o treinador ativo.</p>
+          <h2 className="text-lg font-black text-stone-950">Agenda do Aluno</h2>
         </div>
         <div className="flex flex-wrap gap-2">
           {mode === "calendar" && (
@@ -596,7 +595,7 @@ function StudentMonthView({
           onClick={() => setSelectedDay(null)}
         >
           <div
-            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[92vh] animate-scale-in"
+            className="w-full max-w-2xl bg-white rounded-3xl shadow-2xl overflow-hidden flex flex-col max-h-[calc(100vh-2rem)] animate-scale-in"
             onClick={e => e.stopPropagation()}
           >
             <div className="sticky top-0 z-10 flex items-center justify-between border-b border-stone-100 bg-white/80 backdrop-blur-md px-6 py-5">
