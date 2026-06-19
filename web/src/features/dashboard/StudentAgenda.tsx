@@ -2,6 +2,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle
 import { useMemo, useRef, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
+import { useDocument } from "../../lib/hooks";
 import type { WorkoutSession, Training } from "../../types/domain";
 import { isSameDay, monthGridDays, weekDays } from "./dashboardUtils";
 
@@ -132,7 +133,9 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
   const [expandedVideoIdx, setExpandedVideoIdx] = useState<number | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
-  const training = workout.trainingId ? trainings?.find((t) => t.id === workout.trainingId) : null;
+  const trainingFromParent = workout.trainingId ? trainings?.find((t) => t.id === workout.trainingId) : undefined;
+  const { data: trainingFetched } = useDocument<Training>("trainings", !trainingFromParent && workout.trainingId ? workout.trainingId : null);
+  const training = trainingFromParent ?? trainingFetched;
 
   async function handleComplete() {
     if (!db) return;
