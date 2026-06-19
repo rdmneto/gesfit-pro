@@ -211,7 +211,11 @@ export function TrainingPage() {
                     <button
                       type="button"
                       className="focus-ring flex items-center gap-2 rounded-lg bg-indigo-50 px-3 py-1.5 text-xs font-bold text-indigo-700 hover:bg-indigo-100 transition-colors border border-indigo-200"
-                      onClick={() => setShowAIModal(true)}
+                      onClick={() => {
+                        if (title) setAiFocus(title);
+                        if (description) setAiStyle(description);
+                        setShowAIModal(true);
+                      }}
                     >
                       <Sparkles size={14} />
                       Gerar com IA
