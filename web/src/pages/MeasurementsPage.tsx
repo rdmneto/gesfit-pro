@@ -142,33 +142,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   }
 
   return (
-    <section className="mx-auto max-w-6xl px-4 py-8">
-      <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-end">
-        <div>
-          <p className="text-sm font-bold uppercase tracking-wide text-emerald-800">
-            Alunos e métricas
-          </p>
-          <h1 className="mt-2 text-3xl font-black">Lista de alunos</h1>
-          <p className="mt-2 max-w-3xl leading-7 text-stone-600">
-            Busque alunos em ordem alfabética, selecione um perfil e lance métricas. Elas ficam
-            pendentes até o aluno confirmar no próprio perfil.
-          </p>
-        </div>
-        <label className="relative block lg:w-80">
-          <span className="sr-only">Buscar aluno</span>
-          <Search
-            aria-hidden="true"
-            className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-500"
-            size={18}
-          />
-          <input
-            className="focus-ring h-11 w-full rounded-md border border-stone-300 bg-white pl-10 pr-3"
-            placeholder="Buscar aluno"
-            value={query}
-            onChange={(event) => setQuery(event.target.value)}
-          />
-        </label>
-      </div>
+    <section className="mx-auto max-w-6xl px-4 pt-4 pb-6">
 
       {/* Solicitações de vínculo pendentes */}
       {pendingRequests.length > 0 && (
@@ -247,9 +221,25 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
           <section className="rounded-lg border border-stone-200 bg-white p-5">
-            <div className="flex items-center gap-2">
-              <Users aria-hidden="true" className="text-emerald-800" size={22} />
-              <h2 className="text-xl font-black">Alunos</h2>
+            <div className="flex flex-wrap items-center justify-between gap-3">
+              <div className="flex items-center gap-2">
+                <Users aria-hidden="true" className="text-emerald-800" size={22} />
+                <h2 className="text-xl font-black">Alunos</h2>
+              </div>
+              <label className="relative block flex-1 min-w-[140px]">
+                <span className="sr-only">Buscar aluno</span>
+                <Search
+                  aria-hidden="true"
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
+                  size={15}
+                />
+                <input
+                  className="focus-ring h-9 w-full rounded-lg border border-stone-200 bg-stone-50 pl-9 pr-3 text-sm"
+                  placeholder="Buscar aluno"
+                  value={query}
+                  onChange={(event) => setQuery(event.target.value)}
+                />
+              </label>
             </div>
             <div className="mt-4 space-y-2">
               {filteredStudents.map((student) => (
@@ -291,6 +281,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                     </div>
                     <h2 className="text-lg font-black text-stone-950">Inserir métricas</h2>
                   </div>
+                  <p className="mt-1 text-xs text-stone-400">Métricas ficam pendentes até o aluno confirmar no próprio perfil.</p>
 
                   <p className="mt-5 text-xs font-bold uppercase tracking-wider text-stone-400">Dados principais</p>
                   <div className="mt-3 grid gap-4 sm:grid-cols-2">
