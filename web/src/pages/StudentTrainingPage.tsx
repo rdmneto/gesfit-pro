@@ -6,13 +6,23 @@ import { useCollection } from '../lib/hooks';
 import { useActiveTrainer } from '../lib/activeTrainer';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, TrainingLog } from '../types/domain';
-import { Dumbbell, ChevronDown, ChevronUp, Play, CheckCircle2, Clock } from 'lucide-react';
+import { Dumbbell, ChevronDown, ChevronUp, Play, CheckCircle2, Clock, Flame, Target, Trophy, X } from 'lucide-react';
 import { formatDateTime } from '../features/dashboard/dashboardUtils';
 
-function getYouTubeId(url: string): string | null {
+interface WorkoutSummary {
+  title: string;
+  description: string;
+  exerciseCount: number;
+  estimatedMinutes: number;
+  estimatedCalories: number;
+}
+
+function getEmbedUrl(url: string): string | null {
   if (!url) return null;
-  const match = url.match(/(?:youtu\.be\/|youtube\.com\/(?:embed\/|v\/|watch\?v=|watch\?.+&v=))([\w-]{11})/);
-  return match ? match[1] : null;
+  if (/youtube\.com\/embed\/([\w-]{11})/.test(url)) return url.split("?")[0];
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:v\/|watch\?v=|watch\?.+[&?]v=|shorts\/))([\w-]{11})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
 }
 
 export function StudentTrainingPage() {
@@ -41,6 +51,7 @@ export function StudentTrainingPage() {
   const [expandedVideoIdx, setExpandedVideoIdx] = useState<string | null>(null); // format: `${trainingId}-${exerciseIdx}`
   const [notes, setNotes] = useState("");
   const [saving, setSaving] = useState(false);
+  const [summary, setSummary] = useState<WorkoutSummary | null>(null);
 
   const handleComplete = async (training: Training) => {
     if (!db || !user) return;
@@ -58,9 +69,16 @@ export function StudentTrainingPage() {
         studentNotes: notes || '',
         createdAt: new Date().toISOString(),
       });
+      const minutes = Math.round(training.exercises.length * 4);
+      setSummary({
+        title: training.title,
+        description: training.description || "",
+        exerciseCount: training.exercises.length,
+        estimatedMinutes: minutes,
+        estimatedCalories: Math.round(minutes * 6),
+      });
       setNotes("");
       setExpandedId(null);
-      alert("Treino marcado como concluído! Aguardando confirmação do treinador.");
     } catch (e) {
       console.error(e);
       alert("Erro ao salvar conclusão.");
@@ -82,6 +100,55 @@ export function StudentTrainingPage() {
 
   return (
     <section className="mx-auto max-w-lg px-4 py-6 mb-24 animate-fade-in">
+      {/* Workout completion summary modal */}
+      {summary && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 px-4 animate-fade-in">
+          <div className="w-full max-w-sm rounded-2xl bg-white p-6 shadow-2xl animate-slide-up">
+            <div className="flex items-center justify-between mb-4">
+              <div className="flex items-center gap-2">
+                <Trophy className="text-amber-500" size={24} />
+                <h2 className="text-xl font-black text-stone-950">Treino Concluído!</h2>
+              </div>
+              <button type="button" onClick={() => setSummary(null)} className="text-stone-400 hover:text-stone-600">
+                <X size={20} />
+              </button>
+            </div>
+
+            <p className="text-sm font-bold text-stone-700 mb-4">{summary.title}</p>
+            {summary.description && (
+              <p className="text-xs text-stone-500 italic mb-4 leading-relaxed">{summary.description}</p>
+            )}
+
+            <div className="grid grid-cols-3 gap-3 mb-6">
+              <div className="rounded-xl bg-emerald-50 border border-emerald-100 p-3 text-center">
+                <Target className="mx-auto mb-1 text-emerald-600" size={20} />
+                <p className="text-lg font-black text-emerald-700">{summary.exerciseCount}</p>
+                <p className="text-[10px] font-bold uppercase text-emerald-500 tracking-wide">Exercícios</p>
+              </div>
+              <div className="rounded-xl bg-blue-50 border border-blue-100 p-3 text-center">
+                <Clock className="mx-auto mb-1 text-blue-600" size={20} />
+                <p className="text-lg font-black text-blue-700">~{summary.estimatedMinutes}</p>
+                <p className="text-[10px] font-bold uppercase text-blue-500 tracking-wide">Minutos</p>
+              </div>
+              <div className="rounded-xl bg-orange-50 border border-orange-100 p-3 text-center">
+                <Flame className="mx-auto mb-1 text-orange-500" size={20} />
+                <p className="text-lg font-black text-orange-600">~{summary.estimatedCalories}</p>
+                <p className="text-[10px] font-bold uppercase text-orange-400 tracking-wide">Kcal</p>
+              </div>
+            </div>
+
+            <p className="text-xs text-stone-400 text-center mb-4">Aguardando confirmação do treinador para abater o crédito.</p>
+
+            <button
+              type="button"
+              className="focus-ring btn btn-primary w-full"
+              onClick={() => setSummary(null)}
+            >
+              <CheckCircle2 size={18} /> Fechar
+            </button>
+          </div>
+        </div>
+      )}
       <header className="mb-6">
         <p className="text-xs font-bold uppercase tracking-widest text-emerald-700">Plataforma de Alunos</p>
         <h1 className="mt-1 text-2xl font-black text-stone-950" style={{ fontFamily: "var(--font-display)" }}>Meus Treinos</h1>
@@ -134,7 +201,8 @@ export function StudentTrainingPage() {
 
                           <div className="space-y-3">
                             {training.exercises.map((ex, idx) => {
-                              const ytId = getYouTubeId(ex.videoUrl || '');
+                              const embedUrl = getEmbedUrl(ex.videoUrl || '');
+                              const isSearchUrl = (ex.videoUrl || '').includes('youtube.com/results');
                               const videoKey = `${training.id}-${idx}`;
                               const isVideoExpanded = expandedVideoIdx === videoKey;
 
@@ -143,7 +211,7 @@ export function StudentTrainingPage() {
                                   <div className="flex justify-between items-start mb-2">
                                     <h4 className="font-bold text-stone-900 text-sm">{ex.order + 1}. {ex.name}</h4>
                                   </div>
-                                  
+
                                   <div className="grid grid-cols-2 gap-2 mb-2 text-xs">
                                     <div className="bg-white px-2 py-1.5 rounded-lg border border-stone-150">
                                       <span className="font-bold text-stone-500 block text-[10px] uppercase">Séries</span>
@@ -159,22 +227,22 @@ export function StudentTrainingPage() {
                                     <p className="text-xs text-stone-600 mb-2 italic">"{ex.notes}"</p>
                                   )}
 
-                                  {ytId && (
+                                  {embedUrl && (
                                     <div className="mt-2">
                                       <button
                                         type="button"
                                         className="focus-ring flex items-center gap-1.5 text-xs font-bold text-rose-600 hover:text-rose-700"
                                         onClick={() => toggleVideo(training.id, idx)}
                                       >
-                                        <Play size={14} /> 
+                                        <Play size={14} />
                                         {isVideoExpanded ? "Ocultar Vídeo" : "Assistir Vídeo"}
                                       </button>
-                                      
+
                                       {isVideoExpanded && (
                                         <div className="mt-2 overflow-hidden rounded-lg aspect-video bg-stone-900 animate-fade-in">
                                           <iframe
                                             className="w-full h-full"
-                                            src={`https://www.youtube.com/embed/${ytId}`}
+                                            src={embedUrl}
                                             title={ex.name}
                                             allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
                                             allowFullScreen
@@ -182,6 +250,17 @@ export function StudentTrainingPage() {
                                         </div>
                                       )}
                                     </div>
+                                  )}
+
+                                  {!embedUrl && isSearchUrl && (
+                                    <a
+                                      href={ex.videoUrl}
+                                      target="_blank"
+                                      rel="noreferrer"
+                                      className="mt-2 flex items-center gap-1.5 text-xs font-bold text-stone-500 hover:text-rose-600"
+                                    >
+                                      <Play size={14} /> Buscar demonstração no YouTube
+                                    </a>
                                   )}
                                 </div>
                               );

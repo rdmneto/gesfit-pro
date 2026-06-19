@@ -28,6 +28,8 @@ export function ChatWindow({ chatId, chatType, currentUserId, currentUserRole, o
     const messagesRef = collection(db, collectionName, chatId, "messages");
     const q = query(messagesRef, orderBy("createdAt", "asc"));
 
+    const parentRef = doc(db, collectionName, chatId);
+
     const unsubscribe = onSnapshot(q, (snapshot) => {
       const loadedMessages = snapshot.docs.map(doc => ({
         id: doc.id,
@@ -38,13 +40,11 @@ export function ChatWindow({ chatId, chatType, currentUserId, currentUserRole, o
       setTimeout(() => {
         messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
       }, 100);
+      // Mark as read on every snapshot — handles new messages arriving while chat is open
+      updateDoc(parentRef, {
+        unreadBy: arrayRemove(currentUserId)
+      }).catch(err => console.error("Failed to clear unread:", err));
     });
-
-    // Mark as read when opening
-    const parentRef = doc(db, collectionName, chatId);
-    updateDoc(parentRef, {
-      unreadBy: arrayRemove(currentUserId)
-    }).catch(err => console.error("Failed to clear unread:", err));
 
     return () => unsubscribe();
   }, [chatId, chatType]);

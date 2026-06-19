@@ -5,8 +5,16 @@ import { useSessionStore } from '../store/session';
 import { useCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, Exercise } from '../types/domain';
-import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2 } from 'lucide-react';
+import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2, Eye, EyeOff, Play } from 'lucide-react';
 import { generateWorkout } from '../lib/ai';
+
+function getEmbedUrl(url: string): string | null {
+  if (!url) return null;
+  if (/youtube\.com\/embed\/([\w-]{11})/.test(url)) return url.split("?")[0];
+  const m = url.match(/(?:youtu\.be\/|youtube\.com\/(?:v\/|watch\?v=|watch\?.+[&?]v=|shorts\/))([\w-]{11})/);
+  if (m) return `https://www.youtube.com/embed/${m[1]}`;
+  return null;
+}
 
 export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
@@ -22,6 +30,8 @@ export function TrainingPage() {
   // States
   const [showForm, setShowForm] = useState(false);
   const [editingTrainingId, setEditingTrainingId] = useState<string | null>(null);
+  const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
+  const [expandedVideoKey, setExpandedVideoKey] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
 
   // Form states
@@ -372,22 +382,96 @@ export function TrainingPage() {
               {activeTrainings.length === 0 ? (
                 <p className="col-span-full py-8 text-center text-sm text-stone-500 italic">Nenhum treino ativo no momento.</p>
               ) : (
-                activeTrainings.map(training => (
-                  <article key={training.id} className="card flex flex-col justify-between p-4">
-                    <div>
-                      <div className="flex justify-between items-start">
-                        <span className="badge badge-green">Ativo</span>
-                        <div className="flex gap-2">
-                          <button type="button" className="text-stone-400 hover:text-emerald-600" title="Editar" onClick={() => startEditing(training)}><Pencil size={16}/></button>
-                          <button type="button" className="text-stone-400 hover:text-amber-600" title="Arquivar" onClick={() => archiveTraining(training.id)}><Archive size={16}/></button>
-                          <button type="button" className="text-stone-400 hover:text-rose-600" title="Excluir" onClick={() => deleteTraining(training.id)}><Trash2 size={16}/></button>
+                activeTrainings.map(training => {
+                  const isExpanded = expandedTrainingId === training.id;
+                  return (
+                    <article key={training.id} className="card overflow-hidden">
+                      <div className="flex flex-col justify-between p-4">
+                        <div>
+                          <div className="flex justify-between items-start">
+                            <span className="badge badge-green">Ativo</span>
+                            <div className="flex gap-2">
+                              <button type="button" className="text-stone-400 hover:text-emerald-600" title="Editar" onClick={() => startEditing(training)}><Pencil size={16}/></button>
+                              <button type="button" className="text-stone-400 hover:text-amber-600" title="Arquivar" onClick={() => archiveTraining(training.id)}><Archive size={16}/></button>
+                              <button type="button" className="text-stone-400 hover:text-rose-600" title="Excluir" onClick={() => deleteTraining(training.id)}><Trash2 size={16}/></button>
+                            </div>
+                          </div>
+                          <h3 className="mt-2 text-lg font-black text-stone-900 line-clamp-1" title={training.title}>{training.title}</h3>
+                          <p className="mt-1 flex items-center gap-1 text-xs text-stone-500"><Dumbbell size={12}/> {training.exercises.length} exercícios</p>
                         </div>
+                        <button
+                          type="button"
+                          className="mt-3 flex items-center gap-1.5 text-xs font-bold text-emerald-700 hover:text-emerald-900"
+                          onClick={() => {
+                            setExpandedTrainingId(isExpanded ? null : training.id);
+                            setExpandedVideoKey(null);
+                          }}
+                        >
+                          {isExpanded ? <EyeOff size={14} /> : <Eye size={14} />}
+                          {isExpanded ? "Ocultar exercícios" : "Ver exercícios"}
+                        </button>
                       </div>
-                      <h3 className="mt-2 text-lg font-black text-stone-900 line-clamp-1" title={training.title}>{training.title}</h3>
-                      <p className="mt-1 flex items-center gap-1 text-xs text-stone-500"><Dumbbell size={12}/> {training.exercises.length} exercícios</p>
-                    </div>
-                  </article>
-                ))
+
+                      {isExpanded && (
+                        <div className="border-t border-stone-100 bg-stone-50 px-4 pb-4 pt-3 animate-slide-up">
+                          {training.description && (
+                            <p className="mb-3 text-xs italic text-stone-500 leading-relaxed">{training.description}</p>
+                          )}
+                          <div className="space-y-2">
+                            {training.exercises.map((ex, idx) => {
+                              const embedUrl = getEmbedUrl(ex.videoUrl || '');
+                              const isSearchUrl = (ex.videoUrl || '').includes('youtube.com/results');
+                              const videoKey = `${training.id}-${idx}`;
+                              const isVideoOpen = expandedVideoKey === videoKey;
+                              return (
+                                <div key={idx} className="rounded-lg bg-white border border-stone-200 p-3">
+                                  <div className="flex items-start justify-between gap-2">
+                                    <div className="flex-1">
+                                      <p className="text-sm font-bold text-stone-900">{idx + 1}. {ex.name}</p>
+                                      <p className="text-xs text-stone-500 mt-0.5">{ex.sets}{ex.rest ? ` · Pausa: ${ex.rest}` : ''}</p>
+                                      {ex.notes && <p className="text-xs italic text-stone-400 mt-0.5">"{ex.notes}"</p>}
+                                    </div>
+                                    {embedUrl && (
+                                      <button
+                                        type="button"
+                                        className="shrink-0 flex items-center gap-1 text-xs font-bold text-rose-500 hover:text-rose-700"
+                                        onClick={() => setExpandedVideoKey(isVideoOpen ? null : videoKey)}
+                                      >
+                                        <Play size={13} />
+                                        {isVideoOpen ? "Fechar" : "Vídeo"}
+                                      </button>
+                                    )}
+                                    {!embedUrl && isSearchUrl && (
+                                      <a
+                                        href={ex.videoUrl}
+                                        target="_blank"
+                                        rel="noreferrer"
+                                        className="shrink-0 flex items-center gap-1 text-xs font-bold text-stone-400 hover:text-rose-500"
+                                      >
+                                        <Play size={13} /> YouTube
+                                      </a>
+                                    )}
+                                  </div>
+                                  {embedUrl && isVideoOpen && (
+                                    <div className="mt-2 overflow-hidden rounded-lg aspect-video bg-stone-900 animate-fade-in">
+                                      <iframe
+                                        className="w-full h-full"
+                                        src={embedUrl}
+                                        title={ex.name}
+                                        allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                                        allowFullScreen
+                                      />
+                                    </div>
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      )}
+                    </article>
+                  );
+                })
               )}
             </div>
       </div>

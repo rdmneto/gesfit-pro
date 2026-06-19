@@ -144,10 +144,8 @@ export function OnboardingPage() {
         },
       });
 
-      if (!trainerId) {
-        alert("Bem-vindo! Encontre o seu treinador ideal.");
-        navigate("/treinadores");
-      }
+      // Sempre redireciona para vitrine de treinadores após cadastro
+      navigate("/treinadores");
     } catch (err: unknown) {
       console.error(err);
       setError((err as { message?: string })?.message || "Erro ao salvar perfil. Tente novamente.");

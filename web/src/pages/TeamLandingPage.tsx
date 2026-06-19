@@ -231,6 +231,17 @@ export function TeamLandingPage() {
             {team.branding?.welcomeMessage || "Treino sério e acompanhamento personalizado."}
           </p>
           <div className="mt-8 flex flex-wrap gap-3">
+            {!isMyTeam && !isTrainerAndNotMe && (
+              <button
+                type="button"
+                className="focus-ring inline-flex h-11 items-center gap-2 rounded-md px-5 text-sm font-bold text-white hover:opacity-90 transition-opacity"
+                style={{ backgroundColor: primary }}
+                onClick={handleContract}
+              >
+                Contratar Treinador
+                <ArrowRight aria-hidden="true" size={16} />
+              </button>
+            )}
             {!user && (
               <Link
                 className="focus-ring inline-flex h-11 items-center gap-2 rounded-md bg-white px-5 text-sm font-bold text-stone-950 hover:bg-stone-100 transition-colors"
@@ -314,8 +325,29 @@ export function TeamLandingPage() {
               <article className="rounded-lg border border-stone-200 bg-white p-5 sm:col-span-2">
                 <h3 className="text-lg font-bold text-stone-900">Valores sob consulta</h3>
                 <p className="mt-2 text-sm leading-6 text-stone-600">
-                  Este treinador optou por não divulgar valores na vitrine pública.
+                  Este treinador prefere apresentar os valores pessoalmente. Entre em contato para saber mais.
                 </p>
+                {netMessage && <p className="mt-3 text-xs font-bold text-emerald-700">{netMessage}</p>}
+                <button
+                  type="button"
+                  disabled={netLoading}
+                  className="focus-ring mt-4 inline-flex h-10 items-center gap-2 rounded-md px-4 text-sm font-bold text-white hover:opacity-90 transition-opacity disabled:opacity-50"
+                  style={{ backgroundColor: primary }}
+                  onClick={() => {
+                    if (!user) {
+                      navigate(`/login?signup=1&treinador=${team?.slug ?? ""}`);
+                      return;
+                    }
+                    if (role === "trainer") {
+                      handleStartChat();
+                    } else {
+                      handleStartChat();
+                    }
+                  }}
+                >
+                  <MessageSquare size={16} />
+                  Falar com o Treinador
+                </button>
               </article>
             )}
           </div>
