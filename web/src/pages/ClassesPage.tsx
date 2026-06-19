@@ -122,8 +122,8 @@ export function ClassesPage() {
       const d = new Date(base);
       d.setDate(d.getDate() + stepDays * i);
       if (occupied.has(d.getTime())) { skipped++; continue; }
-      let assignedToId: string | undefined;
-      let assignedToName: string | undefined;
+      let assignedToId: string | null = null;
+      let assignedToName: string | null = null;
       if (assignSubTrainerId && assignSubTrainerId !== "owner") {
         const member = teamMembers.find(m => m.subTrainerId === assignSubTrainerId);
         if (member) { assignedToId = member.subTrainerId; assignedToName = member.subTrainerName; }
@@ -142,8 +142,8 @@ export function ClassesPage() {
         status: "scheduled",
         exercises: training?.exercises?.map(e => e.name) || [],
         trainingId: opts.trainingId,
-        assignedToId,
-        assignedToName,
+        assignedToId: assignedToId ?? null,
+        assignedToName: assignedToName ?? null,
       });
     }
     if (sessions.length === 0) { setError("Todos os horários selecionados já estão ocupados."); return null; }

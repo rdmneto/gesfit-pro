@@ -290,9 +290,9 @@ export interface WorkoutSession {
   studentStartedAt?: string;
   studentCompletedAt?: string;
   /** UID do sub-treinador que executa a aula. trainerId permanece o dono (para crédito). */
-  assignedToId?: string;
+  assignedToId?: string | null;
   /** Nome denormalizado do sub-treinador */
-  assignedToName?: string;
+  assignedToName?: string | null;
 }
 
 export interface Booking {
