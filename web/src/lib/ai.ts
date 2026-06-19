@@ -1,9 +1,7 @@
 import type { Exercise } from "../types/domain";
 
-const NVIDIA_API_KEY = "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";
-const NVIDIA_URL = import.meta.env.DEV
-  ? "/api/nvidia/v1/chat/completions"
-  : "https://integrate.api.nvidia.com/v1/chat/completions";
+const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
+const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export interface WorkoutGenerationParams {
   durationMinutes: string;
@@ -35,32 +33,29 @@ O formato de cada objeto no array JSON deve ser exatamente este:
 
 Lembre-se: Retorne SOMENTE o JSON. Certifique-se de que é um array [].`;
 
-  const response = await fetch(NVIDIA_URL, {
+  const response = await fetch(GROQ_URL, {
     method: "POST",
     headers: {
       "Content-Type": "application/json",
-      "Authorization": `Bearer ${NVIDIA_API_KEY}`,
+      "Authorization": `Bearer ${GROQ_API_KEY}`,
     },
     body: JSON.stringify({
-      model: "deepseek-ai/deepseek-r1",
+      model: "llama-3.3-70b-versatile",
       messages: [{ role: "user", content: prompt }],
       temperature: 0.7,
       max_tokens: 4096,
-      stream: false,
     }),
   });
 
   if (!response.ok) {
     const err = await response.json().catch(() => ({})) as any;
-    throw new Error(`Erro na IA: ${err.message ?? `HTTP ${response.status}`}`);
+    throw new Error(`Erro na IA: ${err.error?.message ?? `HTTP ${response.status}`}`);
   }
 
   const data = await response.json() as any;
   const raw: string = data.choices[0].message.content;
 
-  // Remove thinking blocks (DeepSeek R1) and markdown fences
   const clean = raw
-    .replace(/<think>[\s\S]*?<\/think>/g, "")
     .replace(/^```json\s*/m, "")
     .replace(/^```\s*/m, "")
     .replace(/```$/m, "")
