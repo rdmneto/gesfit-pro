@@ -1,6 +1,6 @@
 import type { Exercise } from "../types/domain";
 
-const GROQ_API_KEY = import.meta.env.VITE_GROQ_API_KEY as string;
+const GROQ_API_KEY = (import.meta.env.VITE_GROQ_API_KEY as string ?? "").trim();
 const GROQ_URL = "https://api.groq.com/openai/v1/chat/completions";
 
 export interface WorkoutGenerationParams {
