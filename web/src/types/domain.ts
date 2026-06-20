@@ -343,6 +343,8 @@ export interface Training {
   title: string;
   description?: string;
   exercises: Exercise[];
+  /** Estimativa de gasto calórico por minuto gerada pela IA */
+  caloriesPerMinute?: number;
   status: "active" | "archived";
   createdAt: string;
   updatedAt: string;

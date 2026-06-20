@@ -1,5 +1,5 @@
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle, Dumbbell, CheckCircle2, ChevronDown, ChevronUp, X, Play } from "lucide-react";
-import { useMemo, useRef, useState } from "react";
+import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useDocument } from "../../lib/hooks";
@@ -292,27 +292,73 @@ function StudentDayCarousel({
 }) {
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
-  const containerRef = useRef<HTMLDivElement>(null);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  // "x" e "transition" controlam o sliding do card central
+  const [slide, setSlide] = useState({ x: "0px", t: "none" });
 
   const prevDay = new Date(reference);
   prevDay.setDate(reference.getDate() - 1);
   const nextDay = new Date(reference);
   nextDay.setDate(reference.getDate() + 1);
 
+  function navigateWithAnimation(dir: 1 | -1) {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setIsDragging(false);
+    setDragOffset(0);
+
+    const easing = "cubic-bezier(0.4,0,0.2,1)";
+    const exitX  = dir === 1 ? "-110%" : "110%";
+    const enterX = dir === 1 ?  "110%" : "-110%";
+    const dur = 220;
+
+    // Fase 1 — slide out
+    setSlide({ x: exitX, t: `transform ${dur}ms ${easing}` });
+
+    setTimeout(() => {
+      // Fase 2 — atualiza conteúdo e posiciona off-screen instantaneamente
+      onNavigate(dir);
+      setSlide({ x: enterX, t: "none" });
+
+      // Fase 3 — slide in no próximo frame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setSlide({ x: "0px", t: `transform ${dur}ms ${easing}` });
+          setTimeout(() => setIsAnimating(false), dur + 20);
+        });
+      });
+    }, dur + 10);
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
+    if (isAnimating) return;
     setDragStartX(e.touches[0].clientX);
+    setIsDragging(true);
     setDragOffset(0);
   }
   function handleTouchMove(e: React.TouchEvent) {
-    if (dragStartX === null) return;
+    if (dragStartX === null || !isDragging) return;
     setDragOffset(e.touches[0].clientX - dragStartX);
   }
   function handleTouchEnd() {
-    if (dragOffset < -60) onNavigate(1);
-    else if (dragOffset > 60) onNavigate(-1);
     setDragStartX(null);
-    setDragOffset(0);
+    if (dragOffset < -60) {
+      navigateWithAnimation(1);
+    } else if (dragOffset > 60) {
+      navigateWithAnimation(-1);
+    } else {
+      // threshold não atingido — snap de volta
+      setIsDragging(false);
+      setDragOffset(0);
+      setSlide({ x: "0px", t: "transform 0.28s cubic-bezier(0.4,0,0.2,1)" });
+    }
   }
+
+  // Estilo inline do conteúdo deslizante
+  const slideStyle: React.CSSProperties = isDragging
+    ? { transform: `translateX(${dragOffset}px)`, transition: "none" }
+    : { transform: `translateX(${slide.x})`, transition: slide.t };
 
   function renderHeader(day: Date, isCenter: boolean) {
     const isToday = isSameDay(day.toISOString(), new Date());
@@ -356,48 +402,46 @@ function StudentDayCarousel({
 
   return (
     <div
-      ref={containerRef}
       className="mt-6 relative select-none"
       onTouchStart={handleTouchStart}
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
-      style={{
-        transform: dragOffset !== 0 ? `translateX(${Math.sign(dragOffset) * Math.min(Math.abs(dragOffset) * 0.15, 18)}px)` : undefined,
-        transition: dragOffset === 0 ? "transform 0.3s ease" : "none",
-      }}
     >
       <div className="flex items-stretch justify-center gap-2 sm:gap-4">
         {/* Dia anterior */}
         <div
           className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
-          onClick={() => onNavigate(-1)}
+          onClick={() => navigateWithAnimation(-1)}
           title="Dia anterior"
         >
           {renderHeader(prevDay, false)}
           {renderSideDots(prevDay)}
         </div>
 
-        {/* Dia atual — destacado */}
+        {/* Dia atual — container que clippa a animação */}
         <div
-          className="flex-[1_0_60%] sm:flex-[1_0_55%] max-w-[72%] sm:max-w-[60%] flex flex-col rounded-2xl overflow-hidden border border-stone-200 bg-white shadow-2xl z-10"
+          className="flex-[1_0_60%] sm:flex-[1_0_55%] max-w-[72%] sm:max-w-[60%] rounded-2xl overflow-hidden border border-stone-200 shadow-2xl z-10"
           style={{ transform: "translateY(-6px)" }}
         >
-          {renderHeader(reference, true)}
-          <div className="p-4 space-y-3 pb-6">
-            {centerItems.length === 0 ? (
-              <div className="py-10 text-center">
-                <p className="text-sm font-semibold text-stone-400">Nenhum treino agendado para este dia.</p>
-              </div>
-            ) : (
-              centerItems.map(w => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
-            )}
+          {/* Conteúdo deslizante */}
+          <div className="flex flex-col bg-white h-full" style={slideStyle}>
+            {renderHeader(reference, true)}
+            <div className="p-4 space-y-3 pb-6">
+              {centerItems.length === 0 ? (
+                <div className="py-10 text-center">
+                  <p className="text-sm font-semibold text-stone-400">Nenhum treino agendado para este dia.</p>
+                </div>
+              ) : (
+                centerItems.map(w => <WorkoutCard key={w.id} workout={w} trainings={trainings} />)
+              )}
+            </div>
           </div>
         </div>
 
         {/* Próximo dia */}
         <div
           className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
-          onClick={() => onNavigate(1)}
+          onClick={() => navigateWithAnimation(1)}
           title="Próximo dia"
         >
           {renderHeader(nextDay, false)}

@@ -140,7 +140,9 @@ export function ClassesPage() {
         address: "",
         proposedWorkout: opts.proposedWorkout || training?.title || "Treino Livre",
         durationMinutes: opts.durationMin,
-        plannedCalories: 320,
+        plannedCalories: training?.caloriesPerMinute
+          ? Math.round(training.caloriesPerMinute * opts.durationMin)
+          : Math.round(opts.durationMin * 7),
         status: "scheduled",
         exercises: training?.exercises?.map(e => e.name) || [],
         trainingId: opts.trainingId,

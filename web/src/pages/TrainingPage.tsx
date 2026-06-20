@@ -6,7 +6,7 @@ import { useCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, Exercise } from '../types/domain';
 import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2, Eye, EyeOff, Play } from 'lucide-react';
-import { generateWorkout } from '../lib/ai';
+import { generateWorkout, estimateCaloriesFromExercises, findVideosForExercises } from '../lib/ai';
 
 function getEmbedUrl(url: string): string | null {
   if (!url) return null;
@@ -47,23 +47,57 @@ export function TrainingPage() {
   const [aiFocus, setAiFocus] = useState("Hipertrofia");
   const [aiStyle, setAiStyle] = useState("Musculação");
   const [aiError, setAiError] = useState("");
+  const [aiCaloriesPerMinute, setAiCaloriesPerMinute] = useState<number | undefined>(undefined);
+  const [estimatingCalories, setEstimatingCalories] = useState(false);
+  const [findingVideos, setFindingVideos] = useState(false);
+  const [aiActionError, setAiActionError] = useState("");
 
   const handleGenerateAI = async () => {
     setAiGenerating(true);
     setAiError("");
     try {
-      const generatedExercises = await generateWorkout({
+      const result = await generateWorkout({
         durationMinutes: aiDuration,
         exercisesCount: aiCount,
         focus: aiFocus,
         style: aiStyle
       });
-      setExercises(generatedExercises);
+      setExercises(result.exercises);
+      setAiCaloriesPerMinute(result.caloriesPerMinute);
       setShowAIModal(false);
     } catch (err: any) {
       setAiError(err.message || "Erro desconhecido ao gerar treino.");
     } finally {
       setAiGenerating(false);
+    }
+  };
+
+  const handleEstimateCalories = async () => {
+    if (exercises.length === 0) return;
+    setEstimatingCalories(true);
+    setAiActionError("");
+    try {
+      const names = exercises.map((e) => e.name).filter(Boolean);
+      const kcal = await estimateCaloriesFromExercises(names, title);
+      setAiCaloriesPerMinute(kcal);
+    } catch (err: any) {
+      setAiActionError(err.message || "Erro ao estimar calorias.");
+    } finally {
+      setEstimatingCalories(false);
+    }
+  };
+
+  const handleFindVideos = async () => {
+    if (exercises.length === 0) return;
+    setFindingVideos(true);
+    setAiActionError("");
+    try {
+      const updated = await findVideosForExercises(exercises);
+      setExercises(updated);
+    } catch (err: any) {
+      setAiActionError(err.message || "Erro ao buscar vídeos.");
+    } finally {
+      setFindingVideos(false);
     }
   };
 
@@ -100,6 +134,8 @@ export function TrainingPage() {
     setTitle("");
     setDescription("");
     setExercises([]);
+    setAiCaloriesPerMinute(undefined);
+    setAiActionError("");
   }
 
   function startEditing(training: Training) {
@@ -107,6 +143,7 @@ export function TrainingPage() {
     setTitle(training.title);
     setDescription(training.description ?? "");
     setExercises(training.exercises.map((e, i) => ({ ...e, order: i })));
+    setAiCaloriesPerMinute(training.caloriesPerMinute);
     setShowForm(true);
     window.scrollTo({ top: 0, behavior: "smooth" });
   }
@@ -120,6 +157,7 @@ export function TrainingPage() {
           title,
           description,
           exercises,
+          ...(aiCaloriesPerMinute !== undefined ? { caloriesPerMinute: aiCaloriesPerMinute } : {}),
           updatedAt: new Date().toISOString(),
         });
       } else {
@@ -128,6 +166,7 @@ export function TrainingPage() {
           title,
           description,
           exercises,
+          ...(aiCaloriesPerMinute !== undefined ? { caloriesPerMinute: aiCaloriesPerMinute } : {}),
           status: 'active',
           createdAt: new Date().toISOString(),
           updatedAt: new Date().toISOString(),
@@ -293,6 +332,39 @@ export function TrainingPage() {
                       <Plus size={16} /> Adicionar Exercício
                     </button>
                   </div>
+
+                  {exercises.length > 0 && (
+                    <div className="mt-3 flex flex-wrap gap-2">
+                      <button
+                        type="button"
+                        disabled={estimatingCalories}
+                        onClick={handleEstimateCalories}
+                        className="focus-ring flex items-center gap-1.5 rounded-lg border border-amber-200 bg-amber-50 px-3 py-1.5 text-xs font-bold text-amber-700 hover:bg-amber-100 disabled:opacity-50 transition-colors"
+                      >
+                        {estimatingCalories
+                          ? <><Loader2 size={13} className="animate-spin" /> Estimando...</>
+                          : <><Sparkles size={13} /> Estimar calorias</>}
+                      </button>
+                      <button
+                        type="button"
+                        disabled={findingVideos}
+                        onClick={handleFindVideos}
+                        className="focus-ring flex items-center gap-1.5 rounded-lg border border-rose-200 bg-rose-50 px-3 py-1.5 text-xs font-bold text-rose-700 hover:bg-rose-100 disabled:opacity-50 transition-colors"
+                      >
+                        {findingVideos
+                          ? <><Loader2 size={13} className="animate-spin" /> Buscando vídeos...</>
+                          : <><Play size={13} /> Encontrar vídeos</>}
+                      </button>
+                      {aiCaloriesPerMinute !== undefined && (
+                        <span className="flex items-center gap-1 rounded-lg bg-emerald-50 border border-emerald-200 px-3 py-1.5 text-xs font-bold text-emerald-700">
+                          🔥 ~{aiCaloriesPerMinute} kcal/min estimado pela IA
+                        </span>
+                      )}
+                      {aiActionError && (
+                        <p className="w-full text-xs text-rose-600 font-medium">{aiActionError}</p>
+                      )}
+                    </div>
+                  )}
                 </div>
 
                 {showAIModal && (
