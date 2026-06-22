@@ -180,17 +180,23 @@ service cloud.firestore {
 
       // Atualização:
       //  - o treinador dono do vínculo pode tudo (aprovar, ajustar saldo);
-      //  - o aluno só pode pausar ou cancelar o próprio vínculo (status),
-      //    nunca aprovar nem mexer no saldo.
+      //  - o aluno pode alterar o status (para pausar/cancelar), e os campos do chat (lastMessageAt, lastMessageText, unreadBy, blockedBy).
       allow update: if signedIn()
         && (
           request.auth.uid == resource.data.trainerId
           || (
             request.auth.uid == resource.data.studentId
-            && onlyChanged(['status'])
-            && request.resource.data.status in ['pending', 'paused', 'cancelled', 'active']
-            // o aluno nunca pode aprovar a si mesmo (pending → active)
-            && !(resource.data.status == 'pending' && request.resource.data.status == 'active')
+            && (
+              request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'lastMessageAt', 'lastMessageText', 'unreadBy', 'blockedBy'])
+            )
+            // se o status foi alterado, garantir que aluno não aprova a si mesmo
+            && (
+              !('status' in request.resource.data.diff(resource.data).affectedKeys()) 
+              || (
+                request.resource.data.status in ['pending', 'paused', 'cancelled', 'active']
+                && !(resource.data.status == 'pending' && request.resource.data.status == 'active')
+              )
+            )
           )
         );
 

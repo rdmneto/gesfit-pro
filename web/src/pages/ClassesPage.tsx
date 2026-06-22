@@ -651,6 +651,9 @@ function TrainerCalendarVisual({
   const [expandedCell, setExpandedCell] = useState<{ day: Date; slot: string; workout: WorkoutSession | null } | null>(null);
   const [dragStartX, setDragStartX] = useState<number | null>(null);
   const [dragOffset, setDragOffset] = useState(0);
+  const [isDragging, setIsDragging] = useState(false);
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [slide, setSlide] = useState({ x: "0px", t: "none" });
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
@@ -968,19 +971,53 @@ function TrainerCalendarVisual({
   const nextDay = new Date(referenceDate);
   nextDay.setDate(referenceDate.getDate() + 1);
 
+  function navigateWithAnimation(dir: 1 | -1) {
+    if (isAnimating) return;
+    setIsAnimating(true);
+    setIsDragging(false);
+    setDragOffset(0);
+
+    const easing = "cubic-bezier(0.4,0,0.2,1)";
+    const exitX  = dir === 1 ? "-110%" : "110%";
+    const enterX = dir === 1 ?  "110%" : "-110%";
+    const dur = 220;
+
+    // Fase 1 — slide out
+    setSlide({ x: exitX, t: `transform ${dur}ms ${easing}` });
+
+    setTimeout(() => {
+      // Fase 2 — atualiza conteúdo e posiciona off-screen instantaneamente
+      onNavigate!(dir);
+      setSlide({ x: enterX, t: "none" });
+
+      // Fase 3 — slide in no próximo frame
+      requestAnimationFrame(() => {
+        requestAnimationFrame(() => {
+          setSlide({ x: "0px", t: `transform ${dur}ms ${easing}` });
+          setTimeout(() => setIsAnimating(false), dur + 20);
+        });
+      });
+    }, dur + 10);
+  }
+
   function handleTouchStart(e: React.TouchEvent) {
+    if (isAnimating) return;
     setDragStartX(e.touches[0].clientX);
+    setIsDragging(true);
     setDragOffset(0);
   }
   function handleTouchMove(e: React.TouchEvent) {
-    if (dragStartX === null) return;
+    if (dragStartX === null || !isDragging) return;
     setDragOffset(e.touches[0].clientX - dragStartX);
   }
   function handleTouchEnd() {
-    if (dragOffset < -60) onNavigate(1);
-    else if (dragOffset > 60) onNavigate(-1);
     setDragStartX(null);
-    setDragOffset(0);
+    if (dragOffset < -60) navigateWithAnimation(1);
+    else if (dragOffset > 60) navigateWithAnimation(-1);
+    else {
+      setIsDragging(false);
+      setDragOffset(0);
+    }
   }
 
   function renderCarouselDaySlots(day: Date) {
@@ -1142,15 +1179,16 @@ function TrainerCalendarVisual({
       onTouchMove={handleTouchMove}
       onTouchEnd={handleTouchEnd}
       style={{
-        transform: dragOffset !== 0 ? `translateX(${Math.sign(dragOffset) * Math.min(Math.abs(dragOffset) * 0.15, 18)}px)` : undefined,
-        transition: dragOffset === 0 ? "transform 0.3s ease" : "none",
+        transform: isAnimating ? slide.t !== "none" ? `translateX(${slide.x})` : "none" 
+                 : (dragOffset !== 0 ? `translateX(${Math.sign(dragOffset) * Math.min(Math.abs(dragOffset) * 0.15, 18)}px)` : undefined),
+        transition: isAnimating ? slide.t : (dragOffset === 0 && !isDragging ? "transform 0.3s ease" : "none"),
       }}
     >
       <div className="flex items-stretch justify-center gap-2 sm:gap-4">
         {/* Dia anterior */}
         <div
           className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
-          onClick={() => onNavigate(-1)}
+          onClick={() => navigateWithAnimation(-1)}
           title="Dia anterior"
         >
           {renderDayHeader(prevDay, false)}
@@ -1168,7 +1206,7 @@ function TrainerCalendarVisual({
         {/* Próximo dia */}
         <div
           className="flex-[0_0_14%] sm:flex-[0_0_18%] flex flex-col rounded-2xl overflow-hidden border border-stone-100 bg-stone-50 shadow-sm opacity-50 blur-[1.5px] cursor-pointer hover:opacity-60 transition-opacity"
-          onClick={() => onNavigate(1)}
+          onClick={() => navigateWithAnimation(1)}
           title="Próximo dia"
         >
           {renderDayHeader(nextDay, false)}
