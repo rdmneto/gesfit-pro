@@ -1,6 +1,6 @@
 import { useState, useMemo } from "react";
 import { doc, setDoc } from "firebase/firestore";
-import { CheckCircle2, Copy, DollarSign, Receipt, TrendingUp, Users, Wallet } from "lucide-react";
+import { CheckCircle2, Copy, Receipt, TrendingUp, Users, Wallet } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
 import {
@@ -164,7 +164,6 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
   }, [teamsImIn, assignedSessions, start, end]);
 
   const totalToPay = partnerSummary.reduce((acc, s) => acc + s.total, 0);
-  const totalToReceive = receivableSummary.reduce((acc, _s) => acc + 0, 0); // populated inline
 
   const hasAnything = ownPartners.length > 0 || teamsImIn.length > 0;
 
@@ -275,9 +274,6 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
                 key={team.ownerUid}
                 team={team}
                 sessionCount={sessionCount}
-                assignedSessions={assignedSessions ?? []}
-                monthStart={start}
-                monthEnd={end}
               />
             ))}
           </div>
@@ -290,15 +286,9 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
 function PartnerReceivableRow({
   team,
   sessionCount,
-  assignedSessions,
-  monthStart,
-  monthEnd,
 }: {
   team: TeamMember;
   sessionCount: number;
-  assignedSessions: WorkoutSession[];
-  monthStart: string;
-  monthEnd: string;
 }) {
   const { data: rates } = usePartnerRates(team.ownerUid);
   const user = useSessionStore((s) => s.user);

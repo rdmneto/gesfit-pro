@@ -14,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, useMemo, Fragment, useRef } from "react";
-import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where, setDoc, getDocs, query } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions } from "../lib/hooks";
