@@ -289,10 +289,22 @@ export interface WorkoutSession {
   actualDurationMinutes?: number;
   studentStartedAt?: string;
   studentCompletedAt?: string;
-  /** UID do sub-treinador que executa a aula. trainerId permanece o dono (para crédito). */
+  /** UID do treinador parceiro que executa a aula. trainerId permanece o dono (para crédito). */
   assignedToId?: string | null;
-  /** Nome denormalizado do sub-treinador */
+  /** Nome denormalizado do treinador parceiro */
   assignedToName?: string | null;
+  /** Marcado como true quando o parceiro foi removido e a aula ficou sem responsável */
+  pendingReview?: boolean;
+}
+
+/** Valor por aula definido pelo treinador principal para cada parceiro */
+export interface PartnerRate {
+  id: string;          // `${ownerId}__${partnerId}`
+  ownerId: string;
+  partnerId: string;
+  partnerName: string;
+  ratePerSession: number; // em reais
+  updatedAt: string;
 }
 
 export interface Booking {

@@ -40,7 +40,7 @@ export function SubTrainerInviteBanner() {
       if (!snap.empty) {
         await updateDoc(snap.docs[0].ref, {
           status: accept ? "active" : "removed",
-          acceptedAt: accept ? new Date().toISOString() : undefined,
+          ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
       }
     } catch (err) {
@@ -61,7 +61,7 @@ export function SubTrainerInviteBanner() {
       if (!snap.empty) {
         await updateDoc(snap.docs[0].ref, {
           status: accept ? "active" : "removed",
-          acceptedAt: accept ? new Date().toISOString() : undefined,
+          ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
       }
     } catch (err) {

@@ -115,6 +115,7 @@ import type {
   ClassProduct,
   ClassPurchase,
   Enrollment,
+  PartnerRate,
   Student,
   StudentMeasurement,
   StudentMeasurementSubmission,
@@ -345,6 +346,26 @@ export function useTeamMembers(ownerUid: string | null | undefined) {
     ownerUid ? [where("ownerUid", "==", ownerUid), where("status", "==", "active")] : [],
     [],
     [ownerUid]
+  );
+}
+
+/** Taxas por sessão definidas pelo treinador dono para seus parceiros */
+export function usePartnerRates(ownerId: string | null | undefined) {
+  return useCollection<PartnerRate>(
+    "partnerRates",
+    ownerId ? [where("ownerId", "==", ownerId)] : [],
+    [],
+    [ownerId]
+  );
+}
+
+/** Times em que o usuário é treinador parceiro ativo */
+export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
+  return useCollection<TeamMember>(
+    "teamMembers",
+    subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "active")] : [],
+    [],
+    [subTrainerId]
   );
 }
 

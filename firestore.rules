@@ -70,6 +70,15 @@ service cloud.firestore {
       return request.resource.data.diff(resource.data).affectedKeys().hasOnly(keys);
     }
 
+    // Verifica se o usuário atual é parceiro ativo de um treinador dono.
+    // Requer que o documento teamMembers tenha ID `${ownerUid}__${subTrainerId}`.
+    function isActivePartnerOf(ownerUid) {
+      let memberId = ownerUid + '__' + request.auth.uid;
+      return signedIn()
+        && exists(/databases/$(database)/documents/teamMembers/$(memberId))
+        && get(/databases/$(database)/documents/teamMembers/$(memberId)).data.status == 'active';
+    }
+
     function publicTeamFieldsOnly() {
       return request.resource.data.keys().hasOnly([
         'name',
@@ -169,7 +178,8 @@ service cloud.firestore {
       allow read: if signedIn()
         && (enrollmentId.matches(request.auth.uid + '__.*')
             || request.auth.uid == resource.data.studentId
-            || request.auth.uid == resource.data.trainerId);
+            || request.auth.uid == resource.data.trainerId
+            || isActivePartnerOf(resource.data.trainerId));
 
       // O próprio aluno solicita o vínculo: entra como 'pending' e sem saldo.
       allow create: if signedIn()
@@ -268,8 +278,11 @@ service cloud.firestore {
         && (request.auth.uid == resource.data.trainerId
             || request.auth.uid == resource.data.studentId
             || request.auth.uid == resource.data.assignedToId);
-      // Somente o treinador dono cria (ele define trainerId = seu UID)
-      allow create: if signedIn() && request.auth.uid == request.resource.data.trainerId;
+      // Treinador dono cria, ou parceiro ativo cria aula atribuída a si mesmo
+      allow create: if signedIn()
+        && (request.auth.uid == request.resource.data.trainerId
+            || (isActivePartnerOf(request.resource.data.trainerId)
+                && request.resource.data.assignedToId == request.auth.uid));
       // Treinador dono ou sub-treinador atribuído podem atualizar (iniciar/finalizar)
       // Aluno pode apenas registrar a própria conclusão
       allow update: if signedIn() && (
@@ -462,6 +475,18 @@ service cloud.firestore {
           && onlyChanged(['read']);
         allow delete: if false;
       }
+    }
+
+    // ─── Coleção raiz: partnerRates (valor/aula por parceiro) ────────────
+    match /partnerRates/{rateId} {
+      // Dono e parceiro podem ler (rateId = `${ownerId}__${partnerId}`)
+      allow read: if signedIn()
+        && (resource.data.ownerId == request.auth.uid
+            || resource.data.partnerId == request.auth.uid);
+      // Somente o dono define/atualiza o valor
+      allow create, update: if signedIn()
+        && request.resource.data.ownerId == request.auth.uid;
+      allow delete: if false;
     }
 
     // ─── Coleção raiz: trainings (prescrição de treinos) ─────────────────

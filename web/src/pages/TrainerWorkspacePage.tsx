@@ -14,6 +14,7 @@ import {
   Package,
   Palette,
   Plus,
+  Receipt,
   RefreshCw,
   Search,
   Timer,
@@ -25,6 +26,7 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TeamManagementPanel } from "../features/team/TeamManagementPanel";
+import { PartnerFinancialPanel } from "../features/team/PartnerFinancialPanel";
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
@@ -90,7 +92,7 @@ export function TrainerWorkspacePage() {
 
   // Sub-tab state
   const [activeSubTab, setActiveSubTab] = useState<
-    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes" | "time"
+    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes" | "time" | "financeiro"
   >("cadastro");
 
   // Profile States
@@ -394,6 +396,7 @@ export function TrainerWorkspacePage() {
           { id: "agenda", label: "Agenda", icon: CalendarClock },
           { id: "pacotes", label: "Pacotes e promoções", icon: Package },
           { id: "time", label: "Meu Time", icon: Users },
+          { id: "financeiro", label: "Financeiro", icon: Receipt },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -780,21 +783,28 @@ export function TrainerWorkspacePage() {
             <TeamManagementPanel />
           </div>
         )}
+
+        {/* ── Sub-tab: FINANCEIRO ─────────────────────────────────────── */}
+        {activeSubTab === "financeiro" && (
+          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
+            <PartnerFinancialPanel trainerId={teamId || ""} />
+          </div>
+        )}
       </div>
 
-      {saveSuccess && activeSubTab !== "pacotes" && (
+      {saveSuccess && activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
         <div className="mt-6 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-800 animate-fade-in">
           Configurações e personalização salvas com sucesso!
         </div>
       )}
-      {saveError && activeSubTab !== "pacotes" && (
+      {saveError && activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
         <div className="mt-6 rounded-xl bg-rose-50 border border-rose-200 p-4 text-sm font-bold text-rose-800 animate-fade-in">
           {saveError}
         </div>
       )}
 
-      {/* Floating Save Button — pacotes/promoções têm salvamento próprio */}
-      {activeSubTab !== "pacotes" && (
+      {/* Floating Save Button — pacotes/promoções/financeiro têm salvamento próprio */}
+      {activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
         <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
           <button
             type="button"

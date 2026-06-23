@@ -15,8 +15,10 @@ import {
   query,
   where,
   getDocs,
-  addDoc,
+  setDoc,
   updateDoc,
+  writeBatch,
+  doc,
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
@@ -99,7 +101,7 @@ export function TeamManagementPanel() {
       }
 
       const memberId = `${user.uid}__${subTrainerId}`;
-      await addDoc(collection(db, "teamMembers"), {
+      await setDoc(doc(db, "teamMembers", memberId), {
         id: memberId,
         ownerUid: user.uid,
         ownerName: user.displayName || "",
@@ -123,18 +125,41 @@ export function TeamManagementPanel() {
 
   async function handleRemove(member: TeamMember) {
     if (!db) return;
-    if (!confirm(`Tem certeza que deseja excluir ${member.subTrainerName} do seu time? Aulas futuras atribuídas a ele não serão canceladas automaticamente.`)) return;
+    if (!confirm(`Tem certeza que deseja remover ${member.subTrainerName} do seu time? As aulas futuras dele serão desatribuídas e entrarão em lista de pendências.`)) return;
     try {
-      // Find the doc by querying (we don't store the docId directly)
-      const q = query(
+      const batch = writeBatch(db);
+
+      // 1. Marca o teamMember como removido
+      const tmQ = query(
         collection(db, "teamMembers"),
         where("ownerUid", "==", member.ownerUid),
         where("subTrainerId", "==", member.subTrainerId)
       );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        await updateDoc(snap.docs[0].ref, { status: "removed" });
+      const tmSnap = await getDocs(tmQ);
+      if (!tmSnap.empty) {
+        batch.update(tmSnap.docs[0].ref, { status: "removed" });
       }
+
+      // 2. Desatribui aulas futuras do parceiro e marca como pendentes
+      const now = new Date().toISOString();
+      const sessQ = query(
+        collection(db, "workoutSessions"),
+        where("trainerId", "==", member.ownerUid),
+        where("assignedToId", "==", member.subTrainerId)
+      );
+      const sessSnap = await getDocs(sessQ);
+      sessSnap.docs.forEach((d) => {
+        const data = d.data();
+        if (data.startsAt > now && data.status === "scheduled") {
+          batch.update(doc(db!, "workoutSessions", d.id), {
+            assignedToId: null,
+            assignedToName: null,
+            pendingReview: true,
+          });
+        }
+      });
+
+      await batch.commit();
     } catch (err: any) {
       console.error(err);
     }

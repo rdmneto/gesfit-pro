@@ -31,6 +31,7 @@ import { addDoc, collection, doc, serverTimestamp, updateDoc } from "firebase/fi
 import { db } from "../lib/firebase";
 import { bmi, calculateAge, whatsappLink } from "../lib/format";
 import {
+  useActivePartnerTeams,
   useMeasurements,
   usePendingMeasurements,
   useStudent,
@@ -62,6 +63,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const user = useSessionStore((state) => state.user);
   const teamId = useSessionStore((state) => state.claims.teamId);
   const { data: allStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
+  const { data: partnerTeams } = useActivePartnerTeams(trainerId);
   const [query, setQuery] = useState("");
 
   const studentsList = useMemo<StudentWithEnrollment[]>(() => allStudents ?? [], [allStudents]);
@@ -95,15 +97,17 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   }
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
+  // Holds a partner team's student when selected (not in own sortedStudents)
+  const [selectedStudentOverride, setSelectedStudentOverride] = useState<StudentWithEnrollment | null>(null);
 
-  // Auto-select first student when data loads
-  const effectiveSelectedId = selectedStudentId ?? sortedStudents[0]?.uid ?? null;
+  const effectiveSelectedId = selectedStudentOverride?.uid ?? selectedStudentId ?? sortedStudents[0]?.uid ?? null;
 
   const filteredStudents = sortedStudents.filter((student) =>
     student.displayName.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
   const selectedStudent = sortedStudents.find((s) => s.uid === effectiveSelectedId) ?? null;
+  const effectiveStudentForPanel = selectedStudentOverride ?? selectedStudent;
 
   const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
   const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
@@ -224,7 +228,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
             <div className="flex flex-wrap items-center justify-between gap-3">
               <div className="flex items-center gap-2">
                 <Users aria-hidden="true" className="text-emerald-800" size={22} />
-                <h2 className="text-xl font-black">Alunos</h2>
+                <h2 className="text-xl font-black">Meus Alunos</h2>
               </div>
               <label className="relative block flex-1 min-w-[140px]">
                 <span className="sr-only">Buscar aluno</span>
@@ -248,11 +252,11 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                   type="button"
                   className={[
                     "focus-ring grid w-full gap-2 rounded-md border p-3 text-left sm:grid-cols-[1fr_auto]",
-                    effectiveSelectedId === student.uid
+                    effectiveSelectedId === student.uid && !selectedStudentOverride
                       ? "border-emerald-700 bg-emerald-50"
                       : "border-stone-200 bg-white hover:bg-stone-50",
                   ].join(" ")}
-                  onClick={() => setSelectedStudentId(student.uid)}
+                  onClick={() => { setSelectedStudentId(student.uid); setSelectedStudentOverride(null); }}
                 >
                   <div>
                     <p className="font-black">{student.displayName}</p>
@@ -263,15 +267,26 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                 </button>
               ))}
             </div>
+
+            {/* Alunos dos times em que este treinador é parceiro */}
+            {(partnerTeams ?? []).map(team => (
+              <PartnerTeamStudentsSection
+                key={team.ownerUid}
+                ownerUid={team.ownerUid}
+                ownerName={team.ownerName || "Treinador"}
+                selectedStudentId={selectedStudentOverride?.uid ?? null}
+                onSelectStudent={(s) => { setSelectedStudentOverride(s); setSelectedStudentId(null); }}
+              />
+            ))}
           </section>
 
           <div className="grid gap-4">
-            {selectedStudent ? (
+            {effectiveStudentForPanel ? (
               <>
                 <StudentProfileSummary
                   measurements={measurements}
                   pendingCount={pending.length}
-                  student={selectedStudent}
+                  student={effectiveStudentForPanel}
                 />
 
                 <form className="card p-5" onSubmit={handleSubmit}>
@@ -343,6 +358,59 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
         </div>
       )}
     </section>
+  );
+}
+
+function PartnerTeamStudentsSection({
+  ownerUid,
+  ownerName,
+  selectedStudentId,
+  onSelectStudent,
+}: {
+  ownerUid: string;
+  ownerName: string;
+  selectedStudentId: string | null;
+  onSelectStudent: (student: StudentWithEnrollment) => void;
+}) {
+  const { data: ownerStudents, loading } = useTrainerStudents(ownerUid);
+  const activeStudents = useMemo(
+    () => (ownerStudents ?? []).filter(s => s.enrollment?.status !== "pending" && s.enrollment?.status !== "cancelled"),
+    [ownerStudents]
+  );
+  const sorted = useMemo(
+    () => [...activeStudents].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
+    [activeStudents]
+  );
+
+  if (loading || sorted.length === 0) return null;
+
+  return (
+    <div className="mt-4 border-t border-stone-100 pt-4">
+      <div className="mb-2 flex items-center gap-1.5">
+        <Users size={13} className="text-violet-600" />
+        <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
+          Alunos do Time {ownerName}
+        </p>
+      </div>
+      <div className="space-y-2">
+        {sorted.map(student => (
+          <button
+            key={student.uid}
+            type="button"
+            className={[
+              "focus-ring grid w-full gap-2 rounded-md border p-3 text-left",
+              selectedStudentId === student.uid
+                ? "border-violet-600 bg-violet-50"
+                : "border-stone-200 bg-white hover:bg-stone-50",
+            ].join(" ")}
+            onClick={() => onSelectStudent(student)}
+          >
+            <p className="font-black">{student.displayName}</p>
+            <p className="text-sm text-stone-600">{student.onboarding?.email ?? "Sem e-mail"}</p>
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

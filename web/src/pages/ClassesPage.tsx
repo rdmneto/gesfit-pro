@@ -1,4 +1,5 @@
 import {
+  AlertTriangle,
   CalendarDays,
   Check,
   ChevronLeft,
@@ -13,7 +14,7 @@ import {
   X,
 } from "lucide-react";
 import { useState, useMemo, Fragment, useRef } from "react";
-import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where } from "firebase/firestore";
+import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where, setDoc, getDocs, query } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions } from "../lib/hooks";
@@ -30,7 +31,7 @@ import {
   workoutAtSlot,
 } from "../features/dashboard/dashboardUtils";
 import { ActiveTrainingDetails } from "../features/dashboard/ActiveTrainingDetails";
-import type { WorkoutSession, TrainerAvailabilityDay, Training } from "../types/domain";
+import type { WorkoutSession, TrainerAvailabilityDay, Training, TeamMember } from "../types/domain";
 import { WorkoutSummaryModal, type WorkoutSummaryData } from "../components/WorkoutSummaryModal";
 
 
@@ -59,6 +60,14 @@ export function ClassesPage() {
   const [activeAgendaTab, setActiveAgendaTab] = useState<string>("mine");
   const [assignSubTrainerId, setAssignSubTrainerId] = useState<string>("owner");
   const [completedSummary, setCompletedSummary] = useState<WorkoutSummaryData | null>(null);
+
+  // Aulas sem treinador atribuído que precisam de ação
+  const pendingSessions = useMemo(() => {
+    const now = new Date().toISOString();
+    return (dbWorkoutSessions ?? []).filter(
+      w => w.pendingReview === true && w.status === "scheduled" && w.startsAt > now
+    );
+  }, [dbWorkoutSessions]);
 
   const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
   const trainerWorkouts = useMemo(() => {
@@ -215,6 +224,53 @@ export function ClassesPage() {
     } catch (err: any) { console.error(err); setError("Erro ao excluir: " + err.message); }
   }
 
+  // B — Envia mensagem automática ao parceiro via trainerChats
+  async function sendPartnerChatMessage(partner: TeamMember, sessionDates: string[]) {
+    if (!db || !user) return;
+    try {
+      const ids = [user.uid, partner.subTrainerId].sort();
+      const chatId = `${ids[0]}__${ids[1]}`;
+      const now = new Date().toISOString();
+
+      // Cria/atualiza o doc do chat
+      const chatRef = doc(db, "trainerChats", chatId);
+      const fmtDate = (iso: string) =>
+        new Date(iso).toLocaleDateString("pt-BR", { weekday: "short", day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+
+      let text: string;
+      if (sessionDates.length === 1) {
+        text = `Agendei uma aula para você em ${fmtDate(sessionDates[0])}. Verifica na sua agenda! 📅`;
+      } else {
+        text = `Agendei ${sessionDates.length} aulas para você. Primeira: ${fmtDate(sessionDates[0])}. Verifica na sua agenda! 📅`;
+      }
+
+      await setDoc(chatRef, {
+        id: chatId,
+        requesterId: user.uid,
+        requesterName: user.displayName || "Treinador",
+        targetId: partner.subTrainerId,
+        targetName: partner.subTrainerName,
+        status: "accepted",
+        createdAt: now,
+        updatedAt: now,
+        lastMessageAt: now,
+        lastMessageText: text,
+        unreadBy: [partner.subTrainerId],
+      }, { merge: true });
+
+      // Adiciona a mensagem
+      await addDoc(collection(db, "trainerChats", chatId, "messages"), {
+        text,
+        senderId: user.uid,
+        senderRole: "trainer",
+        createdAt: now,
+        read: false,
+      });
+    } catch (err) {
+      console.error("Erro ao enviar mensagem ao parceiro:", err);
+    }
+  }
+
   async function handleScheduleSlot() {
     if (!schedulerSlot) return;
     const student = students[selectedStudentIdx];
@@ -232,8 +288,50 @@ export function ClassesPage() {
     if (result) {
       const base = result.created === 1 ? "Aula agendada!" : `${result.created} aulas agendadas!`;
       setMessage(result.skipped > 0 ? `${base} ${result.skipped} horário(s) já ocupado(s) foram pulados.` : base);
+
+      // B — Notifica o parceiro via chat
+      if (assignSubTrainerId !== "owner" && result.created > 0) {
+        const partner = (teamMembers ?? []).find(m => m.subTrainerId === assignSubTrainerId);
+        if (partner) {
+          const stepDays = recurrence === "weekly" ? 7 : recurrence === "biweekly" ? 14 : 0;
+          const sessionDates = Array.from({ length: result.created }, (_, i) => {
+            const d = new Date(`${schedulerSlot.date}T${schedulerSlot.time}`);
+            d.setDate(d.getDate() + stepDays * i);
+            return d.toISOString();
+          });
+          await sendPartnerChatMessage(partner, sessionDates);
+        }
+      }
+
       setSchedulerSlot(null);
     }
+  }
+
+  // C — Handlers da lista de pendências
+  async function handlePendingAssume(workout: WorkoutSession) {
+    if (!db) return;
+    await updateDoc(doc(db, "workoutSessions", workout.id), {
+      pendingReview: false,
+      assignedToId: null,
+      assignedToName: null,
+    });
+  }
+
+  async function handlePendingAssign(workout: WorkoutSession, partnerId: string) {
+    if (!db) return;
+    const partner = (teamMembers ?? []).find(m => m.subTrainerId === partnerId);
+    if (!partner) return;
+    await updateDoc(doc(db, "workoutSessions", workout.id), {
+      pendingReview: false,
+      assignedToId: partner.subTrainerId,
+      assignedToName: partner.subTrainerName,
+    });
+  }
+
+  async function handlePendingCancel(workout: WorkoutSession) {
+    if (!db) return;
+    if (!window.confirm("Cancelar esta aula?")) return;
+    await deleteDoc(doc(db, "workoutSessions", workout.id));
   }
 
   function openSchedulerForSlot(date: Date, time: string) {
@@ -296,6 +394,56 @@ export function ClassesPage() {
       )}
 
       <div>
+        {/* C — Lista de pendências: aulas sem treinador parceiro */}
+        {pendingSessions.length > 0 && (
+          <section className="card p-5 mb-4 border-amber-200 bg-amber-50">
+            <div className="flex items-center gap-2 mb-3">
+              <AlertTriangle size={18} className="text-amber-600 shrink-0" />
+              <h3 className="text-sm font-black text-amber-900">
+                Aulas sem Treinador Parceiro ({pendingSessions.length})
+              </h3>
+            </div>
+            <div className="space-y-2">
+              {pendingSessions.map(w => (
+                <div key={w.id} className="flex flex-col gap-3 rounded-xl bg-white border border-amber-200 p-3 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="text-sm font-bold text-stone-900">{w.studentName}</p>
+                    <p className="text-xs text-stone-500">{formatDateTime(w.startsAt)}</p>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      type="button"
+                      onClick={() => handlePendingAssume(w)}
+                      className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg bg-emerald-600 px-3 text-xs font-bold text-white hover:bg-emerald-500 transition-colors"
+                    >
+                      <Check size={12} /> Assumir
+                    </button>
+                    {(teamMembers ?? []).length > 0 && (
+                      <select
+                        defaultValue=""
+                        onChange={e => { if (e.target.value) handlePendingAssign(w, e.target.value); e.target.value = ""; }}
+                        className="focus-ring h-8 rounded-lg border border-stone-200 bg-white px-2 text-xs font-semibold text-stone-700 cursor-pointer"
+                      >
+                        <option value="" disabled>Atribuir Parceiro…</option>
+                        {(teamMembers ?? []).map(m => (
+                          <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
+                        ))}
+                      </select>
+                    )}
+                    <button
+                      type="button"
+                      onClick={() => handlePendingCancel(w)}
+                      className="focus-ring inline-flex h-8 items-center gap-1.5 rounded-lg border border-rose-200 bg-white px-3 text-xs font-bold text-rose-600 hover:bg-rose-50 transition-colors"
+                    >
+                      <X size={12} /> Cancelar
+                    </button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+
         <section className="card p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
             <div className="flex-1">
