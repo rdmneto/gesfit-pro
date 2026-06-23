@@ -6,6 +6,7 @@ import {
   ChevronUp,
   Copy,
   MessageCircle,
+  MessageSquare,
   Pencil,
   Plus,
   Ruler,
@@ -96,6 +97,12 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
     }
   }
 
+  function openAppChat(enrollmentId: string, studentId: string, studentName: string) {
+    window.dispatchEvent(new CustomEvent("openGlobalChat", {
+      detail: { chatId: enrollmentId, type: "enrollment", otherUserId: studentId, otherUserName: studentName },
+    }));
+  }
+
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
   // Holds a partner team's student when selected (not in own sortedStudents)
   const [selectedStudentOverride, setSelectedStudentOverride] = useState<StudentWithEnrollment | null>(null);
@@ -183,6 +190,13 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                         <MessageCircle size={15} /> WhatsApp
                       </a>
                     )}
+                    <button
+                      type="button"
+                      className="focus-ring btn btn-secondary btn-sm"
+                      onClick={() => openAppChat(student.enrollment.id, student.uid, student.displayName)}
+                    >
+                      <MessageSquare size={15} /> Chat no App
+                    </button>
                     <button
                       type="button"
                       className="focus-ring btn btn-primary btn-sm"
@@ -287,6 +301,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
                   measurements={measurements}
                   pendingCount={pending.length}
                   student={effectiveStudentForPanel}
+                  enrollmentId={(effectiveStudentForPanel as StudentWithEnrollment).enrollment?.id}
                 />
 
                 <form className="card p-5" onSubmit={handleSubmit}>
@@ -832,10 +847,12 @@ function StudentProfileSummary({
   student,
   measurements,
   pendingCount,
+  enrollmentId,
 }: {
   student: Student;
   measurements: StudentMeasurement[];
   pendingCount: number;
+  enrollmentId?: string;
 }) {
   const latest = [...measurements].sort((first, second) =>
     first.measuredAt.localeCompare(second.measuredAt),
@@ -863,6 +880,17 @@ function StudentProfileSummary({
               >
                 <MessageCircle size={14} /> WhatsApp do aluno
               </a>
+            )}
+            {enrollmentId && (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent("openGlobalChat", {
+                  detail: { chatId: enrollmentId, type: "enrollment", otherUserId: student.uid, otherUserName: student.displayName },
+                }))}
+                className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-50"
+              >
+                <MessageSquare size={14} /> Chat no App
+              </button>
             )}
           </div>
         </div>
