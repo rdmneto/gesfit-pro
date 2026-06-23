@@ -9,6 +9,7 @@ import {
   Square,
   Trash2,
   UserPlus,
+  Users,
   X,
 } from "lucide-react";
 import { useState, useMemo, Fragment, useRef } from "react";
@@ -54,7 +55,8 @@ export function ClassesPage() {
   const { data: teamMembers } = useTeamMembers(isTrainerRole ? user?.uid : null);
   const { data: assignedSessions } = useAssignedSessions(isTrainerRole ? user?.uid : null);
 
-  const [viewSubTrainerId, setViewSubTrainerId] = useState<string>("all");
+  // "mine" = minha agenda; partnerId = agenda de um treinador parceiro; "partners-empty" = empty state
+  const [activeAgendaTab, setActiveAgendaTab] = useState<string>("mine");
   const [assignSubTrainerId, setAssignSubTrainerId] = useState<string>("owner");
   const [completedSummary, setCompletedSummary] = useState<WorkoutSummaryData | null>(null);
 
@@ -64,16 +66,14 @@ export function ClassesPage() {
     const unique = new Map(list.map(w => [w.id, w]));
     list = Array.from(unique.values());
 
-    if (viewSubTrainerId !== "all") {
-      if (viewSubTrainerId === "owner") {
-        list = list.filter(w => !w.assignedToId || w.assignedToId === user?.uid);
-      } else {
-        list = list.filter(w => w.assignedToId === viewSubTrainerId);
-      }
+    if (activeAgendaTab === "mine") {
+      list = list.filter(w => !w.assignedToId || w.assignedToId === user?.uid);
+    } else if (activeAgendaTab !== "partners-empty") {
+      list = list.filter(w => w.assignedToId === activeAgendaTab);
     }
 
     return list.sort((a, b) => (a.startsAt || "").localeCompare(b.startsAt || ""));
-  }, [dbWorkoutSessions, assignedSessions, viewSubTrainerId, user?.uid]);
+  }, [dbWorkoutSessions, assignedSessions, activeAgendaTab, user?.uid]);
 
   const availability: TrainerAvailabilityDay[] = dbTeam?.availability || DEFAULT_AVAILABILITY;
 
@@ -242,6 +242,12 @@ export function ClassesPage() {
     const d = String(date.getDate()).padStart(2, "0");
     const dateStr = `${y}-${m}-${d}`;
     setSchedulerSlot({ date: dateStr, time, duration: durationForDate(dateStr) });
+    // Pré-seleciona o treinador parceiro se a aba ativa for dele
+    if (activeAgendaTab !== "mine" && activeAgendaTab !== "partners-empty") {
+      setAssignSubTrainerId(activeAgendaTab);
+    } else {
+      setAssignSubTrainerId("owner");
+    }
     setError(""); setMessage("");
   }
 
@@ -293,23 +299,58 @@ export function ClassesPage() {
         <section className="card p-5">
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
             <div className="flex-1">
-              <h2 className="text-lg font-black text-stone-950">Agenda do Treinador</h2>
-              {teamMembers && teamMembers.length > 0 && (
-                <div className="mt-1 flex items-center gap-2">
-                  <span className="text-xs font-bold text-stone-600">Ver Agenda:</span>
-                  <select
-                    className="focus-ring h-8 rounded-lg border border-stone-200 bg-stone-50 px-2 text-xs font-semibold text-stone-700"
-                    value={viewSubTrainerId}
-                    onChange={(e) => setViewSubTrainerId(e.target.value)}
+              <h2 className="text-lg font-black text-stone-950">Agenda</h2>
+              {/* Barra de tabs: Minha Agenda + Treinadores Parceiros */}
+              <div className="mt-2.5 flex flex-wrap gap-1.5">
+                <button
+                  type="button"
+                  onClick={() => setActiveAgendaTab("mine")}
+                  className={[
+                    "focus-ring h-8 rounded-lg px-3.5 text-xs font-bold transition-all",
+                    activeAgendaTab === "mine"
+                      ? "bg-emerald-600 text-white shadow-sm"
+                      : "bg-stone-100 text-stone-600 hover:bg-stone-200",
+                  ].join(" ")}
+                >
+                  Minha Agenda
+                </button>
+
+                {(teamMembers ?? []).map(m => (
+                  <button
+                    key={m.subTrainerId}
+                    type="button"
+                    onClick={() => {
+                      setActiveAgendaTab(m.subTrainerId);
+                      setAssignSubTrainerId(m.subTrainerId);
+                    }}
+                    className={[
+                      "focus-ring h-8 rounded-lg px-3.5 text-xs font-bold transition-all flex items-center gap-1.5",
+                      activeAgendaTab === m.subTrainerId
+                        ? "bg-violet-600 text-white shadow-sm"
+                        : "bg-stone-100 text-stone-600 hover:bg-stone-200",
+                    ].join(" ")}
                   >
-                    <option value="all">Todo o Time</option>
-                    <option value="owner">Somente Minha</option>
-                    {teamMembers.map(m => (
-                      <option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>
-                    ))}
-                  </select>
-                </div>
-              )}
+                    <Users size={11} />
+                    {m.subTrainerName}
+                  </button>
+                ))}
+
+                {(teamMembers ?? []).length === 0 && (
+                  <button
+                    type="button"
+                    onClick={() => setActiveAgendaTab("partners-empty")}
+                    className={[
+                      "focus-ring h-8 rounded-lg px-3.5 text-xs font-bold transition-all flex items-center gap-1.5",
+                      activeAgendaTab === "partners-empty"
+                        ? "bg-stone-700 text-white shadow-sm"
+                        : "border border-dashed border-stone-300 text-stone-400 hover:border-stone-400 hover:text-stone-500",
+                    ].join(" ")}
+                  >
+                    <Users size={11} />
+                    Treinadores Parceiros
+                  </button>
+                )}
+              </div>
             </div>
             <div className="flex flex-wrap gap-2">
               <div className="inline-flex rounded-lg border border-stone-200 bg-stone-100 p-1">
@@ -346,7 +387,26 @@ export function ClassesPage() {
             </div>
           </div>
 
-          {calendarMode === "visual" ? (
+          {activeAgendaTab === "partners-empty" ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-16 text-center">
+              <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-stone-100">
+                <Users size={28} className="text-stone-400" />
+              </div>
+              <div>
+                <h3 className="text-base font-black text-stone-700">Nenhum Treinador Parceiro</h3>
+                <p className="mt-1 max-w-xs text-sm text-stone-400 leading-relaxed">
+                  Você ainda não tem treinadores parceiros vinculados ao seu time. Adicione-os em <strong>Ajustes → Meu Time</strong>.
+                </p>
+              </div>
+              <a
+                href="/app/workspace"
+                className="focus-ring inline-flex items-center gap-2 rounded-xl bg-emerald-600 px-5 py-2.5 text-sm font-bold text-white hover:bg-emerald-700 transition-colors"
+              >
+                <Users size={15} />
+                Gerenciar Treinadores Parceiros
+              </a>
+            </div>
+          ) : calendarMode === "visual" ? (
             <>
               <div className="mt-4 flex items-center justify-center gap-2">
                 <button type="button" aria-label="Anterior" className="focus-ring flex h-9 w-9 items-center justify-center rounded-lg border border-stone-200 bg-white hover:bg-stone-50" onClick={() => shiftReference(-1)}>
@@ -462,9 +522,9 @@ export function ClassesPage() {
 
               {teamMembers && teamMembers.length > 0 && (
                 <label className="block">
-                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Atribuir a (Sub-treinador)</span>
+                  <span className="text-2xs font-bold uppercase tracking-wider text-stone-500">Treinador Parceiro</span>
                   <select className="focus-ring mt-1.5 h-11 w-full rounded-xl border border-stone-200 bg-white px-3 text-sm" value={assignSubTrainerId} onChange={(e) => setAssignSubTrainerId(e.target.value)}>
-                    <option value="owner">Eu mesmo (Dono do Time)</option>
+                    <option value="owner">Eu mesmo</option>
                     {teamMembers.map(m => (<option key={m.subTrainerId} value={m.subTrainerId}>{m.subTrainerName}</option>))}
                   </select>
                 </label>
