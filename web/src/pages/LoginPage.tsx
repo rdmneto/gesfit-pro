@@ -25,7 +25,7 @@ export function LoginPage() {
   const sessionUser = useSessionStore((state) => state.user);
   const sessionLoading = useSessionStore((state) => state.loading);
 
-  const [mode, setMode] = useState<LoginMode>("login");
+  const [mode, setMode] = useState<LoginMode>(() => searchParams.get("signup") === "1" ? "signup" : "login");
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState("");
@@ -47,7 +47,6 @@ export function LoginPage() {
   useEffect(() => {
     const trainer = searchParams.get("treinador");
     if (trainer) window.sessionStorage.setItem("gesfit-pending-trainer", trainer);
-    if (searchParams.get("signup") === "1") setMode("signup");
   }, [searchParams]);
 
   if (sessionLoading) {
@@ -75,7 +74,7 @@ export function LoginPage() {
     try {
       await loginWithEmail(data.email, data.password);
       navigate("/app");
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       const msg = (err as { message?: string })?.message ?? "Erro desconhecido";
       if (msg.includes("user-not-found") || msg.includes("wrong-password") || msg.includes("invalid-credential")) {
         setError("E-mail ou senha incorretos.");
@@ -92,7 +91,7 @@ export function LoginPage() {
     try {
       await createAccount(data.email, data.password, data.name);
       navigate("/app");
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       const msg = (err as { message?: string })?.message ?? "Erro desconhecido";
       if (msg.includes("email-already-in-use")) {
         setError("Este e-mail já está cadastrado. Faça login.");
@@ -109,7 +108,7 @@ export function LoginPage() {
     try {
       await resetPassword(resetEmail);
       setSuccessMsg("E-mail de recuperação enviado! Verifique sua caixa de entrada.");
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       setError((err as { message?: string })?.message ?? "Erro ao enviar e-mail");
     } finally {
       setLoading(false);
@@ -122,7 +121,7 @@ export function LoginPage() {
     try {
       await loginWithGoogle();
       navigate("/app");
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       setError((err as { message?: string })?.message ?? "Erro ao entrar com Google");
       setGoogleLoading(false);
     }

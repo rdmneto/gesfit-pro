@@ -62,7 +62,7 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
           : "Compra recusada.",
       );
       setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao revisar compra: " + err.message);
       setTimeout(() => setError(""), 3000);

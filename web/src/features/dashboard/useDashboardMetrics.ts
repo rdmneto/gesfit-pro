@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useState, useMemo } from "react";
 import { isSameDay } from "./dashboardUtils";
 import { useTeam, useTrainerStudents, useWorkoutSessions, usePaidPurchases } from "../../lib/hooks";
 
@@ -40,7 +40,7 @@ export function useDashboardMetrics(trainerId?: string, teamId?: string) {
     [students],
   );
 
-  const nowTime = Date.now();
+  const [nowTime] = useState(() => Date.now());
   
   const unfinishedPastWorkouts = useMemo(() => {
     return trainerWorkouts.filter(w => {

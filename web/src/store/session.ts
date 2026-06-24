@@ -45,7 +45,7 @@ export const useSessionStore = create<SessionState>((set) => ({
             role = userData.role as SessionClaims["role"];
             teamId = userData.teamId as SessionClaims["teamId"];
           }
-        } catch (err) {
+        } catch (error: unknown) { const err = error as Error;
           console.error("Erro ao buscar dados do usuário no Firestore:", err);
         }
       }

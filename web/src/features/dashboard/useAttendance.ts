@@ -18,7 +18,7 @@ export function useAttendance() {
       setError("");
       setMessage("Aula iniciada! O cronômetro está rodando.");
       setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao iniciar aula: " + err.message);
     }
@@ -48,7 +48,7 @@ export function useAttendance() {
       setError("");
       setMessage(`Aula concluída! Duração: ${actualDurationMinutes} min. Crédito debitado.`);
       setTimeout(() => setMessage(""), 4000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao concluir aula: " + err.message);
     }
@@ -64,7 +64,7 @@ export function useAttendance() {
       setError("");
       setMessage("Falta registrada.");
       setTimeout(() => setMessage(""), 2500);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao registrar falta: " + err.message);
     }
@@ -83,7 +83,7 @@ export function useAttendance() {
       setError("");
       setMessage("Marcação desfeita.");
       setTimeout(() => setMessage(""), 2500);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao desfazer: " + err.message);
     }
@@ -98,7 +98,7 @@ export function useAttendance() {
       setError("");
       setMessage("Aula excluída.");
       setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao excluir: " + err.message);
     }

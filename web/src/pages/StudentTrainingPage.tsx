@@ -79,7 +79,7 @@ export function StudentTrainingPage() {
       });
       setNotes("");
       setExpandedId(null);
-    } catch (e) {
+    } catch (error: unknown) { const e = error as Error;
       console.error(e);
       alert("Erro ao salvar conclusão.");
     } finally {

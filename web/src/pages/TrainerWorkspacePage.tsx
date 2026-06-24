@@ -1,4 +1,4 @@
-import { useState, useEffect, useMemo } from "react";
+import { useState, useMemo } from "react";
 import {
   Building2,
   CalendarClock,
@@ -127,33 +127,33 @@ export function TrainerWorkspacePage() {
   const [saving, setSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState("");
-
-  useEffect(() => {
-    if (!dbTeam) return;
-    setName(dbTeam.name || "");
-    setWelcomeMessage(dbTeam.branding?.welcomeMessage || "");
-    setCity(dbTeam.city || DEFAULT_CITY);
-    setContactPhone(dbTeam.contactPhone || "");
-    setPixKey(dbTeam.pixKey || "");
-    setPrimaryColor(dbTeam.branding?.primaryColor || "#0f766e");
-    setSecondaryColor(dbTeam.branding?.secondaryColor || "#f59e0b");
-    setBio(dbTeam.branding?.bio || "");
-    setShowAgenda(dbTeam.publicProfile?.showAgenda ?? true);
-    setShowPrices(dbTeam.publicProfile?.showPrices ?? true);
-    setShowPhotos(dbTeam.publicProfile?.showPhotos ?? true);
-    setEnableWhatsAppContact(dbTeam.publicProfile?.enableWhatsAppContact ?? true);
-    setModalities(dbTeam.trainingModalities || []);
-    setTrainerPhotoURL(dbTeam.branding?.trainerPhotoURL || "");
-    setBannerPhotoURL(dbTeam.branding?.bannerPhotoURL || "");
-
-    // Load locations
-    setSelectedGyms(dbTeam.worksAt || []);
-    setAcceptsHome(dbTeam.acceptsHomeVisit ?? false);
-    setAcceptsCondo(dbTeam.acceptsCondoGym ?? false);
-
-    // Load availability (fall back to default template if not set in DB yet)
-    setAvailability(dbTeam.availability || DEFAULT_AVAILABILITY);
-  }, [dbTeam]);
+  const [prevTeamStr, setPrevTeamStr] = useState("");
+  
+  const currentTeamStr = JSON.stringify(dbTeam);
+  if (currentTeamStr !== prevTeamStr) {
+    setPrevTeamStr(currentTeamStr);
+    if (dbTeam) {
+      setName(dbTeam.name || "");
+      setWelcomeMessage(dbTeam.branding?.welcomeMessage || "");
+      setCity(dbTeam.city || DEFAULT_CITY);
+      setContactPhone(dbTeam.contactPhone || "");
+      setPixKey(dbTeam.pixKey || "");
+      setPrimaryColor(dbTeam.branding?.primaryColor || "#0f766e");
+      setSecondaryColor(dbTeam.branding?.secondaryColor || "#f59e0b");
+      setBio(dbTeam.branding?.bio || "");
+      setShowAgenda(dbTeam.publicProfile?.showAgenda ?? true);
+      setShowPrices(dbTeam.publicProfile?.showPrices ?? true);
+      setShowPhotos(dbTeam.publicProfile?.showPhotos ?? true);
+      setEnableWhatsAppContact(dbTeam.publicProfile?.enableWhatsAppContact ?? true);
+      setModalities(dbTeam.trainingModalities || []);
+      setTrainerPhotoURL(dbTeam.branding?.trainerPhotoURL || "");
+      setBannerPhotoURL(dbTeam.branding?.bannerPhotoURL || "");
+      setSelectedGyms(dbTeam.worksAt || []);
+      setAcceptsHome(dbTeam.acceptsHomeVisit ?? false);
+      setAcceptsCondo(dbTeam.acceptsCondoGym ?? false);
+      setAvailability(dbTeam.availability || DEFAULT_AVAILABILITY);
+    }
+  }
 
   // Gym Search Memo (restrito à cidade de atuação do treinador)
   const filteredGyms = useMemo(
@@ -187,13 +187,7 @@ export function TrainerWorkspacePage() {
       // Caminho dentro de `branding/` para casar com as Storage Rules.
       const safeName = file.name.replace(/[^a-zA-Z0-9._-]/g, "_");
       const fileRef = ref(storage, `teams/${teamId}/branding/${type}_${Date.now()}_${safeName}`);
-      // Corre contra um timeout para o botão nunca ficar preso em "Salvando…"
-      // caso o upload trave (ex.: CORS do bucket não liberado para o domínio).
-      const snapshot = await withTimeout(
-        uploadBytes(fileRef, file),
-        30000,
-        "Tempo esgotado ao enviar a imagem. Verifique a configuração de CORS do Storage.",
-      );
+      const snapshot = await uploadBytes(fileRef, file);
       const url = await getDownloadURL(snapshot.ref);
 
       if (type === "trainer") {
@@ -213,10 +207,10 @@ export function TrainerWorkspacePage() {
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
+      const msg = err instanceof Error ? err.message : "Erro desconhecido.";
+      setSaveError(msg);
       console.error(err);
-      setSaveError("Erro ao enviar imagem: " + err.message);
-      setTimeout(() => setSaveError(""), 5000);
     } finally {
       setSaving(false);
     }
@@ -286,7 +280,7 @@ export function TrainerWorkspacePage() {
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Error saving customization:", err);
       setSaveError("Erro ao salvar: " + err.message);
     } finally {
@@ -1133,13 +1127,7 @@ function TimeField({
 
 // ── Helpers ──────────────────────────────────────────────────────────
 
-/** Rejeita a promise se ela não resolver dentro de `ms` milissegundos. */
-function withTimeout<T>(promise: Promise<T>, ms: number, message: string): Promise<T> {
-  return Promise.race([
-    promise,
-    new Promise<T>((_, reject) => setTimeout(() => reject(new Error(message)), ms)),
-  ]);
-}
+
 
 function previewSlots(day: TrainerAvailabilityDay) {
   return [

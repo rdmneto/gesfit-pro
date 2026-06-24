@@ -13,11 +13,12 @@ import {
   Users,
   X,
 } from "lucide-react";
-import { useState, useMemo, Fragment, useRef } from "react";
+import { useState, useMemo, Fragment, useRef, useEffect } from "react";
+import { useSearchParams } from "react-router-dom";
 import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions } from "../lib/hooks";
+import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions, useActivePartnerTeams } from "../lib/hooks";
 import { DEFAULT_AVAILABILITY } from "../data/catalog";
 import {
   type CalendarView,
@@ -36,11 +37,21 @@ import { WorkoutSummaryModal, type WorkoutSummaryData } from "../components/Work
 
 
 export function ClassesPage() {
+  const [searchParams] = useSearchParams();
   const teamId = useSessionStore((state) => state.claims.teamId);
   const user = useSessionStore((state) => state.user);
 
   const { data: dbTeam } = useTeam(teamId);
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
+  const { data: partnerTeams } = useActivePartnerTeams(user?.uid);
+  const trainerIds = useMemo(() => {
+    if (!user) return [];
+    const ids = new Set([user.uid]);
+    if (partnerTeams) {
+      partnerTeams.forEach(t => ids.add(t.ownerUid));
+    }
+    return Array.from(ids);
+  }, [user, partnerTeams]);
+  const { data: dbStudents } = useTrainerStudents(trainerIds.length > 0 ? trainerIds : null);
   const { data: dbWorkoutSessions } = useWorkoutSessions(
     user ? { trainerId: user.uid } : {}
   );
@@ -92,6 +103,17 @@ export function ClassesPage() {
   const [selectedMonthDay, setSelectedMonthDay] = useState<Date | null>(null);
 
   const [selectedStudentIdx, setSelectedStudentIdx] = useState(0);
+
+  useEffect(() => {
+    const sid = searchParams.get("studentId");
+    if (sid && students.length > 0) {
+      const idx = students.findIndex(s => s.uid === sid);
+      if (idx !== -1) {
+        // eslint-disable-next-line
+        setSelectedStudentIdx(idx);
+      }
+    }
+  }, [searchParams, students]);
   const [scheduleTrainingId, setScheduleTrainingId] = useState("");
   const [scheduleFocus, setScheduleFocus] = useState("");
   const [recurrence, setRecurrence] = useState<"single" | "weekly" | "biweekly">("single");
@@ -163,7 +185,7 @@ export function ClassesPage() {
     try {
       await Promise.all(sessions.map((s) => addDoc(collection(db!, "workoutSessions"), s)));
       return { created: sessions.length, skipped };
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao agendar: " + err.message);
       return null;
@@ -175,7 +197,7 @@ export function ClassesPage() {
     try {
       await updateDoc(doc(db, "workoutSessions", workout.id), { status: "in_progress", startedAt: new Date().toISOString() });
       setError(""); setMessage("Aula iniciada! O cronômetro está rodando."); setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) { console.error(err); setError("Erro ao iniciar aula: " + err.message); }
+    } catch (error: unknown) { const err = error as Error; console.error(err); setError("Erro ao iniciar aula: " + err.message); }
   }
 
   async function completeSession(workout: WorkoutSession) {
@@ -196,7 +218,7 @@ export function ClassesPage() {
         durationMinutes: actualDurationMinutes,
         calories: workout.plannedCalories || Math.round(actualDurationMinutes * 6),
       });
-    } catch (err: any) { console.error(err); setError("Erro ao concluir aula: " + err.message); }
+    } catch (error: unknown) { const err = error as Error; console.error(err); setError("Erro ao concluir aula: " + err.message); }
   }
 
   async function markNoShow(workout: WorkoutSession) {
@@ -204,7 +226,7 @@ export function ClassesPage() {
     try {
       await updateDoc(doc(db, "workoutSessions", workout.id), { status: "no_show" });
       setError(""); setMessage("Falta registrada."); setTimeout(() => setMessage(""), 2500);
-    } catch (err: any) { console.error(err); setError("Erro ao registrar falta: " + err.message); }
+    } catch (error: unknown) { const err = error as Error; console.error(err); setError("Erro ao registrar falta: " + err.message); }
   }
 
   async function undoAttendance(workout: WorkoutSession) {
@@ -212,7 +234,7 @@ export function ClassesPage() {
     try {
       await updateDoc(doc(db, "workoutSessions", workout.id), { status: "scheduled", startedAt: null, completedAt: null, actualDurationMinutes: null });
       setError(""); setMessage("Marcação desfeita."); setTimeout(() => setMessage(""), 2500);
-    } catch (err: any) { console.error(err); setError("Erro ao desfazer: " + err.message); }
+    } catch (error: unknown) { const err = error as Error; console.error(err); setError("Erro ao desfazer: " + err.message); }
   }
 
   async function deleteSession(workout: WorkoutSession) {
@@ -221,7 +243,7 @@ export function ClassesPage() {
     try {
       await deleteDoc(doc(db, "workoutSessions", workout.id));
       setError(""); setMessage("Aula excluída."); setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) { console.error(err); setError("Erro ao excluir: " + err.message); }
+    } catch (error: unknown) { const err = error as Error; console.error(err); setError("Erro ao excluir: " + err.message); }
   }
 
   // B — Envia mensagem automática ao parceiro via trainerChats
@@ -266,7 +288,7 @@ export function ClassesPage() {
         createdAt: now,
         read: false,
       });
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao enviar mensagem ao parceiro:", err);
     }
   }
@@ -865,6 +887,8 @@ function TrainerCalendarVisual({
   const [expandedTrainingId, setExpandedTrainingId] = useState<string | null>(null);
   const carouselRef = useRef<HTMLDivElement>(null);
 
+  const [nowTime] = useState(() => Date.now());
+
   const weekdayKeys: TrainerAvailabilityDay["weekday"][] = ["domingo", "segunda", "terca", "quarta", "quinta", "sexta", "sabado"];
 
   function getSlotsForDay(day: Date): string[] {
@@ -880,7 +904,7 @@ function TrainerCalendarVisual({
     const y = day.getFullYear();
     const m = String(day.getMonth() + 1).padStart(2, "0");
     const d = String(day.getDate()).padStart(2, "0");
-    return new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
+    return new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < nowTime;
   }
 
   // ── SEMANA: grade compacta, clique para ampliar ───────────────────────────
@@ -1122,7 +1146,7 @@ function TrainerCalendarVisual({
                     const y = selectedMonthDay.getFullYear();
                     const m = String(selectedMonthDay.getMonth() + 1).padStart(2, "0");
                     const d = String(selectedMonthDay.getDate()).padStart(2, "0");
-                    isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < Date.now();
+                    isPast = new Date(`${y}-${m}-${d}T${slot}:00`).getTime() < nowTime;
                   }
                   return (
                     <article key={slot} className={["grid gap-3 rounded-2xl border p-4 sm:grid-cols-[4rem_1fr_auto] items-center transition-all", workout ? "border-amber-200 bg-amber-50/40" : (isPast ? "border-stone-150 bg-stone-50" : "border-emerald-200 bg-white shadow-sm hover:shadow-md")].join(" ")}>

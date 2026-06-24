@@ -92,7 +92,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
     if (!db) return;
     try {
       await approveEnrollment(db, enrollmentId);
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao aprovar vínculo:", err);
     }
   }
@@ -147,7 +147,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
         createdAt: serverTimestamp(),
       });
       event.currentTarget.reset();
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao salvar medida:", err);
     }
   }
@@ -485,7 +485,7 @@ function StudentMeasurementsPage({
       await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurement.id), {
         status: "accepted",
       });
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao confirmar medida:", err);
     }
   }
@@ -497,7 +497,7 @@ function StudentMeasurementsPage({
       await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurementId), {
         status: "rejected",
       });
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao recusar medida:", err);
     }
   }
@@ -700,7 +700,7 @@ function SelfMeasurementForm({
         setOpen(false);
         setSuccess(false);
       }, 1500);
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao salvar medida:", err);
       setError("Não foi possível salvar. Tente novamente.");
     } finally {
@@ -892,6 +892,12 @@ function StudentProfileSummary({
                 <MessageSquare size={14} /> Chat no App
               </button>
             )}
+            <a
+              href={`/app/agenda?studentId=${student.uid}`}
+              className="focus-ring inline-flex h-9 items-center gap-1.5 rounded-lg border border-stone-200 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-50"
+            >
+              <CalendarDays size={14} /> Agendar Aula
+            </a>
           </div>
         </div>
         <span className="h-max rounded-md bg-stone-100 px-3 py-2 text-sm font-bold text-stone-700">

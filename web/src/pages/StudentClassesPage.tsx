@@ -120,7 +120,7 @@ export function StudentClassesPage() {
         setFileAttached(false);
         setProofFile(null);
       }, 2500);
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao enviar pedido:", err);
     } finally {
       setSubmitting(false);

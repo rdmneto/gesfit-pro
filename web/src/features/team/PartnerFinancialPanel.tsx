@@ -97,7 +97,7 @@ function RateEditor({
       });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     } finally {
       setSaving(false);

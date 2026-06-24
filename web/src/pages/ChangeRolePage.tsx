@@ -28,7 +28,7 @@ export function ChangeRolePage() {
       // Redirect to onboarding — the session will refresh on next auth state change
       // Force reload so custom claims are re-evaluated
       window.location.href = "/app/onboarding";
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao mudar perfil:", err);
       setError("Não foi possível mudar o perfil. Tente novamente.");
       setLoading(false);

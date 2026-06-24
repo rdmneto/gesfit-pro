@@ -33,7 +33,7 @@ export function StudentTrainersPage() {
       if (status === "cancelled" && activeTrainerId === enrollment.trainerId) {
         setActiveTrainer(null);
       }
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao atualizar vínculo:", err);
     }
   }

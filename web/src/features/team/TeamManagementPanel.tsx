@@ -58,7 +58,7 @@ export function TeamManagementPanel() {
   ];
 
   // Fetch trainers for search
-  const { data: allTrainers } = useCollection<any>(
+  const { data: allTrainers } = useCollection<{ id: string; name?: string; email?: string }>(
     "users",
     [where("role", "==", "trainer")],
     []
@@ -114,7 +114,7 @@ export function TeamManagementPanel() {
 
       setInviteSuccess(`Convite enviado para ${subTrainerName}! Ele verá o convite ao entrar no app.`);
       setSearchQuery("");
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setInviteError("Erro ao enviar convite: " + err.message);
     } finally {
@@ -160,7 +160,7 @@ export function TeamManagementPanel() {
       });
 
       await batch.commit();
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }
   }
@@ -178,7 +178,7 @@ export function TeamManagementPanel() {
       if (!snap.empty) {
         await updateDoc(snap.docs[0].ref, { status: "removed" });
       }
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }
   }
@@ -275,8 +275,8 @@ export function TeamManagementPanel() {
           </div>
         ) : (
           <div className="mt-4 divide-y divide-stone-100">
-            {allMembers.map((member) => {
-              const badge = statusBadge[member.status];
+            {allMembers.map((member: TeamMember) => {
+              const badge = statusBadge[member.status as keyof typeof statusBadge];
               return (
                 <div
                   key={member.id || member.subTrainerId}

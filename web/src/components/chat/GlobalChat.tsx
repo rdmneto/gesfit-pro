@@ -97,17 +97,6 @@ export function GlobalChat() {
 
   const totalUnread = allChats.filter(c => c.isUnread).length;
 
-  if (!user || !role) return null;
-
-  function openChat(chat: typeof allChats[0]) {
-    setActiveChatId(chat.id);
-    setActiveChatType(chat.type);
-    setActiveOtherUserId(chat.otherUserId);
-    setActiveOtherUserName(chat.otherUserName);
-    setActiveOtherUserPhoto(undefined); // Could pass from somewhere if we have it
-    setIsOpen(false);
-  }
-
   useEffect(() => {
     function handleOpenGlobalChat(e: Event) {
       const customEvent = e as CustomEvent;
@@ -118,9 +107,21 @@ export function GlobalChat() {
       setActiveOtherUserName(otherUserName);
       setIsOpen(false);
     }
+
     window.addEventListener("openGlobalChat", handleOpenGlobalChat);
     return () => window.removeEventListener("openGlobalChat", handleOpenGlobalChat);
   }, []);
+
+  if (!user || !role) return null;
+
+  function openChat(chat: typeof allChats[0]) {
+    setActiveChatId(chat.id);
+    setActiveChatType(chat.type);
+    setActiveOtherUserId(chat.otherUserId);
+    setActiveOtherUserName(chat.otherUserName);
+    setActiveOtherUserPhoto(undefined); // Could pass from somewhere if we have it
+    setIsOpen(false);
+  }
 
   const activeChat = allChats.find(c => c.id === activeChatId);
   const isBlockedByMe = activeChat?.blockedBy?.includes(user?.uid || "") || false;

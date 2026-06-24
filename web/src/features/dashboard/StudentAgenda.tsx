@@ -146,7 +146,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
       await updateDoc(doc(db, "workoutSessions", workout.id), { studentCompletedAt: new Date().toISOString() });
       setExpanded(false);
       setShowSummary(true);
-    } catch (e) {
+    } catch (error: unknown) { const e = error as Error;
       console.error(e);
       alert("Erro ao concluir treino.");
     } finally {

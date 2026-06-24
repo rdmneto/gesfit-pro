@@ -65,7 +65,7 @@ export function TrainingPage() {
       setExercises(result.exercises);
       setAiCaloriesPerMinute(result.caloriesPerMinute);
       setShowAIModal(false);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       setAiError(err.message || "Erro desconhecido ao gerar treino.");
     } finally {
       setAiGenerating(false);
@@ -80,7 +80,7 @@ export function TrainingPage() {
       const names = exercises.map((e) => e.name).filter(Boolean);
       const kcal = await estimateCaloriesFromExercises(names, title);
       setAiCaloriesPerMinute(kcal);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       setAiActionError(err.message || "Erro ao estimar calorias.");
     } finally {
       setEstimatingCalories(false);
@@ -94,7 +94,7 @@ export function TrainingPage() {
     try {
       const updated = await findVideosForExercises(exercises);
       setExercises(updated);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       setAiActionError(err.message || "Erro ao buscar vídeos.");
     } finally {
       setFindingVideos(false);
@@ -186,7 +186,7 @@ export function TrainingPage() {
     if (!window.confirm("Deseja arquivar este treino?")) return;
     try {
       await updateDoc(doc(db, 'trainings', id), { status: 'archived', updatedAt: new Date().toISOString() });
-    } catch (e) {
+    } catch (error: unknown) { const e = error as Error;
       console.error(e);
     }
   };
@@ -196,7 +196,7 @@ export function TrainingPage() {
     if (!window.confirm("Deseja excluir permanentemente este treino?")) return;
     try {
       await deleteDoc(doc(db, 'trainings', id));
-    } catch (e) {
+    } catch (error: unknown) { const e = error as Error;
       console.error(e);
     }
   };

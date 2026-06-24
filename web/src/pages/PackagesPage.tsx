@@ -7,7 +7,7 @@ import {
   Send,
   XCircle,
 } from "lucide-react";
-import { useState, useEffect } from "react";
+import { useState, useMemo } from "react";
 import { collection, addDoc, doc, deleteDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
@@ -31,10 +31,11 @@ export function PackagesPage() {
 
   const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
   const { data: dbStudents } = useTrainerStudents(user?.uid);
+  
   const allProducts = dbProducts ?? [];
-  const activeProducts = allProducts.filter(p => !(p as any).promotional);
-  const promos = allProducts.filter(p => (p as any).promotional) as PromotionalPackage[];
-  const students = (dbStudents ?? []).filter((s) => s.enrollment?.status === "active");
+  const activeProducts = useMemo(() => allProducts.filter(p => !('promotional' in p && p.promotional)), [allProducts]);
+  const promos = useMemo(() => allProducts.filter(p => 'promotional' in p && p.promotional) as PromotionalPackage[], [allProducts]);
+  const students = useMemo(() => (dbStudents ?? []).filter((s) => s.enrollment?.status === "active"), [dbStudents]);
 
   // Form states for new offer
   const [productType, setProductType] = useState<ClassProductType>("single");
@@ -53,11 +54,11 @@ export function PackagesPage() {
   const [promoClasses, setPromoClasses] = useState("");
   const [promoQty, setPromoQty] = useState("");
 
-  useEffect(() => {
-    if (user?.displayName && !orientador) {
-      setOrientador(user.displayName);
-    }
-  }, [user, orientador]);
+  const [prevUserDisplayName, setPrevUserDisplayName] = useState("");
+  if (user?.displayName && user.displayName !== prevUserDisplayName) {
+    setPrevUserDisplayName(user.displayName);
+    if (!orientador) setOrientador(user.displayName);
+  }
 
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
@@ -117,7 +118,7 @@ export function PackagesPage() {
       setOfferedQty("");
       setAudience("all");
       setTargetStudentIds([]);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao salvar produto: " + err.message);
       setSaving(false);
@@ -166,7 +167,7 @@ export function PackagesPage() {
       setPromoQty("");
       setMessage("Promoção criada com sucesso!");
       setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao criar promoção: " + err.message);
     }
@@ -181,7 +182,7 @@ export function PackagesPage() {
       await deleteDoc(doc(db, "classProducts", id));
       setMessage("Promoção removida.");
       setTimeout(() => setMessage(""), 3000);
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError("Erro ao remover promoção: " + err.message);
     }

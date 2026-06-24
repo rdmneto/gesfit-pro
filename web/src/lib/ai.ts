@@ -26,11 +26,11 @@ async function callGroq(prompt: string, maxTokens = 512, temperature = 0.4): Pro
     }),
   });
   if (!response.ok) {
-    const err = await response.json().catch(() => ({})) as any;
+    const err = await response.json().catch(() => ({})) as { error?: { message?: string } };
     throw new Error(`Erro na IA: ${err.error?.message ?? `HTTP ${response.status}`}`);
   }
-  const data = await response.json() as any;
-  return (data.choices[0].message.content as string).trim();
+  const data = await response.json() as { choices: Array<{ message: { content: string } }> };
+  return (data.choices[0].message.content).trim();
 }
 
 export interface WorkoutGenerationParams {
@@ -84,7 +84,7 @@ Lembre-se: Retorne SOMENTE o objeto JSON com os campos "caloriesPerMinute" e "ex
   const raw = await callGroq(prompt, 4096, 0.7);
   const parsed = JSON.parse(stripMarkdown(raw));
 
-  const exercisesArray: any[] = Array.isArray(parsed) ? parsed : (parsed.exercises ?? []);
+  const exercisesArray: Array<{ name?: string; sets?: string; rest?: string; notes?: string; videoUrl?: string }> = Array.isArray(parsed) ? parsed : (parsed.exercises ?? []);
   const caloriesPerMinute: number = typeof parsed.caloriesPerMinute === "number"
     ? Math.round(parsed.caloriesPerMinute)
     : 7;
@@ -93,7 +93,7 @@ Lembre-se: Retorne SOMENTE o objeto JSON com os campos "caloriesPerMinute" e "ex
     throw new Error("Resposta da IA não contém exercícios válidos.");
   }
 
-  const exercises = exercisesArray.map((ex: any, index: number) => ({
+  const exercises = exercisesArray.map((ex: { name?: string; sets?: string; rest?: string; notes?: string; videoUrl?: string }, index: number) => ({
     order: index,
     name: ex.name || "Exercício",
     sets: ex.sets || "",

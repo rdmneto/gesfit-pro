@@ -151,7 +151,7 @@ function TrainerListItem({ team }: { team: Team }) {
   );
 }
 
-function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUser: any }) {
+function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUser: { uid: string; displayName?: string | null; email?: string | null } | null }) {
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState("");
 
@@ -183,7 +183,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         invitedAt: new Date().toISOString(),
       });
       setMessage("Solicitação enviada!");
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setMessage("Erro: " + err.message);
     }
@@ -218,7 +218,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         invitedAt: new Date().toISOString(),
       });
       setMessage("Convite enviado!");
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setMessage("Erro: " + err.message);
     }
@@ -255,7 +255,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
           otherUserName: team.name 
         } 
       }));
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setMessage("Erro: " + err.message);
     }

@@ -146,7 +146,7 @@ export function OnboardingPage() {
 
       // Sempre redireciona para vitrine de treinadores após cadastro
       navigate("/treinadores");
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError((err as { message?: string })?.message || "Erro ao salvar perfil. Tente novamente.");
     } finally {
@@ -211,7 +211,7 @@ export function OnboardingPage() {
           teamId: user.uid,
         },
       });
-    } catch (err: unknown) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setError((err as { message?: string })?.message || "Erro ao criar perfil. Tente novamente.");
     } finally {

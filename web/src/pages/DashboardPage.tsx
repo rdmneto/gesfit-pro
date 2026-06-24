@@ -19,6 +19,7 @@ import { useAttendance } from "../features/dashboard/useAttendance";
 import { AlertCircle, FileX } from "lucide-react";
 import { useCollection, usePendingPurchases } from "../lib/hooks";
 import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
+import { useState } from "react";
 import { where } from "firebase/firestore";
 import type { Training } from "../types/domain";
 
@@ -65,6 +66,8 @@ function TrainerDashboard() {
   const trainings = trainingsData || [];
 
   const { startSession, completeSession, markNoShow } = useAttendance();
+
+  const [nowTime] = useState(() => Date.now());
 
   const {
     loading: metricsLoading,
@@ -269,7 +272,7 @@ function TrainerDashboard() {
             <p className="text-sm text-stone-400 text-center py-10 italic">Nenhum compromisso marcado para hoje.</p>
           ) : (
             todayWorkouts.map((workout) => {
-              const isPast = new Date(workout.startsAt).getTime() < Date.now() && (workout.status === 'scheduled' || workout.status === 'in_progress');
+              const isPast = new Date(workout.startsAt).getTime() < nowTime && (workout.status === 'scheduled' || workout.status === 'in_progress');
               const isDone = workout.status === 'completed' || workout.status === 'no_show';
               return (
                 <div key={workout.id} className="relative flex items-center justify-between md:justify-normal md:odd:flex-row-reverse group is-active">

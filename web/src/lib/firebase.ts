@@ -1,6 +1,7 @@
 import { initializeApp, type FirebaseApp } from "firebase/app";
-import { getAuth } from "firebase/auth";
-import { getFirestore } from "firebase/firestore";
+import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-check";
+import { getAuth, connectAuthEmulator } from "firebase/auth";
+import { initializeFirestore, persistentLocalCache, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
 
 const firebaseConfig = {
@@ -15,7 +16,26 @@ const firebaseConfig = {
 const hasConfig = Boolean(firebaseConfig.apiKey && firebaseConfig.projectId);
 
 export const app: FirebaseApp | null = hasConfig ? initializeApp(firebaseConfig) : null;
+
 export const auth = app ? getAuth(app) : null;
-export const db = app ? getFirestore(app) : null;
+export const db = app ? initializeFirestore(app, { localCache: persistentLocalCache() }) : null;
 export const storage = app ? getStorage(app) : null;
+
+if (app && import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
+  console.log("🔥 Using Firebase Emulators 🔥");
+  if (auth) connectAuthEmulator(auth, "http://127.0.0.1:9099", { disableWarnings: true });
+  if (db) connectFirestoreEmulator(db, "127.0.0.1", 8080);
+} else if (app) {
+  try {
+    // Para funcionar em produção, substitua a chave abaixo (ou VITE_RECAPTCHA_SITE_KEY no .env)
+    // pela chave real do ReCaptcha Enterprise gerada no Google Cloud.
+    initializeAppCheck(app, {
+      provider: new ReCaptchaEnterpriseProvider(import.meta.env.VITE_RECAPTCHA_SITE_KEY || "SUA_CHAVE_RECAPTCHA_AQUI"),
+      isTokenAutoRefreshEnabled: true
+    });
+  } catch (error: unknown) { const err = error as Error;
+    console.warn("App Check failed to initialize:", err);
+  }
+}
+
 export const firebaseConfigured = hasConfig;

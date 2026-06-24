@@ -43,7 +43,7 @@ export function SubTrainerInviteBanner() {
           ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
       }
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }
   }
@@ -64,7 +64,7 @@ export function SubTrainerInviteBanner() {
           ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
       }
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }
   }
@@ -85,7 +85,7 @@ export function SubTrainerInviteBanner() {
           updatedAt: new Date().toISOString(),
         });
       }
-    } catch (err) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }
   }

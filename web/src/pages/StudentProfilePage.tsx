@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useState } from "react";
 import { CheckCircle2, RefreshCw, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
@@ -24,19 +24,23 @@ export function StudentProfilePage() {
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  useEffect(() => {
-    if (!student) return;
-    setDisplayName(student.displayName || "");
-    setCelular(student.onboarding?.celular || "");
-    setCity(student.onboarding?.city || "");
-    setBirthDate(student.onboarding?.birthDate || "");
-    setGenero(student.onboarding?.genero || "");
-    setAlturaCm(student.physiological?.alturaCm ? String(student.physiological.alturaCm) : "");
-    setPesoInicialKg(
-      student.physiological?.pesoInicialKg ? String(student.physiological.pesoInicialKg) : "",
-    );
-    setGoal(student.goal || "");
-  }, [student]);
+  const [prevStudentStr, setPrevStudentStr] = useState("");
+  const currentStudentStr = JSON.stringify(student);
+  if (currentStudentStr !== prevStudentStr) {
+    setPrevStudentStr(currentStudentStr);
+    if (student) {
+      setDisplayName(student.displayName || "");
+      setCelular(student.onboarding?.celular || "");
+      setCity(student.onboarding?.city || "");
+      setBirthDate(student.onboarding?.birthDate || "");
+      setGenero(student.onboarding?.genero || "");
+      setAlturaCm(student.physiological?.alturaCm ? String(student.physiological.alturaCm) : "");
+      setPesoInicialKg(
+        student.physiological?.pesoInicialKg ? String(student.physiological.pesoInicialKg) : "",
+      );
+      setGoal(student.goal || "");
+    }
+  }
 
   async function handleSave(e: React.FormEvent) {
     e.preventDefault();
@@ -57,9 +61,10 @@ export function StudentProfilePage() {
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (err: any) {
-      console.error("Erro ao salvar cadastro:", err);
-      setError("Não foi possível salvar. Tente novamente.");
+    } catch (error: unknown) { const err = error as Error;
+      const msg = err instanceof Error ? err.message : "Erro desconhecido.";
+      setError(msg);
+      console.error(err);
     } finally {
       setSaving(false);
     }

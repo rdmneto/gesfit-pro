@@ -91,7 +91,7 @@ export function TeamLandingPage() {
         // Só adota o novo treinador como ativo se o aluno ainda não tem um —
         // assim, contratar um treinador adicional não tira o contexto atual.
         if (!activeTrainerId) setActiveTrainer(team.id);
-      } catch (err) {
+      } catch (error: unknown) { const err = error as Error;
         console.error("Erro ao solicitar vínculo com o treinador:", err);
       }
     }
@@ -129,7 +129,7 @@ export function TeamLandingPage() {
         invitedAt: new Date().toISOString(),
       });
       setNetMessage("Solicitação enviada!");
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setNetMessage("Erro: " + err.message);
     }
@@ -164,7 +164,7 @@ export function TeamLandingPage() {
         invitedAt: new Date().toISOString(),
       });
       setNetMessage("Convite enviado!");
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setNetMessage("Erro: " + err.message);
     }
@@ -198,7 +198,7 @@ export function TeamLandingPage() {
           otherUserName: team.name 
         } 
       }));
-    } catch (err: any) {
+    } catch (error: unknown) { const err = error as Error;
       console.error(err);
       setNetMessage("Erro: " + err.message);
     }

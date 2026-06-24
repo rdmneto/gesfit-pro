@@ -47,7 +47,7 @@ export function ChatWindow({ chatId, chatType, currentUserId, currentUserRole, o
     });
 
     return () => unsubscribe();
-  }, [chatId, chatType]);
+  }, [chatId, chatType, currentUserId]);
 
   async function handleSendMessage(e: React.FormEvent) {
     e.preventDefault();

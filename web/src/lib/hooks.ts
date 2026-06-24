@@ -8,6 +8,8 @@
 import {
   collection,
   doc,
+  getDocs,
+  getDoc,
   onSnapshot,
   orderBy,
   query,
@@ -15,6 +17,7 @@ import {
   type QueryConstraint,
 } from "firebase/firestore";
 import { useEffect, useState } from "react";
+import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "./firebase";
 import { useActiveTrainer } from "./activeTrainer";
 
@@ -23,42 +26,46 @@ function useCollection<T>(
   collectionPath: string,
   constraints: QueryConstraint[] = [],
   fallback: T[] = [],
-  deps: any[] = [],
+  deps: unknown[] = [],
 ): { data: T[]; loading: boolean; error: string | null } {
-  const [data, setData] = useState<T[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = ["collection", collectionPath, ...deps];
 
   useEffect(() => {
-    if (!db) {
-      // No Firebase — use fallback immediately
-      setData(fallback);
-      setLoading(false);
-      return;
-    }
+    if (!db) return;
 
     const ref = query(collection(db, collectionPath), ...constraints);
     const unsubscribe = onSnapshot(
       ref,
       (snapshot) => {
         const docs = snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
-        setData(docs);
-        setLoading(false);
-        setError(null);
+        queryClient.setQueryData(queryKey, docs);
       },
       (err) => {
         console.error(`[useCollection] ${collectionPath}:`, err);
-        setError(err.message);
-        setData(fallback); // graceful fallback
-        setLoading(false);
       },
     );
 
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionPath, ...deps]);
+  }, [collectionPath, ...deps, queryClient]);
 
-  return { data, loading, error };
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!db) return fallback;
+      const ref = query(collection(db, collectionPath), ...constraints);
+      const snapshot = await getDocs(ref);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+    },
+    staleTime: Infinity, // handled by onSnapshot
+  });
+
+  return {
+    data: data ?? fallback,
+    loading: isLoading && !!db,
+    error: error instanceof Error ? error.message : null,
+  };
 }
 
 /** Generic real-time document hook */
@@ -67,43 +74,45 @@ function useDocument<T>(
   docId: string | null | undefined,
   fallback: T | null = null,
 ): { data: T | null; loading: boolean; error: string | null } {
-  const [data, setData] = useState<T | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState<string | null>(null);
+  const queryClient = useQueryClient();
+  const queryKey = ["document", collectionPath, docId];
 
   useEffect(() => {
-    if (!docId) {
-      setData(null);
-      setLoading(false);
-      return;
-    }
-    if (!db) {
-      setData(fallback);
-      setLoading(false);
-      return;
-    }
+    if (!docId || !db) return;
 
     const ref = doc(db, collectionPath, docId);
     const unsubscribe = onSnapshot(
       ref,
       (snapshot) => {
-        setData(snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T) : null);
-        setLoading(false);
-        setError(null);
+        const docData = snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T) : null;
+        queryClient.setQueryData(queryKey, docData);
       },
       (err) => {
         console.error(`[useDocument] ${collectionPath}/${docId}:`, err);
-        setError(err.message);
-        setData(fallback);
-        setLoading(false);
       },
     );
 
     return unsubscribe;
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [collectionPath, docId]);
+  }, [collectionPath, docId, queryClient]);
 
-  return { data, loading, error };
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!db || !docId) return fallback;
+      const ref = doc(db, collectionPath, docId);
+      const snapshot = await getDoc(ref);
+      return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T) : null;
+    },
+    enabled: !!docId && !!db,
+    staleTime: Infinity, // handled by onSnapshot
+  });
+
+  return {
+    data: data !== undefined ? data : fallback,
+    loading: isLoading && !!docId && !!db,
+    error: error instanceof Error ? error.message : null,
+  };
 }
 
 export { useCollection, useDocument };
@@ -159,23 +168,24 @@ export function useEnsureActiveTrainer(studentId: string | null | undefined) {
   }, [enrollments.map((e) => `${e.trainerId}:${e.status}`).join(","), activeTrainerId]);
 }
 
-/** Vínculos (alunos) de um treinador */
-export function useTrainerEnrollments(trainerId: string | null | undefined) {
+/** Vínculos (alunos) de um treinador(es) */
+export function useTrainerEnrollments(trainerIds: string | string[] | null | undefined) {
+  const ids = Array.isArray(trainerIds) ? trainerIds : trainerIds ? [trainerIds] : [];
   return useCollection<Enrollment>(
     "enrollments",
-    trainerId ? [where("trainerId", "==", trainerId)] : [],
+    ids.length > 0 ? [where("trainerId", "in", ids.slice(0, 10))] : [],
     [],
-    [trainerId],
+    [ids.join(",")],
   );
 }
 
 /**
- * Alunos de um treinador, derivados dos vínculos (enrollments) + o documento
+ * Alunos de um treinador(es), derivados dos vínculos (enrollments) + o documento
  * completo de cada aluno. Retorna objetos no formato Student com o vínculo
  * anexado. Exclui vínculos cancelados.
  */
-export function useTrainerStudents(trainerId: string | null | undefined) {
-  const { data: enrollments, loading } = useTrainerEnrollments(trainerId);
+export function useTrainerStudents(trainerIds: string | string[] | null | undefined) {
+  const { data: enrollments, loading } = useTrainerEnrollments(trainerIds);
   const relevant = enrollments.filter((e) => e.status !== "cancelled");
   const idsKey = relevant
     .map((e) => e.studentId)
@@ -184,11 +194,17 @@ export function useTrainerStudents(trainerId: string | null | undefined) {
 
   const [studentDocs, setStudentDocs] = useState<Record<string, Student>>({});
 
-  useEffect(() => {
-    if (!db || !idsKey) {
+  // Sync state cleanly if idsKey becomes empty.
+  const [prevIdsKey, setPrevIdsKey] = useState(idsKey);
+  if (idsKey !== prevIdsKey) {
+    setPrevIdsKey(idsKey);
+    if (!idsKey && Object.keys(studentDocs).length > 0) {
       setStudentDocs({});
-      return;
     }
+  }
+
+  useEffect(() => {
+    if (!db || !idsKey) return;
     const ids = idsKey.split(",");
     const unsubs = ids.map((id) =>
       onSnapshot(doc(db!, "students", id), (snap) => {

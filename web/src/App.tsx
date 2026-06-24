@@ -1,24 +1,35 @@
-import { useEffect } from "react";
+import { useEffect, Suspense, lazy } from "react";
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
-import { ChangeRolePage } from "./pages/ChangeRolePage";
-import { ClassesPage } from "./pages/ClassesPage";
-import { DashboardPage } from "./pages/DashboardPage";
-import { HomePage } from "./pages/HomePage";
-import { LoginPage } from "./pages/LoginPage";
-import { MeasurementsPage } from "./pages/MeasurementsPage";
-import { OnboardingPage } from "./pages/OnboardingPage";
-import { StudentClassesPage } from "./pages/StudentClassesPage";
-import { StudentProfilePage } from "./pages/StudentProfilePage";
-import { StudentSettingsPage } from "./pages/StudentSettingsPage";
-import { StudentTrainersPage } from "./pages/StudentTrainersPage";
-
-import { TeamLandingPage } from "./pages/TeamLandingPage";
-import { TeamsPage } from "./pages/TeamsPage";
-import { TrainerWorkspacePage } from "./pages/TrainerWorkspacePage";
-import { TrainingPage } from "./pages/TrainingPage";
 import { useSessionStore } from "./store/session";
+
+const ChangeRolePage = lazy(() => import("./pages/ChangeRolePage").then(m => ({ default: m.ChangeRolePage })));
+const ClassesPage = lazy(() => import("./pages/ClassesPage").then(m => ({ default: m.ClassesPage })));
+const DashboardPage = lazy(() => import("./pages/DashboardPage").then(m => ({ default: m.DashboardPage })));
+const HomePage = lazy(() => import("./pages/HomePage").then(m => ({ default: m.HomePage })));
+const LoginPage = lazy(() => import("./pages/LoginPage").then(m => ({ default: m.LoginPage })));
+const MeasurementsPage = lazy(() => import("./pages/MeasurementsPage").then(m => ({ default: m.MeasurementsPage })));
+const OnboardingPage = lazy(() => import("./pages/OnboardingPage").then(m => ({ default: m.OnboardingPage })));
+const StudentClassesPage = lazy(() => import("./pages/StudentClassesPage").then(m => ({ default: m.StudentClassesPage })));
+const StudentProfilePage = lazy(() => import("./pages/StudentProfilePage").then(m => ({ default: m.StudentProfilePage })));
+const StudentSettingsPage = lazy(() => import("./pages/StudentSettingsPage").then(m => ({ default: m.StudentSettingsPage })));
+const StudentTrainersPage = lazy(() => import("./pages/StudentTrainersPage").then(m => ({ default: m.StudentTrainersPage })));
+const TeamLandingPage = lazy(() => import("./pages/TeamLandingPage").then(m => ({ default: m.TeamLandingPage })));
+const TeamsPage = lazy(() => import("./pages/TeamsPage").then(m => ({ default: m.TeamsPage })));
+const TrainerWorkspacePage = lazy(() => import("./pages/TrainerWorkspacePage").then(m => ({ default: m.TrainerWorkspacePage })));
+const TrainingPage = lazy(() => import("./pages/TrainingPage").then(m => ({ default: m.TrainingPage })));
+
+function GlobalLoader() {
+  return (
+    <div className="flex min-h-[60vh] items-center justify-center">
+      <div className="flex flex-col items-center gap-4">
+        <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
+        <p className="text-sm text-stone-400">Carregando...</p>
+      </div>
+    </div>
+  );
+}
 
 export default function App() {
   const startSession = useSessionStore((state) => state.start);
@@ -27,54 +38,47 @@ export default function App() {
 
   return (
     <BrowserRouter>
-      <Routes>
-        <Route element={<AppFrame />}>
-          <Route index element={<HomePage />} />
-          <Route path="login" element={<LoginPage />} />
-          <Route path="treinadores" element={<TeamsPage />} />
-          {/* Cadastro real acontece em /login (criar conta) + /app/onboarding.
-              Rotas antigas redirecionam para não quebrar links existentes. */}
-          <Route path="cadastro/aluno" element={<Navigate to="/login?signup=1" replace />} />
-          <Route path="cadastro/treinador" element={<Navigate to="/login?signup=1" replace />} />
-          <Route path="t/:slug" element={<TeamLandingPage />} />
+      <Suspense fallback={<GlobalLoader />}>
+        <Routes>
+          <Route element={<AppFrame />}>
+            <Route index element={<HomePage />} />
+            <Route path="login" element={<LoginPage />} />
+            <Route path="treinadores" element={<TeamsPage />} />
+            <Route path="t/:slug" element={<TeamLandingPage />} />
 
-          {/* Onboarding — autenticado mas sem role definida ainda */}
-          <Route
-            path="app/onboarding"
-            element={
-              <RequireAuth>
-                <RequireNoRole>
-                  <OnboardingPage />
-                </RequireNoRole>
-              </RequireAuth>
-            }
-          />
+            {/* Onboarding — autenticado mas sem role definida ainda */}
+            <Route
+              path="app/onboarding"
+              element={
+                <RequireAuth>
+                  <RequireNoRole>
+                    <OnboardingPage />
+                  </RequireNoRole>
+                </RequireAuth>
+              }
+            />
 
-          {/* Authenticated routes — any role */}
-          <Route path="app/mudar-perfil" element={<RequireAuth><ChangeRolePage /></RequireAuth>} />
+            {/* Authenticated routes — any role */}
+            <Route path="app/mudar-perfil" element={<RequireAuth><ChangeRolePage /></RequireAuth>} />
 
-          {/* Authenticated routes — student */}
-          <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />
-          <Route path="app/meus-treinadores" element={<RequireStudent><StudentTrainersPage /></RequireStudent>} />
-          <Route path="app/meu-cadastro" element={<RequireStudent><StudentProfilePage /></RequireStudent>} />
-          <Route path="app/minhas-aulas" element={<RequireStudent><StudentClassesPage /></RequireStudent>} />
-          <Route path="app/medidas" element={<RequireStudent><MeasurementsPage /></RequireStudent>} />
+            {/* Authenticated routes — student */}
+            <Route path="app" element={<RequireAuth><DashboardPage /></RequireAuth>} />
+            <Route path="app/meus-treinadores" element={<RequireStudent><StudentTrainersPage /></RequireStudent>} />
+            <Route path="app/meu-cadastro" element={<RequireStudent><StudentProfilePage /></RequireStudent>} />
+            <Route path="app/minhas-aulas" element={<RequireStudent><StudentClassesPage /></RequireStudent>} />
+            <Route path="app/medidas" element={<RequireStudent><MeasurementsPage /></RequireStudent>} />
 
-          {/* Authenticated routes — trainer */}
-          <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
-          <Route path="app/aulas" element={<Navigate to="/app/agenda" replace />} />
-          <Route path="app/treinos" element={<RequireTrainer><TrainingPage /></RequireTrainer>} />
-          <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
-          <Route path="app/ajustes" element={<RequireAuth><AjustesRoute /></RequireAuth>} />
-          {/* Rotas antigas → Ajustes (consolidou perfil, pacotes e regras) */}
-          <Route path="app/treinador" element={<Navigate to="/app/ajustes" replace />} />
-          <Route path="app/pacotes" element={<Navigate to="/app/ajustes" replace />} />
-          <Route path="app/seguranca" element={<Navigate to="/app/ajustes" replace />} />
-          <Route path="app/configuracoes" element={<Navigate to="/app/ajustes" replace />} />
+            {/* Authenticated routes — trainer */}
+            <Route path="app/agenda" element={<RequireTrainer><ClassesPage /></RequireTrainer>} />
+            <Route path="app/aulas" element={<Navigate to="/app/agenda" replace />} />
+            <Route path="app/treinos" element={<RequireTrainer><TrainingPage /></RequireTrainer>} />
+            <Route path="app/alunos" element={<RequireTrainer><MeasurementsPage /></RequireTrainer>} />
+            <Route path="app/ajustes" element={<RequireAuth><AjustesRoute /></RequireAuth>} />
 
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Route>
-      </Routes>
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Route>
+        </Routes>
+      </Suspense>
     </BrowserRouter>
   );
 }
@@ -91,21 +95,14 @@ function RequireAuth({ children }: { children: ReactNode }) {
   const loading = useSessionStore((state) => state.loading);
 
   if (loading) {
-    return (
-      <div className="flex min-h-[60vh] items-center justify-center">
-        <div className="flex flex-col items-center gap-4">
-          <div className="h-10 w-10 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" />
-          <p className="text-sm text-stone-400">Carregando...</p>
-        </div>
-      </div>
-    );
+    return <GlobalLoader />;
   }
 
   if (!user) {
     return <Navigate to="/login" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 /**
@@ -122,7 +119,7 @@ function RequireNoRole({ children }: { children: ReactNode }) {
     return <Navigate to="/app" replace />;
   }
 
-  return children;
+  return <>{children}</>;
 }
 
 function RequireTrainer({ children }: { children: ReactNode }) {
