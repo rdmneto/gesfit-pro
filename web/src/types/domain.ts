@@ -3,7 +3,7 @@ import type { Timestamp } from "firebase/firestore";
 export type UserRole = "trainer" | "assistant" | "student";
 export type StudentStatus = "pending" | "active" | "blocked" | "inactive";
 export type BookingStatus = "scheduled" | "attended" | "no_show" | "cancelled";
-export type ClassProductType = "single" | "package";
+export type ClassProductType = "single" | "package" | "recurring";
 export type PurchaseStatus = "awaiting_payment" | "payment_submitted" | "paid" | "rejected";
 export type EnrollmentStatus = "pending" | "active" | "paused" | "cancelled";
 export type TeamMemberStatus = "pending" | "requesting_join" | "active" | "removed";
@@ -126,14 +126,7 @@ export interface Team {
   pixKey?: string;
 }
 
-export interface Plan {
-  id: string;
-  name: string;
-  priceCents: number;
-  billingCycle: "monthly";
-  classesPerMonth: number;
-  active: boolean;
-}
+/** @deprecated Use ClassProduct with type "recurring" instead */
 
 /** Quem enxerga a oferta: todos (vitrine pública), apenas alunos vinculados, ou alunos específicos. */
 export type ProductAudience = "all" | "students" | "specific";
@@ -148,6 +141,8 @@ export interface ClassProduct {
   priceCents: number;
   active: boolean;
   publicVisible: boolean;
+  /** Ciclo de cobrança em dias (padrão 30 para recorrentes). */
+  billingCycleDays?: number;
   description: string;
   /** Público-alvo da oferta (padrão "all"). */
   audience?: ProductAudience;

@@ -410,6 +410,16 @@ export function usePaidPurchases(teamId: string | null | undefined) {
   );
 }
 
+/** Todas as compras de um time (sem filtro de status), para a tela de transações. */
+export function useAllPurchases(teamId: string | null | undefined) {
+  return useFetchCollection<ClassPurchase>(
+    "classPurchases",
+    teamId ? [where("teamId", "==", teamId), orderBy("submittedAt", "desc")] : [],
+    [],
+    [teamId]
+  );
+}
+
 /** Sub-treinadores ativos de um time (pelo UID do dono) */
 export function useTeamMembers(ownerUid: string | null | undefined) {
   return useFetchCollection<TeamMember>(

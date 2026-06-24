@@ -15,10 +15,8 @@ import {
   LogOut,
   MapPin,
   Minus,
-  Package,
   Palette,
   Plus,
-  Receipt,
   RefreshCw,
   Search,
   Timer,
@@ -30,13 +28,11 @@ import {
 } from "lucide-react";
 import { Link } from "react-router-dom";
 import { TeamManagementPanel } from "../features/team/TeamManagementPanel";
-import { PartnerFinancialPanel } from "../features/team/PartnerFinancialPanel";
 import { doc, updateDoc } from "firebase/firestore";
 import { ref, uploadBytes, getDownloadURL } from "firebase/storage";
 import { db, storage } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useTeam } from "../lib/hooks";
-import { PackagesPage } from "./PackagesPage";
 import { DEFAULT_AVAILABILITY, trainingModalities } from "../data/catalog";
 import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { gymTypeIcon, searchGyms } from "../data/gyms";
@@ -97,7 +93,7 @@ export function TrainerWorkspacePage() {
 
   // Sub-tab state
   const [activeSubTab, setActiveSubTab] = useState<
-    "cadastro" | "estilos" | "locais" | "agenda" | "pacotes" | "time" | "financeiro"
+    "cadastro" | "estilos" | "locais" | "agenda" | "time"
   >("cadastro");
 
   // Profile States
@@ -397,9 +393,7 @@ export function TrainerWorkspacePage() {
           { id: "estilos", label: "Estilos de treino", icon: Check },
           { id: "locais", label: "Academias", icon: MapPin },
           { id: "agenda", label: "Agenda", icon: CalendarClock },
-          { id: "pacotes", label: "Pacotes e promoções", icon: Package },
           { id: "time", label: "Meu Time", icon: Users },
-          { id: "financeiro", label: "Financeiro", icon: Receipt },
         ] as const).map(({ id, label, icon: Icon }) => (
           <button
             key={id}
@@ -777,52 +771,36 @@ export function TrainerWorkspacePage() {
           </div>
         )}
 
-        {/* ── Sub-tab: PACOTES E PROMOÇÕES ─────────────────────────────── */}
-        {activeSubTab === "pacotes" && (
-          <div className="-mx-4">
-            <PackagesPage />
-          </div>
-        )}
-
         {/* ── Sub-tab: MEU TIME ───────────────────────────────────────── */}
         {activeSubTab === "time" && (
           <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
             <TeamManagementPanel />
           </div>
         )}
-
-        {/* ── Sub-tab: FINANCEIRO ─────────────────────────────────────── */}
-        {activeSubTab === "financeiro" && (
-          <div className="animate-in fade-in slide-in-from-bottom-2 duration-300">
-            <PartnerFinancialPanel trainerId={teamId || ""} />
-          </div>
-        )}
       </div>
 
-      {saveSuccess && activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
+      {saveSuccess && (
         <div className="mt-6 rounded-xl bg-emerald-50 border border-emerald-200 p-4 text-sm font-bold text-emerald-800 animate-fade-in">
           Configurações e personalização salvas com sucesso!
         </div>
       )}
-      {saveError && activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
+      {saveError && (
         <div className="mt-6 rounded-xl bg-rose-50 border border-rose-200 p-4 text-sm font-bold text-rose-800 animate-fade-in">
           {saveError}
         </div>
       )}
 
-      {/* Floating Save Button — pacotes/promoções/financeiro têm salvamento próprio */}
-      {activeSubTab !== "pacotes" && activeSubTab !== "financeiro" && (
-        <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
-          <button
-            type="button"
-            disabled={saving}
-            onClick={handleSave}
-            className="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-stone-950 px-6 font-bold text-white shadow-xl hover:bg-stone-850 disabled:opacity-50 transition-all border border-stone-800"
-          >
-            {saving ? "Salvando..." : "Salvar configurações"}
-          </button>
-        </div>
-      )}
+      {/* Floating Save Button */}
+      <div className="sticky bottom-20 md:bottom-4 mt-6 flex justify-end">
+        <button
+          type="button"
+          disabled={saving}
+          onClick={handleSave}
+          className="focus-ring inline-flex h-12 items-center justify-center rounded-xl bg-stone-950 px-6 font-bold text-white shadow-xl hover:bg-stone-850 disabled:opacity-50 transition-all border border-stone-800"
+        >
+          {saving ? "Salvando..." : "Salvar configurações"}
+        </button>
+      </div>
     </section>
   );
 }
