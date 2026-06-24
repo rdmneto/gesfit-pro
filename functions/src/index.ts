@@ -3,3 +3,4 @@ export { cancelBooking } from "./triggers/bookings.js";
 export { asaasWebhook } from "./triggers/payments.js";
 export { sendClassReminders } from "./triggers/reminders.js";
 export { generateWorkoutAI } from "./integrations/nvidia.js";
+export { onChatMessageCreated } from "./triggers/notifications.js";

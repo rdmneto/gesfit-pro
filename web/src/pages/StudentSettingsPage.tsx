@@ -1,5 +1,6 @@
 import { ChevronRight, LogOut, Settings, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
+import { PushNotificationToggle } from "../components/PushNotificationToggle";
 import { useSessionStore } from "../store/session";
 
 export function StudentSettingsPage() {
@@ -20,6 +21,8 @@ export function StudentSettingsPage() {
       </div>
 
       <div className="mt-6 grid gap-3">
+        <PushNotificationToggle />
+
         <Link
           to="/app/meu-cadastro"
           className="focus-ring flex items-center justify-between gap-3 rounded-2xl border border-stone-200 bg-white p-5 transition-all hover:border-emerald-400 hover:shadow-sm"

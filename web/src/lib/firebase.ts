@@ -3,6 +3,7 @@ import { initializeAppCheck, ReCaptchaEnterpriseProvider } from "firebase/app-ch
 import { getAuth, connectAuthEmulator } from "firebase/auth";
 import { initializeFirestore, persistentLocalCache, connectFirestoreEmulator } from "firebase/firestore";
 import { getStorage } from "firebase/storage";
+import { getMessaging } from "firebase/messaging";
 
 const firebaseConfig = {
   apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
@@ -20,6 +21,7 @@ export const app: FirebaseApp | null = hasConfig ? initializeApp(firebaseConfig)
 export const auth = app ? getAuth(app) : null;
 export const db = app ? initializeFirestore(app, { localCache: persistentLocalCache() }) : null;
 export const storage = app ? getStorage(app) : null;
+export const messaging = app ? getMessaging(app) : null;
 
 if (app && import.meta.env.VITE_USE_FIREBASE_EMULATOR === "true") {
   console.log("🔥 Using Firebase Emulators 🔥");

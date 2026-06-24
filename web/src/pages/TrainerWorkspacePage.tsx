@@ -1,4 +1,6 @@
 import { cardClasses } from "../components/ui/Primitives";
+import { PushNotificationToggle } from "../components/PushNotificationToggle";
+
 import { cn } from "../lib/utils";
 import { useState, useMemo } from "react";
 import {
@@ -494,6 +496,10 @@ export function TrainerWorkspacePage() {
                   />
                 </div>
               </section>
+            </div>
+
+            <div className="mt-6 mb-6">
+              <PushNotificationToggle />
             </div>
 
             <section className={cn(cardClasses, "p-5")}>
