@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   Banknote,
   CheckCircle2,
@@ -219,7 +222,7 @@ export function PackagesPage() {
 
       {/* Grid: Cadastro de Ofertas e Ofertas Ativas */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <PackagePlus aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Cadastrar aula ou pacote</h2>
@@ -341,7 +344,7 @@ export function PackagesPage() {
           <div className="mt-5 flex flex-wrap gap-2">
             <button
               type="button"
-              className="focus-ring btn btn-primary px-5 h-11"
+              className={cn(buttonVariants({}), "focus-ring px-5 h-11")}
               disabled={saving}
               onClick={handleSaveProduct}
             >
@@ -351,7 +354,7 @@ export function PackagesPage() {
           </div>
         </section>
 
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <Dumbbell aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Ofertas cadastradas</h2>
@@ -403,7 +406,7 @@ export function PackagesPage() {
 
       {/* Grid: Promoção e Promoções Ativas */}
       <div className="mt-6 grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <Megaphone aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Criar pacote promocional</h2>
@@ -453,7 +456,7 @@ export function PackagesPage() {
           </div>
           <button
             type="button"
-            className="focus-ring btn btn-primary mt-5 px-5 h-11"
+            className={cn(buttonVariants({}), "focus-ring mt-5 px-5 h-11")}
             onClick={handleSavePromo}
           >
             <Send aria-hidden="true" size={16} />
@@ -461,7 +464,7 @@ export function PackagesPage() {
           </button>
         </section>
 
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <Megaphone aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Promoções ativas</h2>
@@ -513,7 +516,7 @@ export function PackagesPage() {
 
       {/* Conferência de comprovantes enviados pelos alunos */}
       <div className="mt-6">
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <CheckCircle2 aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Conferência do professor</h2>

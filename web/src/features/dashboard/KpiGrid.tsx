@@ -1,3 +1,5 @@
+import { cardClasses } from "../../components/ui/Primitives";
+import { cn } from "../../lib/utils";
 import { DollarSign, TrendingUp, UserPlus2 } from "lucide-react";
 
 interface KpiGridProps {
@@ -17,7 +19,7 @@ export function KpiGrid({
 }: KpiGridProps) {
   return (
     <section className="mt-4 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-      <div className="metric-card">
+      <div className={cn(cardClasses, "metric-")}>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
           <DollarSign aria-hidden="true" className="text-emerald-700" size={20} />
         </div>
@@ -33,7 +35,7 @@ export function KpiGrid({
         <p className="mt-1 text-xs font-semibold text-emerald-750">Pagamentos confirmados</p>
       </div>
 
-      <div className="metric-card">
+      <div className={cn(cardClasses, "metric-")}>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-emerald-50">
           <TrendingUp aria-hidden="true" className="text-emerald-700" size={20} />
         </div>
@@ -46,7 +48,7 @@ export function KpiGrid({
         </p>
       </div>
 
-      <div className="metric-card">
+      <div className={cn(cardClasses, "metric-")}>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-indigo-50">
           <UserPlus2 aria-hidden="true" className="text-indigo-600" size={20} />
         </div>
@@ -59,7 +61,7 @@ export function KpiGrid({
         </p>
       </div>
 
-      <div className="metric-card">
+      <div className={cn(cardClasses, "metric-")}>
         <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-blue-50">
           <UserPlus2 aria-hidden="true" className="text-blue-600" size={20} />
         </div>

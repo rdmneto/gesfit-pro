@@ -1,6 +1,7 @@
 import * as React from "react";
 import { cn } from "../../lib/utils";
 
+
 interface FieldWrapperProps {
   label: string;
   error?: string;
@@ -28,8 +29,9 @@ function FieldWrapper({ label, error, hint, children, required, className }: Fie
   );
 }
 
-const inputClasses = "mt-2 block w-full h-11 px-3.5 border-[1.5px] border-stone-200 rounded-md bg-white text-stone-900 text-[0.9375rem] transition-all placeholder:text-stone-400 hover:border-[#c9c4b9] focus:outline-none focus:border-emerald-600 focus:shadow-[0_0_0_3px_rgb(5_150_105/0.12)]";
-const inputErrorClasses = "border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-[0_0_0_3px_rgb(239_68_68/0.1)]";
+export const inputClasses = "mt-2 block w-full h-11 px-3.5 border-[1.5px] border-stone-200 rounded-md bg-white text-stone-900 text-[0.9375rem] transition-all placeholder:text-stone-400 hover:border-[#c9c4b9] focus:outline-none focus:border-emerald-600 focus:shadow-[0_0_0_3px_rgb(5_150_105/0.12)]";
+export const inputErrorClasses = "border-red-500 hover:border-red-500 focus:border-red-500 focus:shadow-[0_0_0_3px_rgb(239_68_68/0.1)]";
+export const textareaClasses = "mt-2 block w-full min-h-[6rem] p-3 border-[1.5px] border-stone-200 rounded-md bg-white text-stone-900 text-[0.9375rem] transition-all placeholder:text-stone-400 hover:border-[#c9c4b9] focus:outline-none focus:border-emerald-600 focus:shadow-[0_0_0_3px_rgb(5_150_105/0.12)] resize-y";
 
 export interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label: string;
@@ -85,7 +87,7 @@ const Textarea = React.forwardRef<HTMLTextAreaElement, TextareaProps>(
           ref={ref}
           required={required}
           className={cn(
-            "mt-2 block w-full min-h-[6rem] p-3 border-[1.5px] border-stone-200 rounded-md bg-white text-stone-900 text-[0.9375rem] transition-all placeholder:text-stone-400 hover:border-[#c9c4b9] focus:outline-none focus:border-emerald-600 focus:shadow-[0_0_0_3px_rgb(5_150_105/0.12)] resize-y",
+            textareaClasses,
             error && inputErrorClasses,
             className
           )}

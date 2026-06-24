@@ -1,3 +1,5 @@
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import { useState, useMemo } from "react";
 import {
   Building2,
@@ -415,7 +417,7 @@ export function TrainerWorkspacePage() {
         {activeSubTab === "cadastro" && (
           <div className="space-y-6">
             <div className="grid gap-6 lg:grid-cols-[0.95fr_1.05fr]">
-              <section className="card p-5">
+              <section className={cn(cardClasses, "p-5")}>
                 <div className="flex items-center gap-2">
                   <Palette aria-hidden="true" className="text-emerald-800" size={20} />
                   <h2 className="text-lg font-black text-stone-950">Paleta e identidade</h2>
@@ -461,7 +463,7 @@ export function TrainerWorkspacePage() {
                 </div>
               </section>
 
-              <section className="card p-5">
+              <section className={cn(cardClasses, "p-5")}>
                 <div className="flex items-center gap-2">
                   <Image aria-hidden="true" className="text-emerald-800" size={20} />
                   <h2 className="text-lg font-black text-stone-950">Fotos e banner</h2>
@@ -489,7 +491,7 @@ export function TrainerWorkspacePage() {
               </section>
             </div>
 
-            <section className="card p-5">
+            <section className={cn(cardClasses, "p-5")}>
               <div className="flex items-center gap-2">
                 <ToggleRight aria-hidden="true" className="text-emerald-800" size={20} />
                 <h2 className="text-lg font-black text-stone-950">Divulgação na landing</h2>
@@ -506,7 +508,7 @@ export function TrainerWorkspacePage() {
 
         {/* ── Sub-tab: ESTILOS DE TREINO ───────────────────────────────── */}
         {activeSubTab === "estilos" && (
-          <section className="card p-5">
+          <section className={cn(cardClasses, "p-5")}>
             <div className="flex items-center gap-2">
               <Check aria-hidden="true" className="text-emerald-800" size={20} />
               <h2 className="text-lg font-black text-stone-950">Modalidades de treino</h2>
@@ -543,7 +545,7 @@ export function TrainerWorkspacePage() {
         {activeSubTab === "locais" && (
           <div className="grid gap-6 lg:grid-cols-[1fr_1.1fr]">
             <div className="space-y-4">
-              <section className="card p-5">
+              <section className={cn(cardClasses, "p-5")}>
                 <div className="flex items-center gap-2">
                   <div className="flex h-7 w-7 items-center justify-center rounded-md bg-blue-50">
                     <MapPin aria-hidden="true" className="text-blue-700" size={16} />
@@ -645,7 +647,7 @@ export function TrainerWorkspacePage() {
               </section>
             </div>
 
-            <section className="card p-5">
+            <section className={cn(cardClasses, "p-5")}>
               <div className="flex items-center gap-2">
                 <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
                   <Home aria-hidden="true" className="text-emerald-700" size={16} />
@@ -683,7 +685,7 @@ export function TrainerWorkspacePage() {
         {/* ── Sub-tab 3: AGENDA E GRADE (Horários e Deslocamento) ────── */}
         {activeSubTab === "agenda" && (
           <div className="space-y-6">
-            <section className="card p-5">
+            <section className={cn(cardClasses, "p-5")}>
               <div className="flex flex-col justify-between gap-4 lg:flex-row lg:items-start">
                 <div>
                   <div className="flex items-center gap-2">

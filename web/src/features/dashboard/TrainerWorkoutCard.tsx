@@ -1,3 +1,5 @@
+import { badgeVariants } from "../../components/ui/Primitives";
+import { cn } from "../../lib/utils";
 import { CheckCircle2, MapPin, Play, UserRound, FileX } from "lucide-react";
 import type { WorkoutSession } from "../../types/domain";
 import { formatDateTime } from "./dashboardUtils";
@@ -32,7 +34,7 @@ export function TrainerWorkoutCard({
           <p className="text-sm font-bold text-emerald-700">{formatDateTime(workout.startsAt)}</p>
           <h3 className="mt-1 text-lg font-black text-stone-950">{workout.studentName}</h3>
         </div>
-        <span className="badge badge-stone shrink-0">{workout.modality}</span>
+        <span className={cn(badgeVariants({ variant: "stone" }), "shrink-0")}>{workout.modality}</span>
       </div>
 
       <div className="mt-4 space-y-2 text-sm text-stone-600">

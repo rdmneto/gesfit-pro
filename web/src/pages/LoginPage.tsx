@@ -1,3 +1,5 @@
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   ArrowRight,
   Dumbbell,
@@ -146,7 +148,7 @@ export function LoginPage() {
         </p>
       </div>
 
-      <div className="card p-6 shadow-xl border border-stone-150 bg-white rounded-2xl">
+      <div className={cn(cardClasses, "p-6 shadow-xl border border-stone-150 bg-white rounded-2xl")}>
         {/* Mode tabs */}
         <div className="flex rounded-lg border border-[var(--color-border)] bg-stone-100 p-1">
           {(["login", "signup"] as const).map((m) => (

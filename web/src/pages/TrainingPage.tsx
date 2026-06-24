@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses, badgeVariants } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import { useState } from 'react';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -212,7 +215,7 @@ export function TrainingPage() {
         {!showForm && (
           <button
             type="button"
-            className="focus-ring btn btn-primary"
+            className={cn(buttonVariants({}), "focus-ring")}
             onClick={() => setShowForm(true)}
           >
             <Plus size={18} /> Novo Treino
@@ -224,7 +227,7 @@ export function TrainingPage() {
             {/* spacer — keeps the form aligned with the list below */}
 
             {showForm && (
-              <div className="card p-5 animate-slide-up bg-stone-50 border-emerald-200 border-2">
+              <div className={cn(cardClasses, "p-5 animate-slide-up bg-stone-50 border-emerald-200 border-2")}>
                 <div className="flex justify-between items-start">
                   <h2 className="text-lg font-black text-emerald-900">
                     {editingTrainingId ? "Editar Treino" : "Criar Novo Treino"}
@@ -442,8 +445,8 @@ export function TrainingPage() {
                 )}
                 
                 <div className="mt-6 flex justify-end gap-3">
-                  <button type="button" className="btn btn-secondary" onClick={closeForm}>Cancelar</button>
-                  <button type="button" className="btn btn-primary" disabled={saving || !title || exercises.length === 0} onClick={handleSaveTraining}>
+                  <button type="button" className={buttonVariants({variant: "secondary"})} onClick={closeForm}>Cancelar</button>
+                  <button type="button" className={buttonVariants({})} disabled={saving || !title || exercises.length === 0} onClick={handleSaveTraining}>
                     {saving ? "Salvando..." : "Salvar Treino"}
                   </button>
                 </div>
@@ -457,11 +460,11 @@ export function TrainingPage() {
                 activeTrainings.map(training => {
                   const isExpanded = expandedTrainingId === training.id;
                   return (
-                    <article key={training.id} className="card overflow-hidden">
+                    <article key={training.id} className={cn(cardClasses, "overflow-hidden")}>
                       <div className="flex flex-col justify-between p-4">
                         <div>
                           <div className="flex justify-between items-start">
-                            <span className="badge badge-green">Ativo</span>
+                            <span className={badgeVariants({ variant: "green" })}>Ativo</span>
                             <div className="flex gap-2">
                               <button type="button" className="text-stone-400 hover:text-emerald-600" title="Editar" onClick={() => startEditing(training)}><Pencil size={16}/></button>
                               <button type="button" className="text-stone-400 hover:text-amber-600" title="Arquivar" onClick={() => archiveTraining(training.id)}><Archive size={16}/></button>

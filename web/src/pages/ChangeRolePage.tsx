@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import { AlertTriangle, ArrowLeft, RefreshCw } from "lucide-react";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -46,7 +49,7 @@ export function ChangeRolePage() {
         Voltar
       </button>
 
-      <div className="card p-8">
+      <div className={cn(cardClasses, "p-8")}>
         <div className="flex h-12 w-12 items-center justify-center rounded-full bg-amber-100">
           <RefreshCw className="text-amber-700" size={22} />
         </div>
@@ -88,7 +91,7 @@ export function ChangeRolePage() {
         <div className="mt-6 flex flex-col gap-3 sm:flex-row">
           <button
             type="button"
-            className="focus-ring btn btn-primary flex-1"
+            className={cn(buttonVariants({}), "focus-ring flex-1")}
             onClick={handleChangeRole}
             disabled={loading}
           >
@@ -101,7 +104,7 @@ export function ChangeRolePage() {
           </button>
           <button
             type="button"
-            className="focus-ring btn btn-outline flex-1"
+            className={cn(buttonVariants({}), "focus-ring flex-1")}
             onClick={() => navigate(-1)}
             disabled={loading}
           >

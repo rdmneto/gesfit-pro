@@ -1,3 +1,6 @@
+import { buttonVariants } from "../../components/ui/Button";
+import { cardClasses, badgeVariants } from "../../components/ui/Primitives";
+import { cn } from "../../lib/utils";
 import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle, Dumbbell, CheckCircle2, ChevronDown, ChevronUp, X, Play } from "lucide-react";
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
@@ -54,7 +57,7 @@ export function StudentAgenda({ workouts, trainings, trainerName }: { workouts: 
   })();
 
   return (
-    <section className="card p-5">
+    <section className={cn(cardClasses, "p-5")}>
       <div className="flex flex-col justify-between gap-3 border-b border-stone-150 pb-4 sm:flex-row sm:items-center">
         <div>
           <h2 className="text-lg font-black text-stone-950">Agenda do Aluno</h2>
@@ -176,7 +179,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
 
       {!expanded && workout.exercises?.length > 0 && (
         <div className="mt-3 flex flex-wrap gap-1.5">
-          {workout.exercises.map((e) => <span key={e} className="badge badge-green">{e}</span>)}
+          {workout.exercises.map((e) => <span key={e} className={badgeVariants({ variant: "green" })}>{e}</span>)}
         </div>
       )}
 
@@ -250,14 +253,14 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
               <p className="text-sm text-stone-600">Este é um treino livre agendado pelo seu treinador.</p>
               {workout.exercises && workout.exercises.length > 0 && (
                 <div className="mt-4 flex flex-wrap justify-center gap-1.5">
-                  {workout.exercises.map((e) => <span key={e} className="badge badge-green">{e}</span>)}
+                  {workout.exercises.map((e) => <span key={e} className={badgeVariants({ variant: "green" })}>{e}</span>)}
                 </div>
               )}
             </div>
           )}
 
           <div className="mt-4 pt-4 border-t border-stone-200">
-            <button type="button" className="focus-ring btn btn-primary w-full shadow-[var(--shadow-brand)] h-12" disabled={submitting} onClick={handleComplete}>
+            <button type="button" className={cn(buttonVariants({}), "focus-ring w-full shadow-[var(--shadow-brand)] h-12")} disabled={submitting} onClick={handleComplete}>
               <CheckCircle2 size={20} />
               {submitting ? "Registrando..." : "Concluir Treino"}
             </button>
@@ -566,7 +569,7 @@ function StudentWeekGrid({
               </div>
               {expandedWorkout.exercises?.length > 0 && (
                 <div className="flex flex-wrap gap-1.5 mb-4">
-                  {expandedWorkout.exercises.map(e => <span key={e} className="badge badge-green">{e}</span>)}
+                  {expandedWorkout.exercises.map(e => <span key={e} className={badgeVariants({ variant: "green" })}>{e}</span>)}
                 </div>
               )}
               <button

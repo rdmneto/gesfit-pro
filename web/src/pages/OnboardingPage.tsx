@@ -1,4 +1,8 @@
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import { useState } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { collection, doc, getDocs, limit, query, setDoc, where } from "firebase/firestore";
 import { useNavigate } from "react-router-dom";
 import { Dumbbell, Users, ArrowRight, CheckCircle2, ArrowLeft, FileText, ShieldCheck } from "lucide-react";
@@ -8,6 +12,8 @@ import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
 import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { Button } from "../components/ui/Button";
+import { Input, Textarea, SelectField } from "../components/ui/FormFields";
+import { studentOnboardingSchema, trainerOnboardingSchema, type StudentOnboardingData, type TrainerOnboardingData } from "../lib/schemas";
 
 type Step = "role-select" | "contract" | "details-student" | "details-trainer";
 
@@ -21,21 +27,29 @@ export function OnboardingPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState("");
 
-  // Student form state
-  const [studentPhone, setStudentPhone] = useState("");
-  const [studentCity, setStudentCity] = useState(DEFAULT_CITY);
-  const [studentBirthDate, setStudentBirthDate] = useState("");
-  const [studentHeight, setStudentHeight] = useState("");
-  const [studentWeight, setStudentWeight] = useState("");
-  const [studentGoal, setStudentGoal] = useState("");
-  const [studentDoencas, setStudentDoencas] = useState("");
-  const [studentRestricoes, setStudentRestricoes] = useState("");
-  const [studentOrientacoes, setStudentOrientacoes] = useState("");
+  const studentForm = useForm<StudentOnboardingData>({
+    resolver: zodResolver(studentOnboardingSchema),
+    defaultValues: {
+      cidade: DEFAULT_CITY,
+      celular: "",
+      birthDate: "",
+      alturaCm: undefined,
+      pesoKg: undefined,
+      objetivos: "",
+      doencas: "",
+      restricoes: "",
+      orientacoes: "",
+    },
+  });
 
-  // Trainer form state
-  const [teamName, setTeamName] = useState("");
-  const [teamSlug, setTeamSlug] = useState("");
-  const [trainerBio, setTrainerBio] = useState("");
+  const trainerForm = useForm<TrainerOnboardingData>({
+    resolver: zodResolver(trainerOnboardingSchema),
+    defaultValues: {
+      teamName: "",
+      teamSlug: "",
+      bio: "",
+    },
+  });
 
   if (!user) return null;
 
@@ -51,8 +65,7 @@ export function OnboardingPage() {
     else setStep("details-trainer");
   }
 
-  async function handleOnboardingStudent(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleOnboardingStudent(data: StudentOnboardingData) {
     if (!db || !user) return;
     setError("");
     setLoading(true);
@@ -101,21 +114,21 @@ export function OnboardingPage() {
         status: "pending",
         assignedTo: "", // descontinuado — o vínculo agora vive em /enrollments
         onboarding: {
-          birthDate: studentBirthDate,
+          birthDate: data.birthDate,
           email: user.email,
-          celular: studentPhone,
-          city: studentCity,
+          celular: data.celular,
+          city: data.cidade,
         },
         physiological: {
-          alturaCm: Number(studentHeight) || null,
-          pesoInicialKg: Number(studentWeight) || null,
+          alturaCm: data.alturaCm,
+          pesoInicialKg: data.pesoKg,
         },
         medicalData: {
-          doencas: studentDoencas,
-          restricoes: studentRestricoes,
-          orientacoes: studentOrientacoes,
+          doencas: data.doencas || "",
+          restricoes: data.restricoes || "",
+          orientacoes: data.orientacoes || "",
         },
-        goal: studentGoal || "",
+        goal: data.objetivos || "",
         createdAt: new Date().toISOString(),
       });
 
@@ -154,13 +167,12 @@ export function OnboardingPage() {
     }
   }
 
-  async function handleOnboardingTrainer(e: React.FormEvent) {
-    e.preventDefault();
+  async function handleOnboardingTrainer(data: TrainerOnboardingData) {
     if (!db || !user) return;
     setError("");
     setLoading(true);
 
-    const slug = teamSlug.toLowerCase().replace(/[^a-z0-9-_]/g, "");
+    const slug = data.teamSlug;
 
     try {
       // 1. Criar perfil de usuário geral
@@ -177,13 +189,13 @@ export function OnboardingPage() {
       await setDoc(doc(db, "teams", user.uid), {
         id: user.uid,
         ownerUid: user.uid,
-        name: teamName,
+        name: data.teamName,
         slug: slug,
         branding: {
           primaryColor: "#0f766e",
           secondaryColor: "#f59e0b",
           welcomeMessage: "Foco nos resultados e disciplina diária.",
-          bio: trainerBio || "Personal Trainer dedicado a transformar vidas através do movimento.",
+          bio: data.bio || "Personal Trainer dedicado a transformar vidas através do movimento.",
         },
         settings: {
           cancelWindowHours: 2,
@@ -278,7 +290,7 @@ export function OnboardingPage() {
 
         {/* STEP 2: Contract */}
         {step === "contract" && (
-          <div className="card p-6 animate-slide-up">
+          <div className={cn(cardClasses, "p-6 animate-slide-up")}>
             <div className="flex items-center gap-2 mb-4">
               <button
                 type="button"
@@ -387,7 +399,7 @@ export function OnboardingPage() {
 
         {/* STEP 3: Student details */}
         {step === "details-student" && (
-          <form onSubmit={handleOnboardingStudent} className="card p-6 animate-slide-up">
+          <form onSubmit={studentForm.handleSubmit(handleOnboardingStudent)} className={cn(cardClasses, "p-6 animate-slide-up")}>
             <div className="flex items-center gap-2 mb-4">
               <button
                 type="button"
@@ -401,108 +413,86 @@ export function OnboardingPage() {
             </div>
 
             <div className="grid gap-4 sm:grid-cols-2">
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Celular / WhatsApp *</span>
-                <input
-                  required
-                  placeholder="+55 85 99999-9999"
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={studentPhone}
-                  onChange={(e) => setStudentPhone(e.target.value)}
-                />
-              </label>
+              <Input
+                label="Celular / WhatsApp"
+                placeholder="+55 85 99999-9999"
+                {...studentForm.register("celular")}
+                error={studentForm.formState.errors.celular?.message}
+                required
+              />
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Cidade *</span>
-                <select
-                  required
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3"
-                  value={studentCity}
-                  onChange={(e) => setStudentCity(e.target.value)}
-                >
-                  {CITY_NAMES.map((c) => (
-                    <option key={c} value={c}>{c}</option>
-                  ))}
-                </select>
-              </label>
+              <SelectField
+                label="Cidade"
+                {...studentForm.register("cidade")}
+                error={studentForm.formState.errors.cidade?.message}
+                required
+              >
+                {CITY_NAMES.map((c) => (
+                  <option key={c} value={c}>{c}</option>
+                ))}
+              </SelectField>
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Data de Nascimento *</span>
-                <input
-                  required
-                  type="date"
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3 text-stone-900"
-                  value={studentBirthDate}
-                  onChange={(e) => setStudentBirthDate(e.target.value)}
-                />
-              </label>
+              <Input
+                label="Data de Nascimento"
+                type="date"
+                {...studentForm.register("birthDate")}
+                error={studentForm.formState.errors.birthDate?.message}
+                required
+              />
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Altura (cm) *</span>
-                <input
-                  required
-                  type="number"
-                  placeholder="175"
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={studentHeight}
-                  onChange={(e) => setStudentHeight(e.target.value)}
-                />
-              </label>
+              <Input
+                label="Altura (cm)"
+                type="number"
+                placeholder="175"
+                {...studentForm.register("alturaCm")}
+                error={studentForm.formState.errors.alturaCm?.message}
+                required
+              />
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Peso Atual (kg) *</span>
-                <input
-                  required
-                  type="number"
-                  step="0.1"
-                  placeholder="78.5"
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={studentWeight}
-                  onChange={(e) => setStudentWeight(e.target.value)}
-                />
-              </label>
+              <Input
+                label="Peso Atual (kg)"
+                type="number"
+                step="0.1"
+                placeholder="78.5"
+                {...studentForm.register("pesoKg")}
+                error={studentForm.formState.errors.pesoKg?.message}
+                required
+              />
             </div>
 
             <div className="mt-4 grid gap-4 sm:grid-cols-2">
-              <label className="block sm:col-span-2">
-                <span className="text-sm font-semibold text-stone-700">Doenças ou Condições pré-existentes</span>
-                <textarea
-                  placeholder="Ex: Hipertensão, Diabetes, Asma..."
-                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
-                  value={studentDoencas}
-                  onChange={(e) => setStudentDoencas(e.target.value)}
-                />
-              </label>
+              <Textarea
+                label="Doenças ou Condições pré-existentes"
+                placeholder="Ex: Hipertensão, Diabetes, Asma..."
+                wrapperClassName="sm:col-span-2"
+                {...studentForm.register("doencas")}
+                error={studentForm.formState.errors.doencas?.message}
+              />
 
-              <label className="block sm:col-span-2">
-                <span className="text-sm font-semibold text-stone-700">Restrições de movimento / Lesões</span>
-                <textarea
-                  placeholder="Ex: Dor no joelho, cirurgia no ombro..."
-                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
-                  value={studentRestricoes}
-                  onChange={(e) => setStudentRestricoes(e.target.value)}
-                />
-              </label>
+              <Textarea
+                label="Restrições de movimento / Lesões"
+                placeholder="Ex: Dor no joelho, cirurgia no ombro..."
+                wrapperClassName="sm:col-span-2"
+                {...studentForm.register("restricoes")}
+                error={studentForm.formState.errors.restricoes?.message}
+              />
 
-              <label className="block sm:col-span-2">
-                <span className="text-sm font-semibold text-stone-700">Orientações/Expectativas para o Treinador</span>
-                <textarea
-                  placeholder="O que você espera dos treinos e do acompanhamento?"
-                  className="focus-ring mt-2 min-h-[80px] w-full rounded-md border border-stone-300 px-3 py-2"
-                  value={studentOrientacoes}
-                  onChange={(e) => setStudentOrientacoes(e.target.value)}
-                />
-              </label>
+              <Textarea
+                label="Orientações/Expectativas para o Treinador"
+                placeholder="O que você espera dos treinos e do acompanhamento?"
+                wrapperClassName="sm:col-span-2"
+                {...studentForm.register("orientacoes")}
+                error={studentForm.formState.errors.orientacoes?.message}
+              />
 
-              <label className="block sm:col-span-2">
-                <span className="text-sm font-semibold text-stone-700">Meta Principal de Treino</span>
-                <input
-                  placeholder="Ex: Emagrecimento, hipertrofia, saúde postural..."
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={studentGoal}
-                  onChange={(e) => setStudentGoal(e.target.value)}
-                />
-              </label>
+              <Input
+                label="Meta Principal de Treino"
+                placeholder="Ex: Emagrecimento, hipertrofia, saúde postural..."
+                wrapperClassName="sm:col-span-2"
+                {...studentForm.register("objetivos")}
+                error={studentForm.formState.errors.objetivos?.message}
+                required
+              />
             </div>
 
             <Button
@@ -519,7 +509,7 @@ export function OnboardingPage() {
 
         {/* STEP 3: Trainer details */}
         {step === "details-trainer" && (
-          <form onSubmit={handleOnboardingTrainer} className="card p-6 animate-slide-up">
+          <form onSubmit={trainerForm.handleSubmit(handleOnboardingTrainer)} className={cn(cardClasses, "p-6 animate-slide-up")}>
             <div className="flex items-center gap-2 mb-4">
               <button
                 type="button"
@@ -533,48 +523,34 @@ export function OnboardingPage() {
             </div>
 
             <div className="grid gap-4">
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Nome Comercial / Nome do Time *</span>
-                <input
-                  required
-                  placeholder="Ex: Ana Beatriz Personal, Studio Fit..."
-                  className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-                  value={teamName}
-                  onChange={(e) => {
-                    setTeamName(e.target.value);
-                    setTeamSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""));
-                  }}
-                />
-              </label>
+              <Input
+                label="Nome Comercial / Nome do Time"
+                placeholder="Ex: Ana Beatriz Personal, Studio Fit..."
+                {...trainerForm.register("teamName")}
+                error={trainerForm.formState.errors.teamName?.message}
+                required
+                onChange={(e) => {
+                  trainerForm.setValue("teamName", e.target.value);
+                  trainerForm.setValue("teamSlug", e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""));
+                }}
+              />
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Link da sua vitrine pública (Slug) *</span>
-                <div className="relative mt-2 flex rounded-md border border-stone-300 focus-within:ring-2 focus-within:ring-emerald-500 focus-within:border-transparent">
-                  <span className="flex select-none items-center pl-3 text-xs text-stone-400 font-semibold bg-stone-50 border-r border-stone-250 pr-2 rounded-l-md">
-                    gesfit.rpngestao.com.br/t/
-                  </span>
-                  <input
-                    required
-                    placeholder="meu-time"
-                    className="h-11 min-w-0 flex-1 border-0 bg-transparent px-3 text-sm outline-none rounded-r-md"
-                    value={teamSlug}
-                    onChange={(e) => setTeamSlug(e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))}
-                  />
-                </div>
-                <p className="mt-1.5 text-xs text-stone-400">
-                  Os alunos usarão esse link para visualizar seu perfil, planos e horários disponíveis.
-                </p>
-              </label>
+              <Input
+                label="Link da sua vitrine pública (Slug)"
+                placeholder="meu-time"
+                {...trainerForm.register("teamSlug")}
+                error={trainerForm.formState.errors.teamSlug?.message}
+                hint="Os alunos usarão esse link para visualizar seu perfil, planos e horários disponíveis."
+                required
+                onChange={(e) => trainerForm.setValue("teamSlug", e.target.value.toLowerCase().replace(/[^a-z0-9-_]/g, ""))}
+              />
 
-              <label className="block">
-                <span className="text-sm font-semibold text-stone-700">Bio curta para alunos</span>
-                <textarea
-                  placeholder="Conte um pouco sobre sua formação, metodologia ou foco de treinos..."
-                  className="focus-ring mt-2 min-h-24 w-full rounded-md border border-stone-300 px-3 py-2 text-sm"
-                  value={trainerBio}
-                  onChange={(e) => setTrainerBio(e.target.value)}
-                />
-              </label>
+              <Textarea
+                label="Bio curta para alunos"
+                placeholder="Conte um pouco sobre sua formação, metodologia ou foco de treinos..."
+                {...trainerForm.register("bio")}
+                error={trainerForm.formState.errors.bio?.message}
+              />
             </div>
 
             <Button

@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses, badgeVariants } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
@@ -141,7 +144,7 @@ export function StudentTrainingPage() {
 
             <button
               type="button"
-              className="focus-ring btn btn-primary w-full"
+              className={cn(buttonVariants({}), "focus-ring w-full")}
               onClick={() => setSummary(null)}
             >
               <CheckCircle2 size={18} /> Fechar
@@ -176,7 +179,7 @@ export function StudentTrainingPage() {
                   const isExpanded = expandedId === training.id;
                   
                   return (
-                    <article key={training.id} className="card overflow-hidden transition-all duration-300">
+                    <article key={training.id} className={cn(cardClasses, "overflow-hidden transition-all duration-300")}>
                       <button
                         type="button"
                         className="w-full text-left p-4 flex justify-between items-center bg-white hover:bg-stone-50"
@@ -279,7 +282,7 @@ export function StudentTrainingPage() {
                             </label>
                             <button
                               type="button"
-                              className="focus-ring btn btn-primary w-full shadow-[var(--shadow-brand)] h-12"
+                              className={cn(buttonVariants({}), "focus-ring w-full shadow-[var(--shadow-brand)] h-12")}
                               disabled={saving}
                               onClick={() => handleComplete(training)}
                             >
@@ -308,13 +311,13 @@ export function StudentTrainingPage() {
                 <p className="text-sm text-stone-500 italic py-4">Nenhum treino concluído ainda.</p>
               ) : (
                 logs.map(log => (
-                  <article key={log.id} className="card p-4">
+                  <article key={log.id} className={cn(cardClasses, "p-4")}>
                     <div className="flex justify-between items-start mb-2">
                       <h4 className="font-bold text-stone-900 text-sm">{log.trainingTitle}</h4>
                       {log.confirmedByTrainer ? (
-                        <span className="badge badge-green text-[10px]">✅ Confirmado</span>
+                        <span className={cn(badgeVariants({ variant: "green" }), "text-[10px]")}>✅ Confirmado</span>
                       ) : (
-                        <span className="badge badge-amber text-[10px]">⏳ Aguardando</span>
+                        <span className={cn(badgeVariants({ variant: "amber" }), "text-[10px]")}>⏳ Aguardando</span>
                       )}
                     </div>
                     <p className="text-xs text-stone-500 font-medium">

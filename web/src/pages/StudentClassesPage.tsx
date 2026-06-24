@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   AlertTriangle,
   ArrowRight,
@@ -136,7 +139,7 @@ export function StudentClassesPage() {
           <p className="text-sm font-semibold text-amber-800">
             Selecione um treinador ativo para ver aulas e saldo.
           </p>
-          <Link to="/app/meus-treinadores" className="btn btn-primary btn-sm focus-ring">
+          <Link to="/app/meus-treinadores" className={cn(buttonVariants({size: "sm"}), "focus-ring")}>
             Meus treinadores <ArrowRight size={15} />
           </Link>
         </div>
@@ -213,7 +216,7 @@ export function StudentClassesPage() {
         </div>
 
         {/* Stats */}
-        <div className="card col-span-full sm:col-span-2 grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 overflow-hidden">
+        <div className={cn(cardClasses, "col-span-full sm:col-span-2 grid grid-cols-2 divide-x divide-[var(--color-border)] p-0 overflow-hidden")}>
           <StatBox label="Aulas usadas este mês" value={usedClasses} sub="de treinos realizados" icon={CheckCircle2} />
           <StatBox label="Total do plano" value={totalClasses} sub="aulas por mês" icon={Package} />
         </div>
@@ -246,7 +249,7 @@ export function StudentClassesPage() {
 
       {/* ── Formulário de compra ─────────────────────────── */}
       {showBuyForm ? (
-        <div className="mt-4 card p-6 animate-slide-up">
+        <div className={cn(cardClasses, "mt-4  p-6 animate-slide-up")}>
           <CardHeader icon={ShoppingBag} title="Adquirir aulas" />
 
           {submitted ? (
@@ -390,7 +393,7 @@ export function StudentClassesPage() {
             Comprar aulas ou pacote
           </Button>
           {teamSlug && (
-            <Link to={`/t/${teamSlug}`} className="btn btn-secondary focus-ring">
+            <Link to={`/t/${teamSlug}`} className={cn(buttonVariants({variant: "secondary"}), "focus-ring")}>
               Ver vitrine do treinador
               <ArrowRight size={16} />
             </Link>
@@ -399,7 +402,7 @@ export function StudentClassesPage() {
       )}
 
       {/* ── Histórico de compras ─────────────────────────── */}
-      <section className="mt-6 card p-5">
+      <section className={cn(cardClasses, "mt-6  p-5")}>
         <CardHeader icon={Package} title="Histórico de aquisições" />
         {purchasesLoading ? (
           <div className="mt-6 flex justify-center">
@@ -450,7 +453,7 @@ export function StudentClassesPage() {
       </section>
 
       {/* ── Ofertas disponíveis ──────────────────────────── */}
-      <section className="mt-6 card p-5">
+      <section className={cn(cardClasses, "mt-6  p-5")}>
         <CardHeader icon={Star} title="Ofertas disponíveis" />
         {productsLoading ? (
           <div className="mt-6 flex justify-center">

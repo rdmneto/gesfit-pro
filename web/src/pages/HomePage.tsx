@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   ArrowRight,
   Building2,
@@ -111,7 +114,7 @@ export function HomePage() {
 
             <div className="mt-8 flex flex-wrap gap-3">
               <Link
-                className="focus-ring btn btn-primary btn-lg shadow-[var(--shadow-brand)]"
+                className={cn(buttonVariants({size: "lg"}), "focus-ring shadow-[var(--shadow-brand)]")}
                 to="/login"
                 id="hero-cta-login"
               >
@@ -154,7 +157,7 @@ export function HomePage() {
 
         <div className="mt-10 grid gap-4 sm:grid-cols-2 lg:grid-cols-4 stagger">
           {FEATURES.map(({ icon: Icon, title, body }) => (
-            <article key={title} className="card p-5">
+            <article key={title} className={cn(cardClasses, "p-5")}>
               <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-gradient-to-br from-emerald-600 to-emerald-800 shadow-[var(--shadow-brand)]">
                 <Icon aria-hidden="true" className="text-white" size={22} />
               </div>
@@ -364,7 +367,7 @@ function TrainerCard({ team }: { team: Team }) {
 
   return (
     <article
-      className="card overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]"
+      className={cn(cardClasses, "overflow-hidden transition-all duration-200 hover:-translate-y-1 hover:shadow-[var(--shadow-lg)]")}
     >
       {/* Banner image */}
       <div className="relative h-44 overflow-hidden">
@@ -442,7 +445,7 @@ function TrainerCard({ team }: { team: Team }) {
 
 
         <Link
-          className="focus-ring btn btn-primary mt-4 w-full"
+          className={cn(buttonVariants({}), "focus-ring mt-4 w-full")}
           to={`/t/${team.slug}`}
           id={`team-cta-${team.slug}`}
           aria-label={`Ver detalhes de ${team.name}`}

@@ -1,3 +1,5 @@
+import { cardClasses, badgeVariants } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   CalendarClock,
   CheckCircle2,
@@ -258,13 +260,13 @@ function TrainerDashboard() {
       )}
 
       {/* Linha do Tempo: Alunos do dia */}
-      <section className="mt-6 card p-5 sm:p-8">
+      <section className={cn(cardClasses, "mt-6  p-5 sm:p-8")}>
         <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-100 pb-4">
           <div>
             <h2 className="text-xl font-black text-stone-950 tracking-tight">Linha do tempo (Hoje)</h2>
             <p className="mt-1 text-sm text-stone-500">Acompanhe sua agenda em formato cronológico.</p>
           </div>
-          <span className="badge badge-green text-sm px-3 py-1.5 font-bold shadow-sm">{formatDate(new Date().toISOString())}</span>
+          <span className={cn(badgeVariants({ variant: "green" }), "text-sm px-3 py-1.5 font-bold shadow-sm")}>{formatDate(new Date().toISOString())}</span>
         </div>
         
         <div className="mt-6 relative before:absolute before:inset-0 before:ml-5 before:-translate-x-px md:before:mx-auto md:before:translate-x-0 before:h-full before:w-0.5 before:bg-gradient-to-b before:from-transparent before:via-stone-200 before:to-transparent">
@@ -317,7 +319,7 @@ function TrainerDashboard() {
 
 
       {/* Next workouts list */}
-      <section className="mt-4 card p-5">
+      <section className={cn(cardClasses, "mt-4  p-5")}>
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
             <CalendarClock aria-hidden="true" className="text-emerald-700" size={16} />
@@ -333,7 +335,7 @@ function TrainerDashboard() {
                 <p className="mt-2 text-sm font-semibold text-stone-700">{workout.proposedWorkout ?? workout.title}</p>
                 <p className="mt-1 text-xs text-stone-400">{workout.address}</p>
               </div>
-              <span className="badge badge-stone h-max">{workout.modality}</span>
+              <span className={cn(badgeVariants({ variant: "stone" }), "h-max")}>{workout.modality}</span>
             </article>
           ))}
         </div>

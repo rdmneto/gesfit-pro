@@ -1,3 +1,5 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cn } from "../lib/utils";
 import { CheckCircle2, Clock, MessageCircle, Pause, Play, Plus, Star, UserX, Zap } from "lucide-react";
 import { Link } from "react-router-dom";
 import { db } from "../lib/firebase";
@@ -51,7 +53,7 @@ export function StudentTrainersPage() {
             o painel, as aulas e o saldo passam a ser dele.
           </p>
         </div>
-        <Link to="/treinadores" className="focus-ring btn btn-primary h-11 shrink-0">
+        <Link to="/treinadores" className={cn(buttonVariants({}), "focus-ring h-11 shrink-0")}>
           <Plus size={16} />
           Encontrar treinador
         </Link>
@@ -66,7 +68,7 @@ export function StudentTrainersPage() {
           <UserX className="mx-auto mb-4 text-stone-300" size={40} />
           <p className="font-semibold text-stone-500">Você ainda não tem treinadores</p>
           <p className="mt-1 text-sm text-stone-400">Explore a vitrine e contrate um personal para começar.</p>
-          <Link to="/treinadores" className="focus-ring btn btn-primary mt-5">
+          <Link to="/treinadores" className={cn(buttonVariants({}), "focus-ring mt-5")}>
             Ver treinadores <Plus size={16} />
           </Link>
         </div>
@@ -173,7 +175,7 @@ function EnrollmentCard({
         {enrollment.status === "active" && !isActive && (
           <button
             type="button"
-            className="focus-ring btn btn-sm text-white hover:opacity-90"
+            className={cn(buttonVariants({size: "sm"}), "focus-ring text-white hover:opacity-90")}
             style={{ backgroundColor: primary }}
             onClick={onSetActive}
           >
@@ -181,19 +183,19 @@ function EnrollmentCard({
           </button>
         )}
         {enrollment.status === "active" && (
-          <button type="button" className="focus-ring btn btn-secondary btn-sm" onClick={() => onChangeStatus("paused")}>
+          <button type="button" className={cn(buttonVariants({variant: "secondary", size: "sm"}), "focus-ring")} onClick={() => onChangeStatus("paused")}>
             <Pause size={14} /> Pausar
           </button>
         )}
         {enrollment.status === "paused" && (
-          <button type="button" className="focus-ring btn btn-primary btn-sm" onClick={() => onChangeStatus("active")}>
+          <button type="button" className={cn(buttonVariants({size: "sm"}), "focus-ring")} onClick={() => onChangeStatus("active")}>
             <Play size={14} /> Retomar
           </button>
         )}
         {enrollment.status !== "pending" && (
           <button
             type="button"
-            className="focus-ring btn btn-outline btn-sm text-rose-600"
+            className={cn(buttonVariants({size: "sm"}), "focus-ring text-rose-600")}
             onClick={() => onChangeStatus("cancelled")}
           >
             <UserX size={14} /> Encerrar vínculo

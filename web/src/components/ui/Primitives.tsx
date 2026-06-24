@@ -10,21 +10,23 @@ interface BadgeProps {
   className?: string;
 }
 
+export function badgeVariants({ variant = "stone", className }: { variant?: BadgeVariant, className?: string } = {}) {
+  return cn(
+    "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold",
+    {
+      "bg-emerald-50 text-emerald-800": variant === "green",
+      "bg-amber-50 text-amber-900": variant === "amber",
+      "bg-red-50 text-red-700": variant === "red",
+      "bg-[#f3f0eb] text-stone-600": variant === "stone",
+      "bg-blue-50 text-blue-800": variant === "blue",
+    },
+    className
+  );
+}
+
 export function Badge({ variant = "stone", children, icon, className }: BadgeProps) {
   return (
-    <span
-      className={cn(
-        "inline-flex items-center gap-1 whitespace-nowrap rounded-full px-2.5 py-0.5 text-xs font-bold",
-        {
-          "bg-emerald-50 text-emerald-800": variant === "green",
-          "bg-amber-50 text-amber-900": variant === "amber",
-          "bg-red-50 text-red-700": variant === "red",
-          "bg-[#f3f0eb] text-stone-600": variant === "stone",
-          "bg-blue-50 text-blue-800": variant === "blue",
-        },
-        className
-      )}
-    >
+    <span className={badgeVariants({ variant, className })}>
       {icon}
       {children}
     </span>

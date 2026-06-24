@@ -1,4 +1,9 @@
-import { useState } from "react";
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
+import { useState, useEffect } from "react";
+import { useForm } from "react-hook-form";
+import { zodResolver } from "@hookform/resolvers/zod";
 import { CheckCircle2, RefreshCw, UserRound } from "lucide-react";
 import { Link } from "react-router-dom";
 import { doc, updateDoc } from "firebase/firestore";
@@ -6,62 +11,66 @@ import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
 import { useStudent } from "../lib/hooks";
 import { CITY_NAMES } from "../data/cities";
+import { Input, SelectField } from "../components/ui/FormFields";
+import { studentProfileSchema, type StudentProfileData } from "../lib/schemas";
 
 export function StudentProfilePage() {
   const user = useSessionStore((state) => state.user);
   const { data: student, loading } = useStudent(user?.uid ?? null);
 
-  const [displayName, setDisplayName] = useState("");
-  const [celular, setCelular] = useState("");
-  const [city, setCity] = useState("");
-  const [birthDate, setBirthDate] = useState("");
-  const [genero, setGenero] = useState("");
-  const [alturaCm, setAlturaCm] = useState("");
-  const [pesoInicialKg, setPesoInicialKg] = useState("");
-  const [goal, setGoal] = useState("");
-
   const [saving, setSaving] = useState(false);
   const [success, setSuccess] = useState(false);
   const [error, setError] = useState("");
 
-  const [prevStudentStr, setPrevStudentStr] = useState("");
-  const currentStudentStr = JSON.stringify(student);
-  if (currentStudentStr !== prevStudentStr) {
-    setPrevStudentStr(currentStudentStr);
-    if (student) {
-      setDisplayName(student.displayName || "");
-      setCelular(student.onboarding?.celular || "");
-      setCity(student.onboarding?.city || "");
-      setBirthDate(student.onboarding?.birthDate || "");
-      setGenero(student.onboarding?.genero || "");
-      setAlturaCm(student.physiological?.alturaCm ? String(student.physiological.alturaCm) : "");
-      setPesoInicialKg(
-        student.physiological?.pesoInicialKg ? String(student.physiological.pesoInicialKg) : "",
-      );
-      setGoal(student.goal || "");
-    }
-  }
+  const form = useForm<StudentProfileData>({
+    resolver: zodResolver(studentProfileSchema) as any,
+    defaultValues: {
+      displayName: "",
+      celular: "",
+      cidade: "",
+      birthDate: "",
+      genero: "",
+      alturaCm: undefined,
+      pesoInicialKg: undefined,
+      objetivos: "",
+    },
+  });
 
-  async function handleSave(e: React.FormEvent) {
-    e.preventDefault();
+  useEffect(() => {
+    if (student) {
+      form.reset({
+        displayName: student.displayName || "",
+        celular: student.onboarding?.celular || "",
+        cidade: student.onboarding?.city || "",
+        birthDate: student.onboarding?.birthDate || "",
+        genero: student.onboarding?.genero || "",
+        alturaCm: student.physiological?.alturaCm || undefined,
+        pesoInicialKg: student.physiological?.pesoInicialKg || undefined,
+        objetivos: student.goal || "",
+      });
+    }
+  }, [student, form]);
+
+  async function handleSave(data: StudentProfileData) {
     if (!db || !user) return;
     setSaving(true);
     setError("");
     setSuccess(false);
     try {
       await updateDoc(doc(db, "students", user.uid), {
-        displayName,
-        "onboarding.celular": celular,
-        "onboarding.city": city,
-        "onboarding.birthDate": birthDate,
-        "onboarding.genero": genero,
-        "physiological.alturaCm": Number(alturaCm) || null,
-        "physiological.pesoInicialKg": Number(pesoInicialKg) || null,
-        goal,
+        displayName: data.displayName,
+        "onboarding.celular": data.celular || "",
+        "onboarding.city": data.cidade || "",
+        "onboarding.birthDate": data.birthDate || "",
+        "onboarding.genero": data.genero || "",
+        "physiological.alturaCm": data.alturaCm || null,
+        "physiological.pesoInicialKg": data.pesoInicialKg || null,
+        goal: data.objetivos || "",
       });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
-    } catch (error: unknown) { const err = error as Error;
+    } catch (error: unknown) {
+      const err = error as Error;
       const msg = err instanceof Error ? err.message : "Erro desconhecido.";
       setError(msg);
       console.error(err);
@@ -95,31 +104,24 @@ export function StudentProfilePage() {
         Mantenha seus dados atualizados. A cidade ajuda os treinadores da sua região a te encontrarem.
       </p>
 
-      <form onSubmit={handleSave} className="mt-6 card p-6">
+      <form onSubmit={form.handleSubmit(handleSave)} className={cn(cardClasses, "mt-6  p-6")}>
         <div className="grid gap-4 sm:grid-cols-2">
-          <Field label="Nome completo" value={displayName} onChange={setDisplayName} required />
-          <Field label="Celular / WhatsApp" value={celular} onChange={setCelular} placeholder="+55 85 99999-9999" />
+          <Input label="Nome completo" {...form.register("displayName")} error={form.formState.errors.displayName?.message} required />
+          <Input label="Celular / WhatsApp" {...form.register("celular")} error={form.formState.errors.celular?.message} placeholder="+55 85 99999-9999" />
 
-          <label className="block">
-            <span className="text-sm font-semibold text-stone-700">Cidade</span>
-            <select
-              className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 bg-white px-3"
-              value={city}
-              onChange={(e) => setCity(e.target.value)}
-            >
-              <option value="">Selecione</option>
-              {CITY_NAMES.map((c) => (
-                <option key={c} value={c}>{c}</option>
-              ))}
-            </select>
-          </label>
+          <SelectField label="Cidade" {...form.register("cidade")} error={form.formState.errors.cidade?.message}>
+            <option value="">Selecione</option>
+            {CITY_NAMES.map((c) => (
+              <option key={c} value={c}>{c}</option>
+            ))}
+          </SelectField>
 
-          <Field label="Data de nascimento" type="date" value={birthDate} onChange={setBirthDate} />
-          <Field label="Gênero" value={genero} onChange={setGenero} placeholder="Ex: Masculino, Feminino" />
-          <Field label="Altura (cm)" type="number" value={alturaCm} onChange={setAlturaCm} placeholder="Ex: 170" />
-          <Field label="Peso inicial (kg)" type="number" value={pesoInicialKg} onChange={setPesoInicialKg} placeholder="Ex: 70" />
+          <Input label="Data de nascimento" type="date" {...form.register("birthDate")} error={form.formState.errors.birthDate?.message} />
+          <Input label="Gênero" {...form.register("genero")} error={form.formState.errors.genero?.message} placeholder="Ex: Masculino, Feminino" />
+          <Input label="Altura (cm)" type="number" {...form.register("alturaCm")} error={form.formState.errors.alturaCm?.message} placeholder="Ex: 170" />
+          <Input label="Peso inicial (kg)" type="number" step="0.1" {...form.register("pesoInicialKg")} error={form.formState.errors.pesoInicialKg?.message} placeholder="Ex: 70" />
           <div className="sm:col-span-2">
-            <Field label="Meta principal" value={goal} onChange={setGoal} placeholder="Ex: Hipertrofia, emagrecimento, saúde" />
+            <Input label="Meta principal" {...form.register("objetivos")} error={form.formState.errors.objetivos?.message} placeholder="Ex: Hipertrofia, emagrecimento, saúde" />
           </div>
         </div>
 
@@ -133,7 +135,7 @@ export function StudentProfilePage() {
           </div>
         )}
 
-        <button type="submit" className="focus-ring btn btn-primary mt-6" disabled={saving}>
+        <button type="submit" className={cn(buttonVariants({}), "focus-ring mt-6")} disabled={saving}>
           {saving ? "Salvando…" : "Salvar cadastro"}
         </button>
       </form>
@@ -149,7 +151,7 @@ export function StudentProfilePage() {
             <p className="text-sm text-stone-500">Você é aluno. Quer atuar como treinador?</p>
           </div>
         </div>
-        <Link to="/app/mudar-perfil" className="focus-ring btn btn-outline shrink-0">
+        <Link to="/app/mudar-perfil" className={cn(buttonVariants({}), "focus-ring shrink-0")}>
           <RefreshCw size={15} /> Virar treinador
         </Link>
       </div>
@@ -157,32 +159,3 @@ export function StudentProfilePage() {
   );
 }
 
-function Field({
-  label,
-  value,
-  onChange,
-  type = "text",
-  placeholder,
-  required = false,
-}: {
-  label: string;
-  value: string;
-  onChange: (v: string) => void;
-  type?: string;
-  placeholder?: string;
-  required?: boolean;
-}) {
-  return (
-    <label className="block">
-      <span className="text-sm font-semibold text-stone-700">{label}</span>
-      <input
-        className="focus-ring mt-2 h-11 w-full rounded-md border border-stone-300 px-3"
-        type={type}
-        value={value}
-        placeholder={placeholder}
-        required={required}
-        onChange={(e) => onChange(e.target.value)}
-      />
-    </label>
-  );
-}

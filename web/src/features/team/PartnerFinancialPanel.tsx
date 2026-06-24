@@ -1,3 +1,5 @@
+import { cardClasses } from "../../components/ui/Primitives";
+import { cn } from "../../lib/utils";
 import { useState, useMemo } from "react";
 import { doc, setDoc } from "firebase/firestore";
 import { CheckCircle2, Copy, Receipt, TrendingUp, Users, Wallet } from "lucide-react";
@@ -201,7 +203,7 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
 
       {/* A PAGAR — Parceiros do meu time */}
       {ownPartners.length > 0 && (
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center justify-between gap-4 mb-4">
             <div className="flex items-center gap-2">
               <div className="flex h-7 w-7 items-center justify-center rounded-md bg-rose-50">
@@ -260,7 +262,7 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
 
       {/* A RECEBER — Times em que sou parceiro */}
       {teamsImIn.length > 0 && (
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2 mb-4">
             <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
               <TrendingUp aria-hidden="true" className="text-emerald-700" size={16} />

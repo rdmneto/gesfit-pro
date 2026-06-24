@@ -1,3 +1,6 @@
+import { buttonVariants } from "../components/ui/Button";
+import { cardClasses } from "../components/ui/Primitives";
+import { cn } from "../lib/utils";
 import {
   AlertTriangle,
   CalendarDays,
@@ -418,7 +421,7 @@ export function ClassesPage() {
       <div>
         {/* C — Lista de pendências: aulas sem treinador parceiro */}
         {pendingSessions.length > 0 && (
-          <section className="card p-5 mb-4 border-amber-200 bg-amber-50">
+          <section className={cn(cardClasses, "p-5 mb-4 border-amber-200 bg-amber-50")}>
             <div className="flex items-center gap-2 mb-3">
               <AlertTriangle size={18} className="text-amber-600 shrink-0" />
               <h3 className="text-sm font-black text-amber-900">
@@ -466,7 +469,7 @@ export function ClassesPage() {
           </section>
         )}
 
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-center border-b border-stone-150 pb-4">
             <div className="flex-1">
               <h2 className="text-lg font-black text-stone-950">Agenda</h2>
@@ -722,10 +725,10 @@ export function ClassesPage() {
             {error && <p className="mt-3 rounded-lg bg-rose-50 px-3 py-2 text-xs font-semibold text-rose-700">{error}</p>}
 
             <div className="mt-5 flex gap-2">
-              <button type="button" className="focus-ring btn btn-primary h-11 flex-1 text-sm font-bold" disabled={saving || students.length === 0} onClick={handleScheduleSlot}>
+              <button type="button" className={cn(buttonVariants({}), "focus-ring h-11 flex-1 text-sm font-bold")} disabled={saving || students.length === 0} onClick={handleScheduleSlot}>
                 <UserPlus size={15} />{saving ? "Agendando..." : "Confirmar"}
               </button>
-              <button type="button" className="focus-ring btn btn-secondary h-11" onClick={() => setSchedulerSlot(null)}>Cancelar</button>
+              <button type="button" className={cn(buttonVariants({variant: "secondary"}), "focus-ring h-11")} onClick={() => setSchedulerSlot(null)}>Cancelar</button>
             </div>
           </div>
         </div>
@@ -1057,7 +1060,7 @@ function TrainerCalendarVisual({
                 ) : (
                   <>
                     <p className="text-sm font-semibold text-emerald-700">Horário livre — disponível para agendamento</p>
-                    <button type="button" className="focus-ring mt-4 w-full btn btn-primary h-11 text-sm font-bold" onClick={() => { onScheduleSlot(expandedCell.day, expandedCell.slot); setExpandedCell(null); }}>
+                    <button type="button" className={cn(buttonVariants({}), "focus-ring mt-4 w-full h-11 text-sm font-bold")} onClick={() => { onScheduleSlot(expandedCell.day, expandedCell.slot); setExpandedCell(null); }}>
                       <UserPlus size={16} /> Agendar Aluno
                     </button>
                   </>

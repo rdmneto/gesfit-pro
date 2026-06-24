@@ -52,3 +52,35 @@ export const bookingSchema = z.object({
   notes: z.string().optional(),
 });
 export type BookingFormData = z.infer<typeof bookingSchema>;
+
+export const studentOnboardingSchema = z.object({
+  celular: z.string().min(10, "Telefone inválido").max(15, "Telefone muito longo"),
+  cidade: z.string().min(2, "Cidade obrigatória"),
+  birthDate: z.string().min(10, "Data de nascimento inválida"),
+  alturaCm: z.coerce.number({ invalid_type_error: "Altura inválida" }).min(50).max(250),
+  pesoKg: z.coerce.number({ invalid_type_error: "Peso inválido" }).min(20).max(300),
+  objetivos: z.string().min(3, "Descreva seus objetivos").max(500),
+  doencas: z.string().optional(),
+  restricoes: z.string().optional(),
+  orientacoes: z.string().optional(),
+});
+export type StudentOnboardingData = z.infer<typeof studentOnboardingSchema>;
+
+export const trainerOnboardingSchema = z.object({
+  teamName: z.string().min(3, "Nome do time deve ter ao menos 3 caracteres").max(50),
+  teamSlug: z.string().min(3, "Link deve ter ao menos 3 caracteres").regex(/^[a-z0-9-]+$/, "O link deve conter apenas letras minúsculas, números e hifens"),
+  bio: z.string().optional(),
+});
+export type TrainerOnboardingData = z.infer<typeof trainerOnboardingSchema>;
+
+export const studentProfileSchema = z.object({
+  displayName: z.string().min(2, "Nome obrigatório"),
+  celular: z.string().min(10, "Telefone inválido").max(15, "Telefone muito longo").optional(),
+  cidade: z.string().optional(),
+  birthDate: z.string().optional(),
+  genero: z.string().optional(),
+  alturaCm: z.coerce.number({ invalid_type_error: "Altura inválida" }).min(50).max(250).optional().or(z.literal("").transform(() => undefined)),
+  pesoInicialKg: z.coerce.number({ invalid_type_error: "Peso inválido" }).min(20).max(300).optional().or(z.literal("").transform(() => undefined)),
+  objetivos: z.string().optional(),
+});
+export type StudentProfileData = z.infer<typeof studentProfileSchema>;

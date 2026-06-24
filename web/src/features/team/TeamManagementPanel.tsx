@@ -1,3 +1,5 @@
+import { cardClasses } from "../../components/ui/Primitives";
+import { cn } from "../../lib/utils";
 import { useState, useMemo } from "react";
 import {
   CheckCircle2,
@@ -186,7 +188,7 @@ export function TeamManagementPanel() {
   return (
     <div className="space-y-6">
       {/* Header */}
-      <section className="card p-5">
+      <section className={cn(cardClasses, "p-5")}>
         <div className="flex items-center gap-2">
           <div className="flex h-7 w-7 items-center justify-center rounded-md bg-emerald-50">
             <Users aria-hidden="true" className="text-emerald-700" size={16} />
@@ -255,7 +257,7 @@ export function TeamManagementPanel() {
       </section>
 
       {/* Members List */}
-      <section className="card p-5">
+      <section className={cn(cardClasses, "p-5")}>
         <div className="flex items-center gap-2">
           <Shield aria-hidden="true" className="text-emerald-800" size={20} />
           <h2 className="text-lg font-black text-stone-950">Membros do Time</h2>
@@ -327,7 +329,7 @@ export function TeamManagementPanel() {
 
       {/* Times que participo */}
       {teamsIPlayIn && teamsIPlayIn.length > 0 && (
-        <section className="card p-5">
+        <section className={cn(cardClasses, "p-5")}>
           <div className="flex items-center gap-2">
             <UserCheck aria-hidden="true" className="text-emerald-800" size={20} />
             <h2 className="text-lg font-black text-stone-950">Times que participo</h2>
