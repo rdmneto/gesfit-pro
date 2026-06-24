@@ -24,8 +24,9 @@ import {
 } from "firebase/firestore";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
-import { useTeamMembers, useCollection } from "../../lib/hooks";
+import { useTeamMembers, useLiveCollection } from "../../lib/hooks";
 import type { TeamMember } from "../../types/domain";
+import { queryClient } from "../../main";
 
 const statusBadge: Record<TeamMember["status"], { label: string; cls: string }> = {
   pending: { label: "Aguardando", cls: "bg-amber-50 text-amber-800 border-amber-200" },
@@ -39,7 +40,7 @@ export function TeamManagementPanel() {
   const { data: members, loading } = useTeamMembers(user?.uid);
 
   // Also load pending invites sent by this owner
-  const { data: pendingMembers } = useCollection<TeamMember>(
+  const { data: pendingMembers } = useLiveCollection<TeamMember>(
     "teamMembers",
     user ? [where("ownerUid", "==", user.uid), where("status", "==", "pending")] : [],
     [],
@@ -47,7 +48,7 @@ export function TeamManagementPanel() {
   );
 
   // Teams where the current user is a sub-trainer
-  const { data: teamsIPlayIn } = useCollection<TeamMember>(
+  const { data: teamsIPlayIn } = useLiveCollection<TeamMember>(
     "teamMembers",
     user ? [where("subTrainerId", "==", user.uid), where("status", "==", "active")] : [],
     [],
@@ -60,7 +61,7 @@ export function TeamManagementPanel() {
   ];
 
   // Fetch trainers for search
-  const { data: allTrainers } = useCollection<{ id: string; name?: string; email?: string }>(
+  const { data: allTrainers } = useLiveCollection<{ id: string; name?: string; email?: string }>(
     "users",
     [where("role", "==", "trainer")],
     []
@@ -113,6 +114,7 @@ export function TeamManagementPanel() {
         status: "pending",
         invitedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
 
       setInviteSuccess(`Convite enviado para ${subTrainerName}! Ele verá o convite ao entrar no app.`);
       setSearchQuery("");
@@ -179,6 +181,7 @@ export function TeamManagementPanel() {
       const snap = await getDocs(q);
       if (!snap.empty) {
         await updateDoc(snap.docs[0].ref, { status: "removed" });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
     } catch (error: unknown) { const err = error as Error;
       console.error(err);

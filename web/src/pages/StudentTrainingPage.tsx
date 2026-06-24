@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { collection, addDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useSessionStore } from '../store/session';
-import { useCollection } from '../lib/hooks';
+import { useLiveCollection } from '../lib/hooks';
 import { useActiveTrainer } from '../lib/activeTrainer';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, TrainingLog } from '../types/domain';
@@ -32,7 +32,7 @@ export function StudentTrainingPage() {
   const user = useSessionStore((state) => state.user);
   const activeTrainerId = useActiveTrainer((s) => s.activeTrainerId);
 
-  const { data: trainings } = useCollection<Training>(
+  const { data: trainings } = useLiveCollection<Training>(
     'trainings',
     user && activeTrainerId
       ? [where('studentId', '==', user.uid), where('trainerId', '==', activeTrainerId), where('status', '==', 'active')]
@@ -41,7 +41,7 @@ export function StudentTrainingPage() {
     [user?.uid, activeTrainerId]
   );
 
-  const { data: trainingLogs } = useCollection<TrainingLog>(
+  const { data: trainingLogs } = useLiveCollection<TrainingLog>(
     'trainingLogs',
     user && activeTrainerId
       ? [where('studentId', '==', user.uid), where('trainerId', '==', activeTrainerId), orderBy('createdAt', 'desc')]

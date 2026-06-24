@@ -1,5 +1,6 @@
 import { doc, getDoc, increment, setDoc, updateDoc, type Firestore } from "firebase/firestore";
 import type { EnrollmentStatus } from "../types/domain";
+import { queryClient } from "../main";
 
 /** Id determinístico do vínculo aluno↔treinador. */
 export function enrollmentId(studentId: string, trainerId: string) {
@@ -29,6 +30,7 @@ export async function requestEnrollment(
   if (existing.exists()) {
     if (existing.data().status === "cancelled") {
       await updateDoc(ref, { status: "pending" });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     }
     return id;
   }
@@ -44,6 +46,7 @@ export async function requestEnrollment(
     classesUsed: 0,
     createdAt: new Date().toISOString(),
   });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
   return id;
 }
 
@@ -54,6 +57,7 @@ export async function setEnrollmentStatus(
   status: EnrollmentStatus,
 ): Promise<void> {
   await updateDoc(doc(db, "enrollments", id), { status });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
 }
 
 /** Treinador aprova um vínculo pendente. */
@@ -62,6 +66,7 @@ export async function approveEnrollment(db: Firestore, id: string): Promise<void
     status: "active",
     approvedAt: new Date().toISOString(),
   });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
 }
 
 /** Credita aulas no saldo do vínculo (ex.: ao confirmar um pagamento). */
@@ -74,4 +79,5 @@ export async function creditEnrollmentClasses(
   await updateDoc(doc(db, "enrollments", enrollmentId(studentId, trainerId)), {
     classesQuota: increment(count),
   });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
 }

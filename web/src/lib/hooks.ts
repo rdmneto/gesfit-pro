@@ -22,7 +22,7 @@ import { db } from "./firebase";
 import { useActiveTrainer } from "./activeTrainer";
 
 /** Generic real-time collection hook */
-function useCollection<T>(
+function useLiveCollection<T>(
   collectionPath: string,
   constraints: QueryConstraint[] = [],
   fallback: T[] = [],
@@ -69,7 +69,7 @@ function useCollection<T>(
 }
 
 /** Generic real-time document hook */
-function useDocument<T>(
+function useLiveDocument<T>(
   collectionPath: string,
   docId: string | null | undefined,
   fallback: T | null = null,
@@ -115,7 +115,62 @@ function useDocument<T>(
   };
 }
 
-export { useCollection, useDocument };
+
+/** Pure React Query collection fetch (no real-time subscription) */
+function useFetchCollection<T>(
+  collectionPath: string,
+  constraints: QueryConstraint[] = [],
+  fallback: T[] = [],
+  deps: unknown[] = [],
+): { data: T[]; loading: boolean; error: string | null } {
+  const queryKey = ["fetchCollection", collectionPath, ...deps];
+
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!db) return fallback;
+      const ref = query(collection(db, collectionPath), ...constraints);
+      const snapshot = await getDocs(ref);
+      return snapshot.docs.map((d) => ({ id: d.id, ...d.data() }) as T);
+    },
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  return {
+    data: data ?? fallback,
+    loading: isLoading && !!db,
+    error: error instanceof Error ? error.message : null,
+  };
+}
+
+/** Pure React Query document fetch (no real-time subscription) */
+function useFetchDocument<T>(
+  collectionPath: string,
+  docId: string | null | undefined,
+  fallback: T | null = null,
+): { data: T | null; loading: boolean; error: string | null } {
+  const queryKey = ["fetchDocument", collectionPath, docId];
+
+  const { data, isLoading, error } = useQuery({
+    queryKey,
+    queryFn: async () => {
+      if (!db || !docId) return fallback;
+      const ref = doc(db, collectionPath, docId);
+      const snapshot = await getDoc(ref);
+      return snapshot.exists() ? ({ id: snapshot.id, ...snapshot.data() } as T) : null;
+    },
+    enabled: !!docId && !!db,
+    staleTime: 1000 * 60 * 5, // 5 minutes
+  });
+
+  return {
+    data: data !== undefined ? data : fallback,
+    loading: isLoading && !!docId && !!db,
+    error: error instanceof Error ? error.message : null,
+  };
+}
+
+export { useLiveCollection, useLiveDocument, useFetchCollection, useFetchDocument };
 
 // ── Domain-specific hooks ────────────────────────────────
 
@@ -136,12 +191,12 @@ import type {
 
 /** Team document by teamId */
 export function useTeam(teamId: string | null | undefined) {
-  return useDocument<Team>("teams", teamId, null);
+  return useFetchDocument<Team>("teams", teamId, null);
 }
 
 /** Vínculos (treinadores) de um aluno */
 export function useStudentEnrollments(studentId: string | null | undefined) {
-  return useCollection<Enrollment>(
+  return useFetchCollection<Enrollment>(
     "enrollments",
     studentId ? [where("studentId", "==", studentId)] : [],
     [],
@@ -171,7 +226,7 @@ export function useEnsureActiveTrainer(studentId: string | null | undefined) {
 /** Vínculos (alunos) de um treinador(es) */
 export function useTrainerEnrollments(trainerIds: string | string[] | null | undefined) {
   const ids = Array.isArray(trainerIds) ? trainerIds : trainerIds ? [trainerIds] : [];
-  return useCollection<Enrollment>(
+  return useFetchCollection<Enrollment>(
     "enrollments",
     ids.length > 0 ? [where("trainerId", "in", ids.slice(0, 10))] : [],
     [],
@@ -243,7 +298,7 @@ export function useTrainerStudents(trainerIds: string | string[] | null | undefi
 
 /** All students assigned to a trainer */
 export function useStudents(trainerId: string | null | undefined) {
-  return useCollection<Student>(
+  return useFetchCollection<Student>(
     "students",
     trainerId ? [where("assignedTo", "==", trainerId)] : [],
     [],
@@ -253,12 +308,12 @@ export function useStudents(trainerId: string | null | undefined) {
 
 /** Single student document */
 export function useStudent(studentId: string | null | undefined) {
-  return useDocument<Student>("students", studentId, null);
+  return useFetchDocument<Student>("students", studentId, null);
 }
 
 /** Measurements for a specific student */
 export function useMeasurements(studentId: string | null | undefined) {
-  return useCollection<StudentMeasurement>(
+  return useFetchCollection<StudentMeasurement>(
     `students/${studentId}/measurements`,
     [orderBy("measuredAt", "asc")],
     [],
@@ -268,7 +323,7 @@ export function useMeasurements(studentId: string | null | undefined) {
 
 /** Pending measurements (submissions awaiting approval) for a student */
 export function usePendingMeasurements(studentId: string | null | undefined) {
-  return useCollection<StudentMeasurementSubmission>(
+  return useFetchCollection<StudentMeasurementSubmission>(
     `students/${studentId}/measurementSubmissions`,
     [where("status", "==", "pending")],
     [],
@@ -278,7 +333,7 @@ export function usePendingMeasurements(studentId: string | null | undefined) {
 
 /** All measurements submissions for trainer (all students) */
 export function useAllPendingMeasurements(teamId: string | null | undefined) {
-  return useCollection<StudentMeasurementSubmission>(
+  return useFetchCollection<StudentMeasurementSubmission>(
     "measurementSubmissions",
     teamId ? [where("teamId", "==", teamId), where("status", "==", "pending")] : [],
     [],
@@ -296,7 +351,7 @@ export function useWorkoutSessions(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  return useCollection<WorkoutSession>("workoutSessions", constraints, [], [options.studentId, options.trainerId]);
+  return useLiveCollection<WorkoutSession>("workoutSessions", constraints, [], [options.studentId, options.trainerId]);
 }
 
 
@@ -310,12 +365,12 @@ export function useBookings(options: {
   if (options.studentId) constraints.push(where("studentId", "==", options.studentId));
   constraints.push(orderBy("startsAt", "asc"));
 
-  return useCollection<Booking>("bookings", constraints, [], [options.studentId, options.trainerId]);
+  return useLiveCollection<Booking>("bookings", constraints, [], [options.studentId, options.trainerId]);
 }
 
 /** Class products (packages/singles) for a team */
 export function useClassProducts(teamId: string | null | undefined) {
-  return useCollection<ClassProduct>(
+  return useFetchCollection<ClassProduct>(
     "classProducts",
     teamId ? [where("teamId", "==", teamId), where("active", "==", true)] : [],
     [],
@@ -325,7 +380,7 @@ export function useClassProducts(teamId: string | null | undefined) {
 
 /** Purchases for a student */
 export function useStudentPurchases(studentId: string | null | undefined) {
-  return useCollection<ClassPurchase>(
+  return useFetchCollection<ClassPurchase>(
     "classPurchases",
     studentId ? [where("studentId", "==", studentId), orderBy("submittedAt", "desc")] : [],
     [],
@@ -335,7 +390,7 @@ export function useStudentPurchases(studentId: string | null | undefined) {
 
 /** Pending purchases for trainer review (team scope) */
 export function usePendingPurchases(teamId: string | null | undefined) {
-  return useCollection<ClassPurchase>(
+  return useFetchCollection<ClassPurchase>(
     "classPurchases",
     teamId
       ? [where("teamId", "==", teamId), where("status", "in", ["payment_submitted", "awaiting_payment"])]
@@ -347,7 +402,7 @@ export function usePendingPurchases(teamId: string | null | undefined) {
 
 /** Compras já pagas de um time (para calcular faturamento real). */
 export function usePaidPurchases(teamId: string | null | undefined) {
-  return useCollection<ClassPurchase>(
+  return useFetchCollection<ClassPurchase>(
     "classPurchases",
     teamId ? [where("teamId", "==", teamId), where("status", "==", "paid")] : [],
     [],
@@ -357,7 +412,7 @@ export function usePaidPurchases(teamId: string | null | undefined) {
 
 /** Sub-treinadores ativos de um time (pelo UID do dono) */
 export function useTeamMembers(ownerUid: string | null | undefined) {
-  return useCollection<TeamMember>(
+  return useFetchCollection<TeamMember>(
     "teamMembers",
     ownerUid ? [where("ownerUid", "==", ownerUid), where("status", "==", "active")] : [],
     [],
@@ -367,7 +422,7 @@ export function useTeamMembers(ownerUid: string | null | undefined) {
 
 /** Taxas por sessão definidas pelo treinador dono para seus parceiros */
 export function usePartnerRates(ownerId: string | null | undefined) {
-  return useCollection<PartnerRate>(
+  return useFetchCollection<PartnerRate>(
     "partnerRates",
     ownerId ? [where("ownerId", "==", ownerId)] : [],
     [],
@@ -377,7 +432,7 @@ export function usePartnerRates(ownerId: string | null | undefined) {
 
 /** Times em que o usuário é treinador parceiro ativo */
 export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
-  return useCollection<TeamMember>(
+  return useFetchCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "active")] : [],
     [],
@@ -387,7 +442,7 @@ export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
 
 /** Convites de time pendentes recebidos por um sub-treinador */
 export function usePendingTeamInvites(subTrainerId: string | null | undefined) {
-  return useCollection<TeamMember>(
+  return useFetchCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "pending")] : [],
     [],
@@ -397,7 +452,7 @@ export function usePendingTeamInvites(subTrainerId: string | null | undefined) {
 
 /** Aulas delegadas a um sub-treinador (assignedToId) */
 export function useAssignedSessions(subTrainerId: string | null | undefined) {
-  return useCollection<WorkoutSession>(
+  return useLiveCollection<WorkoutSession>(
     "workoutSessions",
     subTrainerId ? [where("assignedToId", "==", subTrainerId), orderBy("startsAt", "asc")] : [],
     [],
@@ -410,14 +465,14 @@ export function useTrainerChats(userId: string | null | undefined, asTargetOnly 
   // For standard chat list, we need both (where requester = me, or target = me).
   // Because Firestore limits OR queries without composite indexes perfectly matching, 
   // we do two separate useCollections and merge them in the component.
-  const { data: requestedChats } = useCollection<TrainerChat>(
+  const { data: requestedChats } = useLiveCollection<TrainerChat>(
     "trainerChats",
     userId && !asTargetOnly ? [where("requesterId", "==", userId)] : [],
     [],
     [userId, asTargetOnly]
   );
   
-  const { data: targetChats } = useCollection<TrainerChat>(
+  const { data: targetChats } = useLiveCollection<TrainerChat>(
     "trainerChats",
     userId ? [where("targetId", "==", userId)] : [],
     [],

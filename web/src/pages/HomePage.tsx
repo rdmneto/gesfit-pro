@@ -22,7 +22,7 @@ import { CITY_NAMES } from "../data/cities";
 import { GYM_ONLY } from "../data/gyms";
 import { moneyFromCents } from "../lib/format";
 import type { TrainingModality, Team } from "../types/domain";
-import { useCollection, useClassProducts } from "../lib/hooks";
+import { useLiveCollection, useClassProducts } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import { where } from "firebase/firestore";
 
@@ -51,7 +51,7 @@ const FEATURES = [
 
 export function HomePage() {
   const user = useSessionStore((state) => state.user);
-  const { data: dbTeams } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
+  const { data: dbTeams } = useLiveCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
   const teams = useMemo(() => dbTeams ?? [], [dbTeams]);
 

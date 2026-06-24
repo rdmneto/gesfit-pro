@@ -19,7 +19,7 @@ import {
 } from "../features/dashboard/dashboardUtils";
 import { useAttendance } from "../features/dashboard/useAttendance";
 import { AlertCircle, FileX } from "lucide-react";
-import { useCollection, usePendingPurchases } from "../lib/hooks";
+import { useLiveCollection, usePendingPurchases } from "../lib/hooks";
 import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import { useState } from "react";
 import { where } from "firebase/firestore";
@@ -59,7 +59,7 @@ function TrainerDashboard() {
   const user = useSessionStore((state) => state.user);
   const teamId = useSessionStore((state) => state.claims.teamId);
 
-  const { data: trainingsData } = useCollection<Training>(
+  const { data: trainingsData } = useLiveCollection<Training>(
     "trainings",
     user ? [where("trainerId", "==", user.uid)] : [],
     [],

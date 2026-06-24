@@ -14,6 +14,7 @@ import {
   useWorkoutSessions,
 } from "../../lib/hooks";
 import type { PartnerRate, TeamMember, WorkoutSession } from "../../types/domain";
+import { queryClient } from "../../main";
 
 function monthRange(offset = 0) {
   const now = new Date();
@@ -97,6 +98,7 @@ function RateEditor({
         ratePerSession: Number(rate),
         updatedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setSaved(true);
       setTimeout(() => setSaved(false), 2000);
     } catch (error: unknown) { const err = error as Error;

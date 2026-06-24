@@ -19,6 +19,7 @@ import { remainingStock } from "../lib/products";
 import { moneyFromCents } from "../lib/format";
 import { PendingPurchasesList } from "../features/dashboard/PendingPurchasesList";
 import type { ClassProductType, ProductAudience, ClassProduct, PromotionalPackage } from "../types/domain";
+import { queryClient } from "../main";
 
 const AUDIENCE_OPTIONS: { value: ProductAudience; label: string }[] = [
   { value: "all", label: "Todos (vitrine pública)" },
@@ -112,6 +113,7 @@ export function PackagesPage() {
 
     try {
       await addDoc(collection(db, "classProducts"), newProduct);
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setSaving(false);
       setMessage("Oferta cadastrada com sucesso!");
       setName("");
@@ -164,6 +166,7 @@ export function PackagesPage() {
     
     try {
       await addDoc(collection(db, "classProducts"), newPromo);
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setPromoName("");
       setPromoPrice("");
       setPromoClasses("");
@@ -183,6 +186,7 @@ export function PackagesPage() {
     }
     try {
       await deleteDoc(doc(db, "classProducts", id));
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setMessage("Promoção removida.");
       setTimeout(() => setMessage(""), 3000);
     } catch (error: unknown) { const err = error as Error;

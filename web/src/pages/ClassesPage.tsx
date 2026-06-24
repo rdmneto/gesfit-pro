@@ -21,7 +21,7 @@ import { useSearchParams } from "react-router-dom";
 import { collection, addDoc, deleteDoc, doc, updateDoc, writeBatch, increment, where, setDoc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
-import { useTeam, useTrainerStudents, useWorkoutSessions, useCollection, useTeamMembers, useAssignedSessions, useActivePartnerTeams } from "../lib/hooks";
+import { useTeam, useTrainerStudents, useWorkoutSessions, useLiveCollection, useTeamMembers, useAssignedSessions, useActivePartnerTeams } from "../lib/hooks";
 import { DEFAULT_AVAILABILITY } from "../data/catalog";
 import {
   type CalendarView,
@@ -59,7 +59,7 @@ export function ClassesPage() {
     user ? { trainerId: user.uid } : {}
   );
 
-  const { data: trainings } = useCollection<Training>(
+  const { data: trainings } = useLiveCollection<Training>(
     "trainings",
     user ? [where("trainerId", "==", user.uid)] : [],
     [],

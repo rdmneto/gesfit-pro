@@ -7,6 +7,7 @@ import { usePendingPurchases, useTrainerStudents } from "../../lib/hooks";
 import { creditEnrollmentClasses } from "../../lib/enrollments";
 import { moneyFromCents } from "../../lib/format";
 import type { ClassPurchase, PurchaseStatus } from "../../types/domain";
+import { queryClient } from "../../main";
 
 const statusLabel: Record<PurchaseStatus, string> = {
   awaiting_payment: "Aguardando pagamento",
@@ -35,6 +36,7 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
         reviewedAt: new Date().toISOString(),
         reviewedBy: user?.uid || "",
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
 
       if (status === "paid") {
         const trainerId = purchase.trainerId || teamId || "";
@@ -50,6 +52,7 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
             await updateDoc(doc(db, "classProducts", purchase.productId), {
               soldQuantity: increment(1),
             });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
           } catch (stockErr) {
             console.error("Falha ao atualizar estoque da oferta:", stockErr);
           }

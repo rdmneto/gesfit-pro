@@ -5,7 +5,7 @@ import { useState } from 'react';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useSessionStore } from '../store/session';
-import { useCollection } from '../lib/hooks';
+import { useLiveCollection } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
 import type { Training, Exercise } from '../types/domain';
 import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2, Eye, EyeOff, Play } from 'lucide-react';
@@ -23,7 +23,7 @@ export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
   
   // Hooks
-  const { data: trainings } = useCollection<Training>(
+  const { data: trainings } = useLiveCollection<Training>(
     'trainings',
     user ? [where('trainerId', '==', user.uid), orderBy('createdAt', 'desc')] : [],
     [],

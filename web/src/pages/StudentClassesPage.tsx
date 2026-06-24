@@ -18,7 +18,7 @@ import { addDoc, collection, serverTimestamp } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { Badge, CardHeader, EmptyState, ProgressBar } from "../components/ui/Primitives";
 import { Button } from "../components/ui/Button";
-import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions, useCollection } from "../lib/hooks";
+import { useClassProducts, useStudentPurchases, useStudentEnrollments, useTeam, useWorkoutSessions, useLiveCollection } from "../lib/hooks";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visibleToStudent } from "../lib/products";
 import { useSessionStore } from "../store/session";
@@ -26,6 +26,7 @@ import { useActiveTrainer } from "../lib/activeTrainer";
 import { StudentAgenda } from "../features/dashboard/StudentAgenda";
 import type { ClassProduct, PurchaseStatus, Training } from "../types/domain";
 import { where } from "firebase/firestore";
+import { queryClient } from "../main";
 
 const statusConfig: Record<PurchaseStatus, { label: string; badge: "green" | "amber" | "red" | "stone" | "blue"; icon: typeof CheckCircle2 }> = {
   awaiting_payment: { label: "Aguardando pagamento", badge: "amber", icon: Clock },
@@ -54,7 +55,7 @@ export function StudentClassesPage() {
     [dbWorkouts, activeTrainerId],
   );
 
-  const { data: trainings } = useCollection<Training>(
+  const { data: trainings } = useLiveCollection<Training>(
     "trainings",
     user && activeTrainerId
       ? [where("trainerId", "==", activeTrainerId)]
@@ -115,6 +116,7 @@ export function StudentClassesPage() {
         proofFileName: proofFile?.name ?? null,
         createdAt: serverTimestamp(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setSubmitted(true);
       setTimeout(() => {
         setSubmitted(false);

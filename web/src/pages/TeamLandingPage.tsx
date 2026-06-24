@@ -3,13 +3,14 @@ import { ArrowRight, CalendarDays, Check, LockKeyhole, ShieldCheck, Tag, Message
 import { Link, Navigate, useNavigate, useParams } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
 import { hasStock, visiblePublic } from "../lib/products";
-import { useCollection, useClassProducts } from "../lib/hooks";
+import { useLiveCollection, useClassProducts } from "../lib/hooks";
 import { useSessionStore } from "../store/session";
 import { useActiveTrainer } from "../lib/activeTrainer";
 import { requestEnrollment } from "../lib/enrollments";
 import { db } from "../lib/firebase";
 import { collection, query, where, getDocs, setDoc, doc } from "firebase/firestore";
 import type { Team } from "../types/domain";
+import { queryClient } from "../main";
 
 export function TeamLandingPage() {
   const { slug } = useParams();
@@ -20,7 +21,7 @@ export function TeamLandingPage() {
   const setActiveTrainer = useActiveTrainer((state) => state.setActiveTrainer);
 
   // Busca o time pelo slug no Firestore
-  const { data: dbTeams, loading: teamsLoading } = useCollection<Team>(
+  const { data: dbTeams, loading: teamsLoading } = useLiveCollection<Team>(
     "teams",
     slug ? [where("slug", "==", slug), where("publicListing", "==", true)] : [],
     [],
@@ -128,6 +129,7 @@ export function TeamLandingPage() {
         status: "requesting_join",
         invitedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setNetMessage("Solicitação enviada!");
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -163,6 +165,7 @@ export function TeamLandingPage() {
         status: "pending",
         invitedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setNetMessage("Convite enviado!");
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -189,6 +192,7 @@ export function TeamLandingPage() {
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setNetMessage("");
       window.dispatchEvent(new CustomEvent("openGlobalChat", { 
         detail: { 

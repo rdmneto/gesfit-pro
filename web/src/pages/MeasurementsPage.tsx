@@ -53,6 +53,7 @@ import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { Input, Textarea } from "../components/ui/FormFields";
 import { measurementSchema, type MeasurementFormData } from "../lib/schemas";
+import { queryClient } from "../main";
 
 type StudentWithEnrollment = Student & { enrollment: Enrollment };
 
@@ -116,6 +117,7 @@ function TrainerMeasurementForm({
         status: "pending",
         createdAt: serverTimestamp(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       form.reset({
         measuredAt: new Date().toISOString().slice(0, 10),
       });
@@ -535,10 +537,12 @@ function StudentMeasurementsPage({
         notes: measurement.notes ?? "",
         confirmedAt: serverTimestamp(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       // Mark submission as accepted
       await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurement.id), {
         status: "accepted",
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao confirmar medida:", err);
     }
@@ -551,6 +555,7 @@ function StudentMeasurementsPage({
       await updateDoc(doc(db, `students/${studentId}/measurementSubmissions`, measurementId), {
         status: "rejected",
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error("Erro ao recusar medida:", err);
     }
@@ -741,6 +746,7 @@ function SelfMeasurementForm({
       });
       
       await addDoc(collection(db, `students/${studentId}/measurements`), payload);
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       form.reset({
         measuredAt: data.measuredAt,
       });

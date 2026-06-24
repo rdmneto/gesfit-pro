@@ -39,6 +39,7 @@ import { DEFAULT_AVAILABILITY, trainingModalities } from "../data/catalog";
 import { CITY_NAMES, DEFAULT_CITY } from "../data/cities";
 import { gymTypeIcon, searchGyms } from "../data/gyms";
 import type { GymLocation, TrainerAvailabilityDay } from "../types/domain";
+import { queryClient } from "../main";
 
 /** Banner padrão exibido na prévia enquanto o treinador não envia uma imagem própria. */
 const DEFAULT_BANNER_URL =
@@ -197,15 +198,18 @@ export function TrainerWorkspacePage() {
         await updateDoc(doc(db, "teams", teamId), {
           "branding.trainerPhotoURL": url
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       } else if (type === "banner") {
         setBannerPhotoURL(url);
         await updateDoc(doc(db, "teams", teamId), {
           "branding.bannerPhotoURL": url
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       } else {
         await updateDoc(doc(db, "teams", teamId), {
           "branding.heroPhotoURL": url
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);
@@ -279,6 +283,7 @@ export function TrainerWorkspacePage() {
         availability, // save full availability (with travelMinutes)
         publicListing: true,
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       
       setSaveSuccess(true);
       setTimeout(() => setSaveSuccess(false), 3000);

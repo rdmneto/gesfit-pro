@@ -5,7 +5,7 @@ import { CalendarDays, ChevronLeft, ChevronRight, Clock, Flame, List, PlayCircle
 import { useMemo, useState } from "react";
 import { doc, updateDoc } from "firebase/firestore";
 import { db } from "../../lib/firebase";
-import { useDocument } from "../../lib/hooks";
+import { useLiveDocument } from "../../lib/hooks";
 import type { WorkoutSession, Training } from "../../types/domain";
 import { isSameDay, monthGridDays, weekDays } from "./dashboardUtils";
 import { WorkoutSummaryModal } from "../../components/WorkoutSummaryModal";
@@ -139,7 +139,7 @@ function WorkoutCard({ workout, trainings }: { workout: WorkoutSession; training
   const [showSummary, setShowSummary] = useState(false);
 
   const trainingFromParent = workout.trainingId ? trainings?.find((t) => t.id === workout.trainingId) : undefined;
-  const { data: trainingFetched } = useDocument<Training>("trainings", !trainingFromParent && workout.trainingId ? workout.trainingId : null);
+  const { data: trainingFetched } = useLiveDocument<Training>("trainings", !trainingFromParent && workout.trainingId ? workout.trainingId : null);
   const training = trainingFromParent ?? trainingFetched;
 
   async function handleComplete() {

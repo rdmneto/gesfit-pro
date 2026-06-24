@@ -2,14 +2,15 @@ import { CalendarDays, Search, Tag, MessageSquare, UserPlus, UserCheck } from "l
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 import { moneyFromCents } from "../lib/format";
-import { useCollection, useClassProducts } from "../lib/hooks";
+import { useLiveCollection, useClassProducts } from "../lib/hooks";
 import type { Team } from "../types/domain";
 import { collection, getDocs, query, where, setDoc, doc } from "firebase/firestore";
 import { db } from "../lib/firebase";
 import { useSessionStore } from "../store/session";
+import { queryClient } from "../main";
 
 export function TeamsPage() {
-  const { data: dbTeams, loading } = useCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
+  const { data: dbTeams, loading } = useLiveCollection<Team>("teams", [where("publicListing", "==", true)], [], []);
 
   const [query, setQuery] = useState("");
 
@@ -182,6 +183,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         status: "requesting_join",
         invitedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setMessage("Solicitação enviada!");
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -217,6 +219,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         status: "pending",
         invitedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setMessage("Convite enviado!");
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -246,6 +249,7 @@ function TrainerNetworkingActions({ team, currentUser }: { team: Team; currentUs
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setMessage("");
       window.dispatchEvent(new CustomEvent("openGlobalChat", { 
         detail: { 

@@ -13,6 +13,7 @@ import { useStudent } from "../lib/hooks";
 import { CITY_NAMES } from "../data/cities";
 import { Input, SelectField } from "../components/ui/FormFields";
 import { studentProfileSchema, type StudentProfileData } from "../lib/schemas";
+import { queryClient } from "../main";
 
 export function StudentProfilePage() {
   const user = useSessionStore((state) => state.user);
@@ -67,6 +68,7 @@ export function StudentProfilePage() {
         "physiological.pesoInicialKg": data.pesoInicialKg || null,
         goal: data.objetivos || "",
       });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       setSuccess(true);
       setTimeout(() => setSuccess(false), 3000);
     } catch (error: unknown) {

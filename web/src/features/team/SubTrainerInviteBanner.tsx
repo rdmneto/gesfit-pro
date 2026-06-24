@@ -2,8 +2,9 @@ import { collection, getDocs, query, updateDoc, where } from "firebase/firestore
 import { Bell, CheckCircle2, X } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
-import { usePendingTeamInvites, useCollection, useTrainerChats } from "../../lib/hooks";
+import { usePendingTeamInvites, useLiveCollection, useTrainerChats } from "../../lib/hooks";
 import type { TeamMember, TrainerChat } from "../../types/domain";
+import { queryClient } from "../../main";
 
 export function SubTrainerInviteBanner() {
   const user = useSessionStore((s) => s.user);
@@ -13,7 +14,7 @@ export function SubTrainerInviteBanner() {
     role === "trainer" ? user?.uid : null
   );
 
-  const { data: joinRequests } = useCollection<TeamMember>(
+  const { data: joinRequests } = useLiveCollection<TeamMember>(
     "teamMembers",
     role === "trainer" && user ? [where("ownerUid", "==", user.uid), where("status", "==", "requesting_join")] : [],
     [],
@@ -42,6 +43,7 @@ export function SubTrainerInviteBanner() {
           status: accept ? "active" : "removed",
           ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -63,6 +65,7 @@ export function SubTrainerInviteBanner() {
           status: accept ? "active" : "removed",
           ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -84,6 +87,7 @@ export function SubTrainerInviteBanner() {
           status: accept ? "accepted" : "rejected",
           updatedAt: new Date().toISOString(),
         });
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
