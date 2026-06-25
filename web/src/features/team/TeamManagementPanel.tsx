@@ -1,6 +1,6 @@
 import { cardClasses } from "../../components/ui/Primitives";
 import { cn } from "../../lib/utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -17,6 +17,7 @@ import {
   query,
   where,
   getDocs,
+  getDoc,
   setDoc,
   updateDoc,
   writeBatch,
@@ -59,6 +60,37 @@ export function TeamManagementPanel() {
     ...members,
     ...pendingMembers.filter((p) => !members.some((m) => m.id === p.id)),
   ];
+
+  // Ensure every active member has a predictable-ID doc so isActivePartnerOf() rule works.
+  // Old invites created with addDoc have auto-generated IDs; the rule requires
+  // teamMembers/${ownerUid}__${subTrainerId} to exist with status=="active".
+  useEffect(() => {
+    if (!db || !user?.uid || !members.length) return;
+    members.forEach(async (member) => {
+      const predictableId = `${user.uid}__${member.subTrainerId}`;
+      if (member.id === predictableId) return;
+      try {
+        const ref = doc(db!, "teamMembers", predictableId);
+        const snap = await getDoc(ref);
+        if (!snap.exists()) {
+          await setDoc(ref, {
+            id: predictableId,
+            ownerUid: user.uid,
+            ownerName: user.displayName || "",
+            subTrainerId: member.subTrainerId,
+            subTrainerName: member.subTrainerName || "",
+            subTrainerEmail: member.subTrainerEmail || "",
+            status: "active",
+            invitedAt: member.invitedAt,
+            acceptedAt: member.acceptedAt || new Date().toISOString(),
+          });
+        }
+      } catch (e) {
+        console.error("Failed to create predictable teamMember doc:", e);
+      }
+    });
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [members.map(m => m.id).join(","), user?.uid]);
 
   // Fetch trainers for search
   const { data: allTrainers } = useLiveCollection<{ id: string; name?: string; email?: string }>(
@@ -144,6 +176,14 @@ export function TeamManagementPanel() {
         batch.update(tmSnap.docs[0].ref, { status: "removed" });
       }
 
+      // Garante que o predictable-ID doc também fica como removido
+      const predictableId = `${member.ownerUid}__${member.subTrainerId}`;
+      const predictableRef = doc(db, "teamMembers", predictableId);
+      const predictableSnap = await getDoc(predictableRef);
+      if (predictableSnap.exists() && predictableSnap.data()?.status === "active") {
+        batch.update(predictableRef, { status: "removed" });
+      }
+
       // 2. Desatribui aulas futuras do parceiro e marca como pendentes
       const now = new Date().toISOString();
       const sessQ = query(
@@ -181,8 +221,17 @@ export function TeamManagementPanel() {
       const snap = await getDocs(q);
       if (!snap.empty) {
         await updateDoc(snap.docs[0].ref, { status: "removed" });
-      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
+
+      // Remove the predictable-ID doc as well (if it exists and is still active)
+      const predictableId = `${member.ownerUid}__${member.subTrainerId}`;
+      const predictableRef = doc(db, "teamMembers", predictableId);
+      const predictableSnap = await getDoc(predictableRef);
+      if (predictableSnap.exists() && predictableSnap.data()?.status === "active") {
+        await updateDoc(predictableRef, { status: "removed" });
+      }
+
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }

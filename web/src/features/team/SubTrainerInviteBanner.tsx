@@ -1,4 +1,4 @@
-import { collection, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
 import { Bell, CheckCircle2, X } from "lucide-react";
 import { db } from "../../lib/firebase";
 import { useSessionStore } from "../../store/session";
@@ -51,7 +51,7 @@ export function SubTrainerInviteBanner() {
   }
 
   async function handleJoinRequestResponse(joinReq: TeamMember, accept: boolean) {
-    if (!db) return;
+    if (!db || !user) return;
     try {
       const q = query(
         collection(db, "teamMembers"),
@@ -61,11 +61,32 @@ export function SubTrainerInviteBanner() {
       );
       const snap = await getDocs(q);
       if (!snap.empty) {
+        const acceptedAt = new Date().toISOString();
         await updateDoc(snap.docs[0].ref, {
           status: accept ? "active" : "removed",
-          ...(accept ? { acceptedAt: new Date().toISOString() } : {}),
+          ...(accept ? { acceptedAt } : {}),
         });
-      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
+
+        if (accept) {
+          // Create predictable-ID doc so isActivePartnerOf() Firestore rule works.
+          // Rule requires teamMembers/${ownerUid}__${subTrainerId} to exist.
+          const memberId = `${joinReq.ownerUid}__${joinReq.subTrainerId}`;
+          if (snap.docs[0].id !== memberId) {
+            await setDoc(doc(db, "teamMembers", memberId), {
+              id: memberId,
+              ownerUid: joinReq.ownerUid,
+              ownerName: joinReq.ownerName || user.displayName || "",
+              subTrainerId: joinReq.subTrainerId,
+              subTrainerName: joinReq.subTrainerName || "",
+              subTrainerEmail: joinReq.subTrainerEmail || "",
+              status: "active",
+              invitedAt: joinReq.invitedAt,
+              acceptedAt,
+            });
+          }
+        }
+
+        queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
       }
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
