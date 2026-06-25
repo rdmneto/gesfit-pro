@@ -30,34 +30,32 @@ export const useSessionStore = create<SessionState>((set) => ({
         return;
       }
 
-      const token = await user.getIdTokenResult();
-      let role = token.claims.role as SessionClaims["role"];
-      let teamId = token.claims.teamId as SessionClaims["teamId"];
+      try {
+        const token = await user.getIdTokenResult();
+        let role = token.claims.role as SessionClaims["role"];
+        let teamId = token.claims.teamId as SessionClaims["teamId"];
 
-      // Se as claims customizadas estiverem vazias (plano Spark sem Cloud Functions),
-      // busca os dados do usuário no Firestore
-      if (!role && db) {
-        try {
-          const userDocRef = doc(db, "users", user.uid);
-          const userDoc = await getDoc(userDocRef);
-          if (userDoc.exists()) {
-            const userData = userDoc.data();
-            role = userData.role as SessionClaims["role"];
-            teamId = userData.teamId as SessionClaims["teamId"];
+        // Se as claims customizadas estiverem vazias (plano Spark sem Cloud Functions),
+        // busca os dados do usuário no Firestore
+        if (!role && db) {
+          try {
+            const userDocRef = doc(db, "users", user.uid);
+            const userDoc = await getDoc(userDocRef);
+            if (userDoc.exists()) {
+              const userData = userDoc.data();
+              role = userData.role as SessionClaims["role"];
+              teamId = userData.teamId as SessionClaims["teamId"];
+            }
+          } catch (error: unknown) { const err = error as Error;
+            console.error("Erro ao buscar dados do usuário no Firestore:", err);
           }
-        } catch (error: unknown) { const err = error as Error;
-          console.error("Erro ao buscar dados do usuário no Firestore:", err);
         }
-      }
 
-      set({
-        user,
-        claims: {
-          role,
-          teamId,
-        },
-        loading: false,
-      });
+        set({ user, claims: { role, teamId }, loading: false });
+      } catch (error: unknown) { const err = error as Error;
+        console.error("Erro ao obter token do usuário:", err);
+        set({ user, claims: {}, loading: false });
+      }
     });
   },
 

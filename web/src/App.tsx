@@ -126,7 +126,7 @@ function RequireTrainer({ children }: { children: ReactNode }) {
   const role = useSessionStore((state) => state.claims.role);
   const loading = useSessionStore((state) => state.loading);
 
-  if (loading) return null;
+  if (loading) return <GlobalLoader />;
 
   return (
     <RequireAuth>
@@ -139,7 +139,7 @@ function RequireStudent({ children }: { children: ReactNode }) {
   const role = useSessionStore((state) => state.claims.role);
   const loading = useSessionStore((state) => state.loading);
 
-  if (loading) return null;
+  if (loading) return <GlobalLoader />;
 
   return (
     <RequireAuth>
