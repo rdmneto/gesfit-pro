@@ -236,17 +236,28 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   }
 
   const [selectedStudentId, setSelectedStudentId] = useState<string | null>(null);
-  // Holds a partner team's student when selected (not in own sortedStudents)
   const [selectedStudentOverride, setSelectedStudentOverride] = useState<StudentWithEnrollment | null>(null);
+  const hasPartnerTeams = (partnerTeams ?? []).length > 0;
+  const [activeTab, setActiveTab] = useState<"own" | "partner">("own");
 
-  const effectiveSelectedId = selectedStudentOverride?.uid ?? selectedStudentId ?? sortedStudents[0]?.uid ?? null;
+  function switchTab(tab: "own" | "partner") {
+    setActiveTab(tab);
+    setQuery("");
+    setSelectedStudentId(null);
+    setSelectedStudentOverride(null);
+  }
+
+  const effectiveSelectedId =
+    activeTab === "partner"
+      ? (selectedStudentOverride?.uid ?? null)
+      : (selectedStudentId ?? sortedStudents[0]?.uid ?? null);
 
   const filteredStudents = sortedStudents.filter((student) =>
     student.displayName.toLowerCase().includes(query.trim().toLowerCase()),
   );
 
   const selectedStudent = sortedStudents.find((s) => s.uid === effectiveSelectedId) ?? null;
-  const effectiveStudentForPanel = selectedStudentOverride ?? selectedStudent;
+  const effectiveStudentForPanel = activeTab === "partner" ? selectedStudentOverride : (selectedStudentOverride ?? selectedStudent);
 
   const { data: selectedMeasurements = [] } = useMeasurements(effectiveSelectedId);
   const { data: selectedPending = [] } = usePendingMeasurements(effectiveSelectedId);
@@ -346,60 +357,100 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
         </div>
       ) : (
         <div className="mt-6 grid gap-4 lg:grid-cols-[0.85fr_1.15fr]">
-          <section className="rounded-lg border border-stone-200 bg-white p-5">
-            <div className="flex flex-wrap items-center justify-between gap-3">
-              <div className="flex items-center gap-2">
-                <Users aria-hidden="true" className="text-emerald-800" size={22} />
-                <h2 className="text-xl font-black">Meus Alunos</h2>
-              </div>
-              <label className="relative block flex-1 min-w-[140px]">
+          <section className="rounded-lg border border-stone-200 bg-white overflow-hidden">
+            {/* ── Tab bar ── */}
+            <div className="flex border-b border-stone-200">
+              <button
+                type="button"
+                onClick={() => switchTab("own")}
+                className={[
+                  "flex flex-1 items-center justify-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors border-b-2",
+                  activeTab === "own"
+                    ? "border-emerald-700 text-stone-950"
+                    : "border-transparent text-stone-500 hover:text-stone-800",
+                ].join(" ")}
+              >
+                <Users size={15} className={activeTab === "own" ? "text-emerald-700" : "text-emerald-600"} />
+                Meus Alunos
+                {sortedStudents.length > 0 && (
+                  <span className="ml-0.5 rounded-full bg-emerald-100 px-1.5 py-0.5 text-xs font-bold text-emerald-800">
+                    {sortedStudents.length}
+                  </span>
+                )}
+              </button>
+              {hasPartnerTeams && (
+                <button
+                  type="button"
+                  onClick={() => switchTab("partner")}
+                  className={[
+                    "flex flex-1 items-center justify-center gap-1.5 px-3 py-3 text-sm font-semibold transition-colors border-b-2",
+                    activeTab === "partner"
+                      ? "border-violet-600 text-stone-950"
+                      : "border-transparent text-stone-500 hover:text-stone-800",
+                  ].join(" ")}
+                >
+                  <Users size={15} className={activeTab === "partner" ? "text-violet-600" : "text-violet-500"} />
+                  Alunos do Time
+                </button>
+              )}
+            </div>
+
+            {/* ── Search ── */}
+            <div className="p-3 border-b border-stone-100">
+              <label className="relative block">
                 <span className="sr-only">Buscar aluno</span>
                 <Search
                   aria-hidden="true"
                   className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-stone-400"
-                  size={15}
+                  size={14}
                 />
                 <input
                   className="focus-ring h-9 w-full rounded-lg border border-stone-200 bg-stone-50 pl-9 pr-3 text-sm"
                   placeholder="Buscar aluno"
                   value={query}
-                  onChange={(event) => setQuery(event.target.value)}
+                  onChange={(e) => setQuery(e.target.value)}
                 />
               </label>
             </div>
-            <div className="mt-4 space-y-2">
-              {filteredStudents.map((student) => (
-                <button
-                  key={student.uid}
-                  type="button"
-                  className={[
-                    "focus-ring grid w-full gap-2 rounded-md border p-3 text-left sm:grid-cols-[1fr_auto]",
-                    effectiveSelectedId === student.uid && !selectedStudentOverride
-                      ? "border-emerald-700 bg-emerald-50"
-                      : "border-stone-200 bg-white hover:bg-stone-50",
-                  ].join(" ")}
-                  onClick={() => { setSelectedStudentId(student.uid); setSelectedStudentOverride(null); }}
-                >
-                  <div>
-                    <p className="font-black">{student.displayName}</p>
-                    <p className="mt-1 text-sm text-stone-600">
-                      {student.onboarding?.email ?? "Sem e-mail"}
-                    </p>
-                  </div>
-                </button>
-              ))}
-            </div>
 
-            {/* Alunos dos times em que este treinador é parceiro */}
-            {(partnerTeams ?? []).map(team => (
-              <PartnerTeamStudentsSection
-                key={team.ownerUid}
-                ownerUid={team.ownerUid}
-                ownerName={team.ownerName || "Treinador"}
-                selectedStudentId={selectedStudentOverride?.uid ?? null}
-                onSelectStudent={(s) => { setSelectedStudentOverride(s); setSelectedStudentId(null); }}
-              />
-            ))}
+            {/* ── Tab content ── */}
+            <div className="p-3 space-y-2 max-h-[480px] overflow-y-auto">
+              {activeTab === "own" ? (
+                filteredStudents.length === 0 ? (
+                  <p className="py-6 text-center text-sm text-stone-400">
+                    {query ? "Nenhum aluno encontrado." : "Nenhum aluno ativo ainda."}
+                  </p>
+                ) : (
+                  filteredStudents.map((student) => (
+                    <button
+                      key={student.uid}
+                      type="button"
+                      className={[
+                        "focus-ring w-full rounded-md border p-3 text-left",
+                        effectiveSelectedId === student.uid && activeTab === "own"
+                          ? "border-emerald-700 bg-emerald-50"
+                          : "border-stone-200 bg-white hover:bg-stone-50",
+                      ].join(" ")}
+                      onClick={() => { setSelectedStudentId(student.uid); setSelectedStudentOverride(null); }}
+                    >
+                      <p className="font-black text-sm">{student.displayName}</p>
+                      <p className="mt-0.5 text-xs text-stone-500">{student.onboarding?.email ?? "Sem e-mail"}</p>
+                    </button>
+                  ))
+                )
+              ) : (
+                (partnerTeams ?? []).map(team => (
+                  <PartnerTeamStudentsSection
+                    key={team.ownerUid}
+                    ownerUid={team.ownerUid}
+                    ownerName={team.ownerName || "Treinador"}
+                    query={query}
+                    selectedStudentId={selectedStudentOverride?.uid ?? null}
+                    onSelectStudent={(s) => { setSelectedStudentOverride(s); setSelectedStudentId(null); }}
+                  />
+                ))
+              )}
+            </div>
           </section>
 
           <div className="grid gap-4">
@@ -438,11 +489,13 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
 function PartnerTeamStudentsSection({
   ownerUid,
   ownerName,
+  query = "",
   selectedStudentId,
   onSelectStudent,
 }: {
   ownerUid: string;
   ownerName: string;
+  query?: string;
   selectedStudentId: string | null;
   onSelectStudent: (student: StudentWithEnrollment) => void;
 }) {
@@ -455,35 +508,35 @@ function PartnerTeamStudentsSection({
     () => [...activeStudents].sort((a, b) => a.displayName.localeCompare(b.displayName, "pt-BR")),
     [activeStudents]
   );
+  const filtered = query.trim()
+    ? sorted.filter(s => s.displayName.toLowerCase().includes(query.trim().toLowerCase()))
+    : sorted;
 
-  if (loading || sorted.length === 0) return null;
+  if (loading) return <p className="py-4 text-center text-xs text-stone-400">Carregando...</p>;
+  if (filtered.length === 0) return (
+    <p className="py-6 text-center text-sm text-stone-400">
+      {query ? "Nenhum aluno encontrado." : `Nenhum aluno no time de ${ownerName}.`}
+    </p>
+  );
 
   return (
-    <div className="mt-4 border-t border-stone-100 pt-4">
-      <div className="mb-2 flex items-center gap-1.5">
-        <Users size={13} className="text-violet-600" />
-        <p className="text-xs font-bold uppercase tracking-wide text-violet-700">
-          Alunos do Time {ownerName}
-        </p>
-      </div>
-      <div className="space-y-2">
-        {sorted.map(student => (
-          <button
-            key={student.uid}
-            type="button"
-            className={[
-              "focus-ring grid w-full gap-2 rounded-md border p-3 text-left",
-              selectedStudentId === student.uid
-                ? "border-violet-600 bg-violet-50"
-                : "border-stone-200 bg-white hover:bg-stone-50",
-            ].join(" ")}
-            onClick={() => onSelectStudent(student)}
-          >
-            <p className="font-black">{student.displayName}</p>
-            <p className="text-sm text-stone-600">{student.onboarding?.email ?? "Sem e-mail"}</p>
-          </button>
-        ))}
-      </div>
+    <div className="space-y-2">
+      {filtered.map(student => (
+        <button
+          key={student.uid}
+          type="button"
+          className={[
+            "focus-ring w-full rounded-md border p-3 text-left",
+            selectedStudentId === student.uid
+              ? "border-violet-600 bg-violet-50"
+              : "border-stone-200 bg-white hover:bg-stone-50",
+          ].join(" ")}
+          onClick={() => onSelectStudent(student)}
+        >
+          <p className="font-black text-sm">{student.displayName}</p>
+          <p className="mt-0.5 text-xs text-stone-500">{student.onboarding?.email ?? "Sem e-mail"}</p>
+        </button>
+      ))}
     </div>
   );
 }
