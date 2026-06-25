@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, setDoc, updateDoc, where } from "firebase/firestore";
+import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { Bell, CheckCircle2, X } from "lucide-react";
 import { useState } from "react";
 import { db } from "../../lib/firebase";
@@ -38,37 +38,20 @@ export function SubTrainerInviteBanner() {
     setBannerError("");
     try {
       const acceptedAt = new Date().toISOString();
-      const q = query(
-        collection(db, "teamMembers"),
-        where("ownerUid", "==", invite.ownerUid),
-        where("subTrainerId", "==", invite.subTrainerId),
-        where("status", "==", "pending")
-      );
-      const snap = await getDocs(q);
-      if (snap.empty) {
-        setBannerError("Convite não encontrado. Pode já ter sido processado.");
+      // Use predictable ID directly — avoids 3-field composite index requirement
+      const memberId = `${invite.ownerUid}__${invite.subTrainerId}`;
+      const predictableRef = doc(db, "teamMembers", memberId);
+      const predictableSnap = await getDoc(predictableRef);
+
+      if (!predictableSnap.exists() || predictableSnap.data().status !== "pending") {
+        setBannerError("Convite não encontrado ou já processado.");
         return;
       }
-      await Promise.all(snap.docs.map(d => updateDoc(d.ref, {
+
+      await updateDoc(predictableRef, {
         status: accept ? "active" : "removed",
         ...(accept ? { acceptedAt } : {}),
-      })));
-
-      // Garante que o doc predictable-ID existe e está "active" para as regras do Firestore
-      if (accept) {
-        const memberId = `${invite.ownerUid}__${invite.subTrainerId}`;
-        const predictableRef = doc(db, "teamMembers", memberId);
-        const predictableSnap = await getDoc(predictableRef);
-        if (!predictableSnap.exists() || predictableSnap.data().status !== "active") {
-          const base = snap.docs[0].data();
-          await setDoc(predictableRef, {
-            ...base,
-            id: memberId,
-            status: "active",
-            acceptedAt,
-          });
-        }
-      }
+      });
 
       queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
@@ -82,41 +65,22 @@ export function SubTrainerInviteBanner() {
   async function handleJoinRequestResponse(joinReq: TeamMember, accept: boolean) {
     if (!db || !user) return;
     try {
-      const q = query(
-        collection(db, "teamMembers"),
-        where("ownerUid", "==", joinReq.ownerUid),
-        where("subTrainerId", "==", joinReq.subTrainerId),
-        where("status", "==", "requesting_join")
-      );
-      const snap = await getDocs(q);
-      if (!snap.empty) {
-        const acceptedAt = new Date().toISOString();
-        await updateDoc(snap.docs[0].ref, {
-          status: accept ? "active" : "removed",
-          ...(accept ? { acceptedAt } : {}),
-        });
+      // Use predictable ID directly — avoids 3-field composite index requirement
+      const memberId = `${joinReq.ownerUid}__${joinReq.subTrainerId}`;
+      const predictableRef = doc(db, "teamMembers", memberId);
+      const predictableSnap = await getDoc(predictableRef);
 
-        if (accept) {
-          // Create predictable-ID doc so isActivePartnerOf() Firestore rule works.
-          // Rule requires teamMembers/${ownerUid}__${subTrainerId} to exist.
-          const memberId = `${joinReq.ownerUid}__${joinReq.subTrainerId}`;
-          if (snap.docs[0].id !== memberId) {
-            await setDoc(doc(db, "teamMembers", memberId), {
-              id: memberId,
-              ownerUid: joinReq.ownerUid,
-              ownerName: joinReq.ownerName || user.displayName || "",
-              subTrainerId: joinReq.subTrainerId,
-              subTrainerName: joinReq.subTrainerName || "",
-              subTrainerEmail: joinReq.subTrainerEmail || "",
-              status: "active",
-              invitedAt: joinReq.invitedAt,
-              acceptedAt,
-            });
-          }
-        }
-
-        queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
+      if (!predictableSnap.exists() || predictableSnap.data().status !== "requesting_join") {
+        return;
       }
+
+      const acceptedAt = new Date().toISOString();
+      await updateDoc(predictableRef, {
+        status: accept ? "active" : "removed",
+        ...(accept ? { acceptedAt } : {}),
+      });
+
+      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
     }

@@ -1,6 +1,6 @@
 import { cardClasses } from "../../components/ui/Primitives";
 import { cn } from "../../lib/utils";
-import { useState, useMemo, useEffect } from "react";
+import { useState, useMemo } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -17,7 +17,6 @@ import {
   query,
   where,
   getDocs,
-  getDoc,
   setDoc,
   updateDoc,
   writeBatch,
@@ -60,37 +59,6 @@ export function TeamManagementPanel() {
     ...members,
     ...pendingMembers.filter((p) => !members.some((m) => m.id === p.id)),
   ];
-
-  // Ensure every active member has a predictable-ID doc so isActivePartnerOf() rule works.
-  // Old invites created with addDoc have auto-generated IDs; the rule requires
-  // teamMembers/${ownerUid}__${subTrainerId} to exist with status=="active".
-  useEffect(() => {
-    if (!db || !user?.uid || !members.length) return;
-    members.forEach(async (member) => {
-      const predictableId = `${user.uid}__${member.subTrainerId}`;
-      if (member.id === predictableId) return;
-      try {
-        const ref = doc(db!, "teamMembers", predictableId);
-        const snap = await getDoc(ref);
-        if (!snap.exists()) {
-          await setDoc(ref, {
-            id: predictableId,
-            ownerUid: user.uid,
-            ownerName: user.displayName || "",
-            subTrainerId: member.subTrainerId,
-            subTrainerName: member.subTrainerName || "",
-            subTrainerEmail: member.subTrainerEmail || "",
-            status: "active",
-            invitedAt: member.invitedAt,
-            acceptedAt: member.acceptedAt || new Date().toISOString(),
-          });
-        }
-      } catch (e) {
-        console.error("Failed to create predictable teamMember doc:", e);
-      }
-    });
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [members.map(m => m.id).join(","), user?.uid]);
 
   // Fetch trainers for search
   const { data: allTrainers } = useLiveCollection<{ id: string; name?: string; email?: string }>(

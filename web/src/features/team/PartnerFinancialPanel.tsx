@@ -148,7 +148,8 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
   const { data: assignedSessions } = useAssignedSessions(user?.uid ?? null);
 
   const partnerSummary = useMemo(() => {
-    return (ownPartners ?? []).map((partner) => {
+    // Exclude self-referential docs (corrupted data where trainer appears as own partner)
+    return (ownPartners ?? []).filter((p) => p.subTrainerId !== ownUid).map((partner) => {
       const rate = (partnerRates ?? []).find((r) => r.partnerId === partner.subTrainerId);
       const sessionCount = countSessionsInMonth(ownSessions ?? [], partner.subTrainerId, start, end);
       const total = (rate?.ratePerSession ?? 0) * sessionCount;
