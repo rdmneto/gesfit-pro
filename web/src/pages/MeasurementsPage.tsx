@@ -194,14 +194,6 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const teamId = useSessionStore((state) => state.claims.teamId);
   const { data: partnerTeams } = useActivePartnerTeams(trainerId);
 
-  // Build combined list: own teamId + partner team owner UIDs
-  const allTrainerIds = useMemo(() => {
-    const ids = new Set<string>();
-    if (teamId) ids.add(teamId);
-    if (partnerTeams) partnerTeams.forEach(t => ids.add(t.ownerUid));
-    return Array.from(ids);
-  }, [teamId, partnerTeams]);
-
   // Own students only — partner students are shown separately in PartnerTeamStudentsSection
   const { data: ownStudents, loading: studentsLoading } = useTrainerStudents(teamId ?? null);
   const [query, setQuery] = useState("");
