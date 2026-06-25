@@ -16,10 +16,11 @@ import {
   where,
   type QueryConstraint,
 } from "firebase/firestore";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useMemo } from "react";
 import { useQuery, useQueryClient } from "@tanstack/react-query";
 import { db } from "./firebase";
 import { useActiveTrainer } from "./activeTrainer";
+import { useSessionStore } from "../store/session";
 
 /** Generic real-time collection hook */
 function useLiveCollection<T>(
@@ -490,4 +491,23 @@ export function useTrainerChats(userId: string | null | undefined, asTargetOnly 
   );
 
   return { requestedChats, targetChats };
+}
+
+/**
+ * Retorna todos os IDs de treinadores que o usuário atual deve enxergar.
+ * Para um treinador normal: apenas o seu teamId.
+ * Para um treinador parceiro: o seu teamId + os ownerUid de cada equipe parceira ativa.
+ * Isso permite que queries `where('trainerId', 'in', ids)` retornem dados de toda a equipe.
+ */
+export function useEffectiveTrainerIds(): string[] {
+  const user = useSessionStore((state) => state.user);
+  const teamId = useSessionStore((state) => state.claims.teamId);
+  const { data: partnerTeams } = useActivePartnerTeams(user?.uid);
+
+  return useMemo(() => {
+    const ids = new Set<string>();
+    if (teamId) ids.add(teamId);
+    if (partnerTeams) partnerTeams.forEach(t => ids.add(t.ownerUid));
+    return Array.from(ids);
+  }, [teamId, partnerTeams]);
 }

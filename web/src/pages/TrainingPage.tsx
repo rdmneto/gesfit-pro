@@ -5,8 +5,9 @@ import { useState } from 'react';
 import { collection, addDoc, updateDoc, doc, deleteDoc } from 'firebase/firestore';
 import { db } from '../lib/firebase';
 import { useSessionStore } from '../store/session';
-import { useLiveCollection } from '../lib/hooks';
+import { useLiveCollection, useActivePartnerTeams } from '../lib/hooks';
 import { where, orderBy } from 'firebase/firestore';
+import { useMemo } from 'react';
 import type { Training, Exercise } from '../types/domain';
 import { Dumbbell, Plus, Pencil, Trash2, ChevronDown, ChevronUp, Archive, X, Sparkles, Loader2, Eye, EyeOff, Play } from 'lucide-react';
 import { generateWorkout, estimateCaloriesFromExercises, findVideosForExercises } from '../lib/ai';
@@ -23,11 +24,21 @@ export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
   
   const teamId = useSessionStore((state) => state.claims.teamId);
+  const { data: partnerTeams } = useActivePartnerTeams(user?.uid);
+
+  // Build a list of all trainer IDs to fetch: own teamId + all partner team owner UIDs
+  const trainerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (teamId) ids.add(teamId);
+    if (partnerTeams) partnerTeams.forEach(t => ids.add(t.ownerUid));
+    return Array.from(ids);
+  }, [teamId, partnerTeams]);
+
   const { data: trainings } = useLiveCollection<Training>(
     'trainings',
-    teamId ? [where('trainerId', '==', teamId), orderBy('createdAt', 'desc')] : [],
+    trainerIds.length > 0 ? [where('trainerId', 'in', trainerIds.slice(0, 10)), orderBy('createdAt', 'desc')] : [],
     [],
-    [teamId]
+    [trainerIds.join(',')]
   );
 
   // States

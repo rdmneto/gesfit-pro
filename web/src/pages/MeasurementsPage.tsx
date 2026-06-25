@@ -192,8 +192,17 @@ function TrainerMeasurementForm({
 
 function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const teamId = useSessionStore((state) => state.claims.teamId);
-  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(teamId);
   const { data: partnerTeams } = useActivePartnerTeams(trainerId);
+
+  // Build combined list: own teamId + partner team owner UIDs
+  const allTrainerIds = useMemo(() => {
+    const ids = new Set<string>();
+    if (teamId) ids.add(teamId);
+    if (partnerTeams) partnerTeams.forEach(t => ids.add(t.ownerUid));
+    return Array.from(ids);
+  }, [teamId, partnerTeams]);
+
+  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(allTrainerIds.length > 0 ? allTrainerIds : null);
   const [query, setQuery] = useState("");
 
   const studentsList = useMemo<StudentWithEnrollment[]>(() => allStudents ?? [], [allStudents]);

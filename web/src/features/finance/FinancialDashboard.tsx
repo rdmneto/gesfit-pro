@@ -14,7 +14,7 @@ import { useFinanceMetrics } from "./useFinanceMetrics";
 import { TransactionsList } from "./TransactionsList";
 import { PackagesPage } from "../../pages/PackagesPage";
 import { PartnerFinancialPanel } from "../team/PartnerFinancialPanel";
-import { useTrainerStudents } from "../../lib/hooks";
+import { useTrainerStudents, useEffectiveTrainerIds } from "../../lib/hooks";
 
 type FinanceTab = "resumo" | "transacoes" | "pacotes" | "parceiros";
 
@@ -42,7 +42,8 @@ export function FinancialDashboard({ teamId }: FinancialDashboardProps) {
     allPurchases,
   } = useFinanceMetrics(teamId);
 
-  const { data: dbStudents } = useTrainerStudents(teamId);
+  const effectiveTrainerIds = useEffectiveTrainerIds();
+  const { data: dbStudents } = useTrainerStudents(effectiveTrainerIds.length > 0 ? effectiveTrainerIds : null);
   const activeStudents = (dbStudents ?? []).filter(
     (s) => s.enrollment?.status === "active"
   );
