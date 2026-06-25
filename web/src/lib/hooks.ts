@@ -423,7 +423,7 @@ export function useAllPurchases(teamId: string | null | undefined) {
 
 /** Sub-treinadores ativos de um time (pelo UID do dono) */
 export function useTeamMembers(ownerUid: string | null | undefined) {
-  return useFetchCollection<TeamMember>(
+  return useLiveCollection<TeamMember>(
     "teamMembers",
     ownerUid ? [where("ownerUid", "==", ownerUid), where("status", "==", "active")] : [],
     [],
@@ -443,7 +443,7 @@ export function usePartnerRates(ownerId: string | null | undefined) {
 
 /** Times em que o usuário é treinador parceiro ativo */
 export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
-  return useFetchCollection<TeamMember>(
+  return useLiveCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "active")] : [],
     [],
