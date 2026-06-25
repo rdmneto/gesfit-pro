@@ -22,12 +22,12 @@ function getEmbedUrl(url: string): string | null {
 export function TrainingPage() {
   const user = useSessionStore((state) => state.user);
   
-  // Hooks
+  const teamId = useSessionStore((state) => state.claims.teamId);
   const { data: trainings } = useLiveCollection<Training>(
     'trainings',
-    user ? [where('trainerId', '==', user.uid), orderBy('createdAt', 'desc')] : [],
+    teamId ? [where('trainerId', '==', teamId), orderBy('createdAt', 'desc')] : [],
     [],
-    [user?.uid]
+    [teamId]
   );
 
   // States
@@ -165,7 +165,7 @@ export function TrainingPage() {
         });
       } else {
         await addDoc(collection(db, 'trainings'), {
-          trainerId: user.uid,
+          trainerId: teamId || user.uid,
           title,
           description,
           exercises,

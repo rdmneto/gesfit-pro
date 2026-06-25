@@ -56,14 +56,14 @@ export function ClassesPage() {
   }, [user, partnerTeams]);
   const { data: dbStudents } = useTrainerStudents(trainerIds.length > 0 ? trainerIds : null);
   const { data: dbWorkoutSessions } = useWorkoutSessions(
-    user ? { trainerId: user.uid } : {}
+    teamId ? { trainerId: teamId } : {}
   );
 
   const { data: trainings } = useLiveCollection<Training>(
     "trainings",
-    user ? [where("trainerId", "==", user.uid)] : [],
+    teamId ? [where("trainerId", "==", teamId)] : [],
     [],
-    [user?.uid]
+    [teamId]
   );
 
   const isTrainerRole = useSessionStore((state) => state.claims.role === "trainer");

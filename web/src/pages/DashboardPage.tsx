@@ -55,14 +55,13 @@ export function DashboardPage() {
 import { useDashboardMetrics } from "../features/dashboard/useDashboardMetrics";
 
 function TrainerDashboard() {
-  const user = useSessionStore((state) => state.user);
   const teamId = useSessionStore((state) => state.claims.teamId);
 
   const { data: trainingsData } = useLiveCollection<Training>(
     "trainings",
-    user ? [where("trainerId", "==", user.uid)] : [],
+    teamId ? [where("trainerId", "==", teamId)] : [],
     [],
-    [user?.uid]
+    [teamId]
   );
   const trainings = trainingsData || [];
 
@@ -80,7 +79,7 @@ function TrainerDashboard() {
     totalMinutesToday,
     uniqueStudentsToday,
     subTrainersPerformance,
-  } = useDashboardMetrics(user?.uid, teamId);
+  } = useDashboardMetrics(teamId);
 
   if (metricsLoading) {
     return (

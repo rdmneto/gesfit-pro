@@ -2,11 +2,11 @@ import { useState, useMemo } from "react";
 import { isSameDay } from "./dashboardUtils";
 import { useTeam, useTrainerStudents, useWorkoutSessions, usePaidPurchases } from "../../lib/hooks";
 
-export function useDashboardMetrics(trainerId?: string, teamId?: string) {
+export function useDashboardMetrics(teamId?: string) {
   const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
   const { data: dbStudents, loading: studentsLoading } = useTrainerStudents(teamId);
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
-    trainerId ? { trainerId } : {}
+    teamId ? { trainerId: teamId } : {}
   );
   const { data: dbPaidPurchases } = usePaidPurchases(teamId);
 

@@ -179,6 +179,7 @@ service cloud.firestore {
         && (enrollmentId.matches(request.auth.uid + '__.*')
             || request.auth.uid == resource.data.studentId
             || request.auth.uid == resource.data.trainerId
+            || hasTeamClaim(resource.data.trainerId)
             || isActivePartnerOf(resource.data.trainerId));
 
       // O próprio aluno solicita o vínculo: entra como 'pending' e sem saldo.
@@ -273,11 +274,11 @@ service cloud.firestore {
 
     // ─── Coleção raiz: workoutSessions (aulas agendadas) ─────────────────
     match /workoutSessions/{id} {
-      // Treinador dono, aluno ou sub-treinador atribuído podem ler
       allow read: if signedIn()
         && (request.auth.uid == resource.data.trainerId
             || request.auth.uid == resource.data.studentId
-            || request.auth.uid == resource.data.assignedToId);
+            || request.auth.uid == resource.data.assignedToId
+            || hasTeamClaim(resource.data.trainerId));
       // Treinador dono cria, ou parceiro ativo cria aula atribuída a si mesmo
       allow create: if signedIn()
         && (request.auth.uid == request.resource.data.trainerId
@@ -297,7 +298,8 @@ service cloud.firestore {
     match /classProducts/{id} {
       // Ofertas ativas são públicas (vitrine); o dono enxerga as suas.
       allow read: if resource.data.active == true
-        || (signedIn() && request.auth.uid == resource.data.trainerId);
+        || (signedIn() && request.auth.uid == resource.data.trainerId)
+        || hasTeamClaim(resource.data.trainerId);
       allow create: if signedIn() && request.auth.uid == request.resource.data.trainerId;
       allow update, delete: if signedIn() && request.auth.uid == resource.data.trainerId;
     }
@@ -307,7 +309,8 @@ service cloud.firestore {
       allow read: if signedIn()
         && (request.auth.uid == resource.data.studentId
             || request.auth.uid == resource.data.trainerId
-            || request.auth.uid == resource.data.teamId);
+            || request.auth.uid == resource.data.teamId
+            || hasTeamClaim(resource.data.teamId));
       // O aluno cria o pedido de compra para si.
       allow create: if signedIn() && request.auth.uid == request.resource.data.studentId;
       // O treinador revisa (confirma/recusa) as compras do seu time.
@@ -494,11 +497,13 @@ service cloud.firestore {
       allow read: if signedIn();
 
       allow create: if signedIn()
-        && request.auth.uid == request.resource.data.trainerId;
+        && (request.auth.uid == request.resource.data.trainerId
+            || isActivePartnerOf(request.resource.data.trainerId));
 
-      // Trainer pode editar e excluir os seus treinos.
+      // Trainer pode editar e excluir os seus treinos, parceiros também.
       allow update, delete: if signedIn()
-        && request.auth.uid == resource.data.trainerId;
+        && (request.auth.uid == resource.data.trainerId
+            || isActivePartnerOf(resource.data.trainerId));
     }
 
     // ─── Coleção raiz: trainingLogs (registros de conclusão de treino) ───
