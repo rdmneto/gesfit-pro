@@ -2,6 +2,7 @@ import { useEffect, Suspense, lazy } from "react";
 import type { ReactNode } from "react";
 import { BrowserRouter, Navigate, Route, Routes } from "react-router-dom";
 import { AppFrame } from "./components/AppFrame";
+import { ErrorBoundary } from "./components/ErrorBoundary";
 import { useSessionStore } from "./store/session";
 
 const ChangeRolePage = lazy(() => import("./pages/ChangeRolePage").then(m => ({ default: m.ChangeRolePage })));
@@ -37,6 +38,7 @@ export default function App() {
   useEffect(() => startSession(), [startSession]);
 
   return (
+    <ErrorBoundary>
     <BrowserRouter>
       <Suspense fallback={<GlobalLoader />}>
         <Routes>
@@ -80,6 +82,7 @@ export default function App() {
         </Routes>
       </Suspense>
     </BrowserRouter>
+    </ErrorBoundary>
   );
 }
 
@@ -113,7 +116,7 @@ function RequireNoRole({ children }: { children: ReactNode }) {
   const role = useSessionStore((state) => state.claims.role);
   const loading = useSessionStore((state) => state.loading);
 
-  if (loading) return null;
+  if (loading) return <GlobalLoader />;
 
   if (role) {
     return <Navigate to="/app" replace />;
