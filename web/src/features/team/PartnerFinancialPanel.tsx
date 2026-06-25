@@ -139,9 +139,11 @@ export function PartnerFinancialPanel({ trainerId }: { trainerId: string }) {
   const [monthOffset, setMonthOffset] = useState(0);
   const { start, end, label } = monthRange(monthOffset);
 
-  const { data: ownPartners } = useTeamMembers(trainerId);
-  const { data: partnerRates } = usePartnerRates(trainerId);
-  const { data: ownSessions } = useWorkoutSessions({ trainerId });
+  // Use user.uid directly — trainerId prop may be empty if teamId claim isn't set
+  const ownUid = user?.uid ?? null;
+  const { data: ownPartners } = useTeamMembers(ownUid);
+  const { data: partnerRates } = usePartnerRates(ownUid);
+  const { data: ownSessions } = useWorkoutSessions({ trainerId: ownUid ?? trainerId });
   const { data: teamsImIn } = useActivePartnerTeams(user?.uid ?? null);
   const { data: assignedSessions } = useAssignedSessions(user?.uid ?? null);
 
