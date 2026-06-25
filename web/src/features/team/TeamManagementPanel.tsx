@@ -61,21 +61,21 @@ export function TeamManagementPanel() {
   );
 
   // Auto-cura: marca como "removed" qualquer doc self-referencial corrompido
-  // (ownerUid === subTrainerId === meu uid) criado por bugs antigos, que faz o
-  // treinador aparecer como membro do próprio time. Usa o índice (ownerUid,status)
-  // já existente — não cria documentos, apenas marca os corrompidos como removidos.
+  // (ownerUid === subTrainerId === meu uid) criado por bugs antigos. Esses docs
+  // fazem o treinador aparecer como membro do próprio time (status active) e/ou
+  // ver um convite para integrar o próprio time (status pending). Consulta por
+  // ownerUid (campo único → sem índice composto) cobrindo TODOS os status;
+  // apenas atualiza, nunca cria documentos.
   useEffect(() => {
     if (!db || !user?.uid) return;
     (async () => {
       try {
         const snap = await getDocs(
-          query(
-            collection(db!, "teamMembers"),
-            where("ownerUid", "==", user.uid),
-            where("status", "==", "active")
-          )
+          query(collection(db!, "teamMembers"), where("ownerUid", "==", user.uid))
         );
-        const corrupt = snap.docs.filter((d) => d.data().subTrainerId === user.uid);
+        const corrupt = snap.docs.filter(
+          (d) => d.data().subTrainerId === user.uid && d.data().status !== "removed"
+        );
         if (corrupt.length) {
           await Promise.all(corrupt.map((d) => updateDoc(d.ref, { status: "removed" })));
           queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });

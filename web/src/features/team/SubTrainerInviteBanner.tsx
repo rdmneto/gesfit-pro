@@ -1,4 +1,4 @@
-import { collection, doc, getDoc, getDocs, query, updateDoc, where } from "firebase/firestore";
+import { collection, getDocs, query, updateDoc, where } from "firebase/firestore";
 import { Bell, CheckCircle2, X } from "lucide-react";
 import { useState } from "react";
 import { db } from "../../lib/firebase";
@@ -31,41 +31,52 @@ export function SubTrainerInviteBanner() {
 
   if (invites.length === 0 && joinRequests.length === 0 && chatRequests.length === 0) return null;
 
-  // Resolve um convite (ou solicitação) atualizando o doc EXATO que o banner
-  // carregou (invite.id) — que pode ser um doc legado de ID auto-gerado — e
-  // sincronizando o doc canônico `${ownerUid}__${subTrainerId}` exigido pelas
-  // regras. Sem queries de 3 campos (que exigiriam índice composto inexistente).
+  // Resolve um convite/solicitação varrendo TODOS os docs do par
+  // (ownerUid, subTrainerId) — pode haver duplicados (canônico + legados de
+  // ID auto-gerado), e deixar qualquer um deles em "pending" faz o banner
+  // reaparecer. Consultamos pelo campo igual ao meu uid (único equality →
+  // sem índice composto e sem violar as regras de leitura), filtramos o par
+  // em memória e atualizamos todos os docs de uma vez.
   async function resolveMembership(invite: TeamMember, accept: boolean) {
+    const myUid = user?.uid;
+    if (!db || !myUid) return;
     const acceptedAt = new Date().toISOString();
     const memberId = `${invite.ownerUid}__${invite.subTrainerId}`;
-    const activePayload = { status: "active", acceptedAt };
-    const removedPayload = { status: "removed" };
 
-    if (accept) {
-      // O doc canônico `${ownerUid}__${subTrainerId}` é o que as regras checam.
-      const canonicalRef = doc(db!, "teamMembers", memberId);
-      const canonicalSnap = await getDoc(canonicalRef);
-      if (canonicalSnap.exists()) {
-        await updateDoc(canonicalRef, activePayload);
-        // Remove o duplicado legado (id != canônico), se houver.
-        if (invite.id && invite.id !== memberId) {
-          await updateDoc(doc(db!, "teamMembers", invite.id), removedPayload);
-        }
-      } else if (invite.id) {
-        // Sem canônico: ativa o doc que o banner encontrou para não perder o vínculo.
-        await updateDoc(doc(db!, "teamMembers", invite.id), activePayload);
-      }
-    } else {
-      // Recusar: remove tanto o doc do banner quanto o canônico.
-      if (invite.id) {
-        await updateDoc(doc(db!, "teamMembers", invite.id), removedPayload);
-      }
-      if (invite.id !== memberId) {
-        const canonicalSnap = await getDoc(doc(db!, "teamMembers", memberId));
-        if (canonicalSnap.exists()) {
-          await updateDoc(doc(db!, "teamMembers", memberId), removedPayload);
-        }
-      }
+    // Eixo seguro: o campo que corresponde ao usuário atual.
+    // - Aceite de convite: sou o subTrainer → consulto por subTrainerId.
+    // - Aceite de solicitação: sou o dono → consulto por ownerUid.
+    const byOwner = myUid === invite.ownerUid;
+    const field = byOwner ? "ownerUid" : "subTrainerId";
+    const value = byOwner ? invite.ownerUid : invite.subTrainerId;
+
+    const snap = await getDocs(
+      query(collection(db, "teamMembers"), where(field, "==", value))
+    );
+    const pairDocs = snap.docs.filter(
+      (d) => d.data().ownerUid === invite.ownerUid && d.data().subTrainerId === invite.subTrainerId
+    );
+
+    // Doc self-referencial (corrompido) nunca deve ser ativado — sempre remove.
+    const isSelfRef = invite.ownerUid === invite.subTrainerId;
+    if (!accept || isSelfRef) {
+      await Promise.all(pairDocs.map((d) => updateDoc(d.ref, { status: "removed" })));
+      return;
+    }
+
+    // Aceitar: exatamente UM doc fica ativo (o canônico, se existir), o resto é removido.
+    const canonical = pairDocs.find((d) => d.id === memberId);
+    if (canonical) {
+      await updateDoc(canonical.ref, { status: "active", acceptedAt });
+      await Promise.all(
+        pairDocs.filter((d) => d.id !== memberId).map((d) => updateDoc(d.ref, { status: "removed" }))
+      );
+    } else if (pairDocs.length > 0) {
+      // Sem canônico: promove o primeiro doc legado e remove os demais.
+      await updateDoc(pairDocs[0].ref, { status: "active", acceptedAt });
+      await Promise.all(
+        pairDocs.slice(1).map((d) => updateDoc(d.ref, { status: "removed" }))
+      );
     }
   }
 
