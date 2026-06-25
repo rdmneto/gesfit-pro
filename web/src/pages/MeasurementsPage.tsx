@@ -195,7 +195,8 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const { data: partnerTeams } = useActivePartnerTeams(trainerId);
 
   // Own students only — partner students are shown separately in PartnerTeamStudentsSection
-  const { data: ownStudents, loading: studentsLoading } = useTrainerStudents(teamId ?? null);
+  // Use trainerId prop (= user.uid) which matches the trainerId field on enrollments
+  const { data: ownStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
   const [query, setQuery] = useState("");
 
   const studentsList = useMemo<StudentWithEnrollment[]>(() => ownStudents ?? [], [ownStudents]);
@@ -337,7 +338,7 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
 
       {studentsLoading ? (
         <div className="mt-8 flex justify-center"><div className="h-8 w-8 animate-spin rounded-full border-4 border-emerald-200 border-t-emerald-700" /></div>
-      ) : sortedStudents.length === 0 ? (
+      ) : sortedStudents.length === 0 && (partnerTeams ?? []).length === 0 ? (
         <div className="mt-10 rounded-2xl border border-dashed border-stone-200 bg-stone-50 py-16 text-center">
           <Users className="mx-auto mb-4 text-stone-300" size={40} />
           <p className="font-semibold text-stone-500">Nenhum aluno ativo ainda</p>
