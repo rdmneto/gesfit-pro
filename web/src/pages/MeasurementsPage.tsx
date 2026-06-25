@@ -192,7 +192,7 @@ function TrainerMeasurementForm({
 
 function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
   const teamId = useSessionStore((state) => state.claims.teamId);
-  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
+  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(teamId);
   const { data: partnerTeams } = useActivePartnerTeams(trainerId);
   const [query, setQuery] = useState("");
 
