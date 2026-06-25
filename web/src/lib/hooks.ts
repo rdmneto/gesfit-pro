@@ -453,7 +453,7 @@ export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
 
 /** Convites de time pendentes recebidos por um sub-treinador */
 export function usePendingTeamInvites(subTrainerId: string | null | undefined) {
-  return useFetchCollection<TeamMember>(
+  return useLiveCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "pending")] : [],
     [],
