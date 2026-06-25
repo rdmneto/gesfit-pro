@@ -202,10 +202,11 @@ function TrainerStudentsPage({ trainerId }: { trainerId: string | null }) {
     return Array.from(ids);
   }, [teamId, partnerTeams]);
 
-  const { data: allStudents, loading: studentsLoading } = useTrainerStudents(allTrainerIds.length > 0 ? allTrainerIds : null);
+  // Own students only — partner students are shown separately in PartnerTeamStudentsSection
+  const { data: ownStudents, loading: studentsLoading } = useTrainerStudents(teamId ?? null);
   const [query, setQuery] = useState("");
 
-  const studentsList = useMemo<StudentWithEnrollment[]>(() => allStudents ?? [], [allStudents]);
+  const studentsList = useMemo<StudentWithEnrollment[]>(() => ownStudents ?? [], [ownStudents]);
 
   const { data: pendingPurchases } = usePendingPurchases(teamId);
   const pendingPurchasesCount = pendingPurchases?.length ?? 0;
