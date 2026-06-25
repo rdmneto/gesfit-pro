@@ -16,6 +16,19 @@ export class ErrorBoundary extends Component<Props, State> {
   }
 
   static getDerivedStateFromError(error: Error): State {
+    // Stale-chunk after a new deploy: auto-reload once to fetch the new bundle.
+    const isStaleChunk =
+      error.message.includes("Failed to fetch dynamically imported module") ||
+      error.message.includes("Importing a module script failed");
+    if (isStaleChunk) {
+      const reloadKey = "eb_chunk_reload";
+      if (!sessionStorage.getItem(reloadKey)) {
+        sessionStorage.setItem(reloadKey, "1");
+        window.location.reload();
+        // Return non-error state so nothing renders before the reload fires.
+        return { hasError: false, error: null };
+      }
+    }
     return { hasError: true, error };
   }
 
