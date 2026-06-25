@@ -113,7 +113,7 @@ export function TeamLandingPage() {
         where("subTrainerId", "==", user.uid)
       );
       const snap = await getDocs(existingQ);
-      if (!snap.empty) {
+      if (!snap.empty && snap.docs.some(d => d.data().status !== "removed")) {
         setNetMessage("Vínculo ou convite já existente.");
         setNetLoading(false);
         return;
@@ -149,7 +149,7 @@ export function TeamLandingPage() {
         where("subTrainerId", "==", team.ownerUid)
       );
       const snap = await getDocs(existingQ);
-      if (!snap.empty) {
+      if (!snap.empty && snap.docs.some(d => d.data().status !== "removed")) {
         setNetMessage("Vínculo ou convite já existente.");
         setNetLoading(false);
         return;
