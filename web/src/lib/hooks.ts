@@ -389,9 +389,9 @@ export function useStudentPurchases(studentId: string | null | undefined) {
   );
 }
 
-/** Pending purchases for trainer review (team scope) */
+/** Pending purchases for trainer review (team scope) — live so confirmation reflects instantly */
 export function usePendingPurchases(teamId: string | null | undefined) {
-  return useFetchCollection<ClassPurchase>(
+  return useLiveCollection<ClassPurchase>(
     "classPurchases",
     teamId
       ? [where("teamId", "==", teamId), where("status", "in", ["payment_submitted", "awaiting_payment"])]

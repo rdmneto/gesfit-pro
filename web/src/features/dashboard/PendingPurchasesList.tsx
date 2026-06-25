@@ -7,7 +7,6 @@ import { usePendingPurchases, useTrainerStudents } from "../../lib/hooks";
 import { creditEnrollmentClasses } from "../../lib/enrollments";
 import { moneyFromCents } from "../../lib/format";
 import type { ClassPurchase, PurchaseStatus } from "../../types/domain";
-import { queryClient } from "../../main";
 
 const statusLabel: Record<PurchaseStatus, string> = {
   awaiting_payment: "Aguardando pagamento",
@@ -22,13 +21,16 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
   const { data: dbStudents } = useTrainerStudents(teamId);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [reviewingId, setReviewingId] = useState<string | null>(null);
 
   async function handleReviewPurchase(purchase: ClassPurchase, status: "paid" | "rejected") {
     if (!db) {
       setError("Banco de dados indisponível no momento.");
       return;
     }
+    if (reviewingId) return;
 
+    setReviewingId(purchase.id);
     try {
       const ref = doc(db, "classPurchases", purchase.id);
       await updateDoc(ref, {
@@ -36,7 +38,7 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
         reviewedAt: new Date().toISOString(),
         reviewedBy: user?.uid || "",
       });
-      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
+      // Live collection listener handles removal automatically — no invalidateQueries needed
 
       if (status === "paid") {
         const trainerId = purchase.trainerId || teamId || "";
@@ -52,7 +54,6 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
             await updateDoc(doc(db, "classProducts", purchase.productId), {
               soldQuantity: increment(1),
             });
-      queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
           } catch (stockErr) {
             console.error("Falha ao atualizar estoque da oferta:", stockErr);
           }
@@ -69,6 +70,8 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
       console.error(err);
       setError("Erro ao revisar compra: " + err.message);
       setTimeout(() => setError(""), 3000);
+    } finally {
+      setReviewingId(null);
     }
   }
 
@@ -119,15 +122,17 @@ export function PendingPurchasesList({ teamId }: { teamId: string | null | undef
             <div className="flex flex-row sm:flex-col gap-2 justify-end">
               <button
                 type="button"
-                className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white hover:bg-emerald-600 transition-colors"
+                disabled={reviewingId === purchase.id}
+                className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg bg-emerald-700 px-3 text-xs font-bold text-white hover:bg-emerald-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => handleReviewPurchase(purchase, "paid")}
               >
                 <CheckCircle2 aria-hidden="true" size={13} />
-                Confirmar
+                {reviewingId === purchase.id ? "Aguarde..." : "Confirmar"}
               </button>
               <button
                 type="button"
-                className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-stone-300 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors"
+                disabled={reviewingId === purchase.id}
+                className="focus-ring inline-flex h-8 items-center justify-center gap-1 rounded-lg border border-stone-300 bg-white px-3 text-xs font-bold text-stone-700 hover:bg-stone-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                 onClick={() => handleReviewPurchase(purchase, "rejected")}
               >
                 <XCircle aria-hidden="true" size={13} />
