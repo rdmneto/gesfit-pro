@@ -31,28 +31,51 @@ export function SubTrainerInviteBanner() {
 
   if (invites.length === 0 && joinRequests.length === 0 && chatRequests.length === 0) return null;
 
+  // Resolve um convite (ou solicitação) atualizando o doc EXATO que o banner
+  // carregou (invite.id) — que pode ser um doc legado de ID auto-gerado — e
+  // sincronizando o doc canônico `${ownerUid}__${subTrainerId}` exigido pelas
+  // regras. Sem queries de 3 campos (que exigiriam índice composto inexistente).
+  async function resolveMembership(invite: TeamMember, accept: boolean) {
+    const acceptedAt = new Date().toISOString();
+    const memberId = `${invite.ownerUid}__${invite.subTrainerId}`;
+    const activePayload = { status: "active", acceptedAt };
+    const removedPayload = { status: "removed" };
+
+    if (accept) {
+      // O doc canônico `${ownerUid}__${subTrainerId}` é o que as regras checam.
+      const canonicalRef = doc(db!, "teamMembers", memberId);
+      const canonicalSnap = await getDoc(canonicalRef);
+      if (canonicalSnap.exists()) {
+        await updateDoc(canonicalRef, activePayload);
+        // Remove o duplicado legado (id != canônico), se houver.
+        if (invite.id && invite.id !== memberId) {
+          await updateDoc(doc(db!, "teamMembers", invite.id), removedPayload);
+        }
+      } else if (invite.id) {
+        // Sem canônico: ativa o doc que o banner encontrou para não perder o vínculo.
+        await updateDoc(doc(db!, "teamMembers", invite.id), activePayload);
+      }
+    } else {
+      // Recusar: remove tanto o doc do banner quanto o canônico.
+      if (invite.id) {
+        await updateDoc(doc(db!, "teamMembers", invite.id), removedPayload);
+      }
+      if (invite.id !== memberId) {
+        const canonicalSnap = await getDoc(doc(db!, "teamMembers", memberId));
+        if (canonicalSnap.exists()) {
+          await updateDoc(doc(db!, "teamMembers", memberId), removedPayload);
+        }
+      }
+    }
+  }
+
   async function handleResponse(invite: TeamMember, accept: boolean) {
     if (!db || respondingId) return;
     const key = invite.id || invite.ownerUid;
     setRespondingId(key);
     setBannerError("");
     try {
-      const acceptedAt = new Date().toISOString();
-      // Use predictable ID directly — avoids 3-field composite index requirement
-      const memberId = `${invite.ownerUid}__${invite.subTrainerId}`;
-      const predictableRef = doc(db, "teamMembers", memberId);
-      const predictableSnap = await getDoc(predictableRef);
-
-      if (!predictableSnap.exists() || predictableSnap.data().status !== "pending") {
-        setBannerError("Convite não encontrado ou já processado.");
-        return;
-      }
-
-      await updateDoc(predictableRef, {
-        status: accept ? "active" : "removed",
-        ...(accept ? { acceptedAt } : {}),
-      });
-
+      await resolveMembership(invite, accept);
       queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error(err);
@@ -65,21 +88,7 @@ export function SubTrainerInviteBanner() {
   async function handleJoinRequestResponse(joinReq: TeamMember, accept: boolean) {
     if (!db || !user) return;
     try {
-      // Use predictable ID directly — avoids 3-field composite index requirement
-      const memberId = `${joinReq.ownerUid}__${joinReq.subTrainerId}`;
-      const predictableRef = doc(db, "teamMembers", memberId);
-      const predictableSnap = await getDoc(predictableRef);
-
-      if (!predictableSnap.exists() || predictableSnap.data().status !== "requesting_join") {
-        return;
-      }
-
-      const acceptedAt = new Date().toISOString();
-      await updateDoc(predictableRef, {
-        status: accept ? "active" : "removed",
-        ...(accept ? { acceptedAt } : {}),
-      });
-
+      await resolveMembership(joinReq, accept);
       queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
       console.error(err);

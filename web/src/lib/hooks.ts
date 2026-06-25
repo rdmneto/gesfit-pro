@@ -421,14 +421,36 @@ export function useAllPurchases(teamId: string | null | undefined) {
   );
 }
 
+/**
+ * Limpa a lista de vínculos contra dados corrompidos:
+ *  - remove docs self-referenciais (ownerUid === subTrainerId), criados por
+ *    bugs antigos de auto-criação de documentos;
+ *  - deduplica por par (ownerUid, subTrainerId), preferindo o doc com ID
+ *    previsível `${ownerUid}__${subTrainerId}` (o canônico exigido pelas regras).
+ */
+function sanitizeMembers(list: TeamMember[]): TeamMember[] {
+  const byPair = new Map<string, TeamMember>();
+  for (const m of list) {
+    if (!m.ownerUid || !m.subTrainerId) continue;
+    if (m.ownerUid === m.subTrainerId) continue; // self-referencial → corrompido
+    const pairKey = `${m.ownerUid}__${m.subTrainerId}`;
+    const existing = byPair.get(pairKey);
+    // Prefere o doc canônico (id === pairKey); senão mantém o primeiro encontrado.
+    if (!existing || m.id === pairKey) byPair.set(pairKey, m);
+  }
+  return Array.from(byPair.values());
+}
+
 /** Sub-treinadores ativos de um time (pelo UID do dono) */
 export function useTeamMembers(ownerUid: string | null | undefined) {
-  return useLiveCollection<TeamMember>(
+  const res = useLiveCollection<TeamMember>(
     "teamMembers",
     ownerUid ? [where("ownerUid", "==", ownerUid), where("status", "==", "active")] : [],
     [],
     [ownerUid]
   );
+  const data = useMemo(() => sanitizeMembers(res.data ?? []), [res.data]);
+  return { ...res, data };
 }
 
 /** Taxas por sessão definidas pelo treinador dono para seus parceiros */
@@ -443,22 +465,26 @@ export function usePartnerRates(ownerId: string | null | undefined) {
 
 /** Times em que o usuário é treinador parceiro ativo */
 export function useActivePartnerTeams(subTrainerId: string | null | undefined) {
-  return useLiveCollection<TeamMember>(
+  const res = useLiveCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "active")] : [],
     [],
     [subTrainerId]
   );
+  const data = useMemo(() => sanitizeMembers(res.data ?? []), [res.data]);
+  return { ...res, data };
 }
 
 /** Convites de time pendentes recebidos por um sub-treinador */
 export function usePendingTeamInvites(subTrainerId: string | null | undefined) {
-  return useLiveCollection<TeamMember>(
+  const res = useLiveCollection<TeamMember>(
     "teamMembers",
     subTrainerId ? [where("subTrainerId", "==", subTrainerId), where("status", "==", "pending")] : [],
     [],
     [subTrainerId]
   );
+  const data = useMemo(() => sanitizeMembers(res.data ?? []), [res.data]);
+  return { ...res, data };
 }
 
 /** Aulas delegadas a um sub-treinador (assignedToId) */

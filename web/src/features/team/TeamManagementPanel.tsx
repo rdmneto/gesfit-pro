@@ -1,6 +1,6 @@
 import { cardClasses } from "../../components/ui/Primitives";
 import { cn } from "../../lib/utils";
-import { useState, useMemo } from "react";
+import { useState, useMemo, useEffect } from "react";
 import {
   CheckCircle2,
   Clock,
@@ -48,16 +48,49 @@ export function TeamManagementPanel() {
   );
 
   // Teams where the current user is a sub-trainer
-  const { data: teamsIPlayIn } = useLiveCollection<TeamMember>(
+  const { data: teamsIPlayInRaw } = useLiveCollection<TeamMember>(
     "teamMembers",
     user ? [where("subTrainerId", "==", user.uid), where("status", "==", "active")] : [],
     [],
     [user?.uid]
   );
+  // Remove vínculos self-referenciais e duplicatas dos times em que participo.
+  const teamsIPlayIn = useMemo(
+    () => teamsIPlayInRaw.filter((m) => m.ownerUid !== m.subTrainerId),
+    [teamsIPlayInRaw]
+  );
+
+  // Auto-cura: marca como "removed" qualquer doc self-referencial corrompido
+  // (ownerUid === subTrainerId === meu uid) criado por bugs antigos, que faz o
+  // treinador aparecer como membro do próprio time. Usa o índice (ownerUid,status)
+  // já existente — não cria documentos, apenas marca os corrompidos como removidos.
+  useEffect(() => {
+    if (!db || !user?.uid) return;
+    (async () => {
+      try {
+        const snap = await getDocs(
+          query(
+            collection(db!, "teamMembers"),
+            where("ownerUid", "==", user.uid),
+            where("status", "==", "active")
+          )
+        );
+        const corrupt = snap.docs.filter((d) => d.data().subTrainerId === user.uid);
+        if (corrupt.length) {
+          await Promise.all(corrupt.map((d) => updateDoc(d.ref, { status: "removed" })));
+          queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
+        }
+      } catch (e) {
+        console.error("[TeamManagement] self-ref heal failed:", e);
+      }
+    })();
+  }, [user?.uid]);
 
   const allMembers = [
     ...members,
-    ...pendingMembers.filter((p) => !members.some((m) => m.id === p.id)),
+    ...pendingMembers.filter(
+      (p) => p.ownerUid !== p.subTrainerId && !members.some((m) => m.id === p.id)
+    ),
   ];
 
   // Fetch trainers for search
