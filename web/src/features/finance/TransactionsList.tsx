@@ -34,7 +34,7 @@ interface TransactionsListProps {
 
 export function TransactionsList({ purchases, teamId }: TransactionsListProps) {
   const user = useSessionStore((state) => state.user);
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
+  const { data: dbStudents } = useTrainerStudents(teamId);
   const [filter, setFilter] = useState<FilterStatus>("all");
   const [search, setSearch] = useState("");
   const [message, setMessage] = useState("");

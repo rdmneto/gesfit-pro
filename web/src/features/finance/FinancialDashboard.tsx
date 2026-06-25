@@ -15,7 +15,6 @@ import { TransactionsList } from "./TransactionsList";
 import { PackagesPage } from "../../pages/PackagesPage";
 import { PartnerFinancialPanel } from "../team/PartnerFinancialPanel";
 import { useTrainerStudents } from "../../lib/hooks";
-import { useSessionStore } from "../../store/session";
 
 type FinanceTab = "resumo" | "transacoes" | "pacotes" | "parceiros";
 
@@ -33,7 +32,6 @@ function formatBRL(value: number) {
 }
 
 export function FinancialDashboard({ teamId }: FinancialDashboardProps) {
-  const user = useSessionStore((s) => s.user);
   const [activeTab, setActiveTab] = useState<FinanceTab>("resumo");
   const {
     monthRevenueBRL,
@@ -44,7 +42,7 @@ export function FinancialDashboard({ teamId }: FinancialDashboardProps) {
     allPurchases,
   } = useFinanceMetrics(teamId);
 
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
+  const { data: dbStudents } = useTrainerStudents(teamId);
   const activeStudents = (dbStudents ?? []).filter(
     (s) => s.enrollment?.status === "active"
   );

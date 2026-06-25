@@ -4,7 +4,7 @@ import { useTeam, useTrainerStudents, useWorkoutSessions, usePaidPurchases } fro
 
 export function useDashboardMetrics(trainerId?: string, teamId?: string) {
   const { data: dbTeam, loading: teamLoading } = useTeam(teamId);
-  const { data: dbStudents, loading: studentsLoading } = useTrainerStudents(trainerId);
+  const { data: dbStudents, loading: studentsLoading } = useTrainerStudents(teamId);
   const { data: dbWorkoutSessions, loading: workoutsLoading } = useWorkoutSessions(
     trainerId ? { trainerId } : {}
   );

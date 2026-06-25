@@ -19,7 +19,7 @@ const statusLabel: Record<PurchaseStatus, string> = {
 export function PendingPurchasesList({ teamId }: { teamId: string | null | undefined }) {
   const user = useSessionStore((state) => state.user);
   const { data: purchases = [], loading } = usePendingPurchases(teamId);
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
+  const { data: dbStudents } = useTrainerStudents(teamId);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 

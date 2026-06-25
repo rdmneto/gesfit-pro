@@ -34,7 +34,7 @@ export function PackagesPage() {
   const user = useSessionStore((state) => state.user);
 
   const { data: dbProducts, loading: loadingProducts } = useClassProducts(teamId);
-  const { data: dbStudents } = useTrainerStudents(user?.uid);
+  const { data: dbStudents } = useTrainerStudents(teamId);
   
   const allProducts = dbProducts ?? [];
   const activeProducts = useMemo(() => allProducts.filter(p => !('promotional' in p && p.promotional)), [allProducts]);
