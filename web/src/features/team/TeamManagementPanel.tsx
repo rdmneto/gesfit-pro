@@ -128,8 +128,8 @@ export function TeamManagementPanel() {
       );
       const existingSnap = await getDocs(existingQ);
       if (!existingSnap.empty) {
-        const existing = existingSnap.docs[0].data();
-        if (existing.status !== "removed") {
+        const anyActive = existingSnap.docs.some(d => d.data().status !== "removed");
+        if (anyActive) {
           setInviteError(`O treinador ${subTrainerName} já faz parte do seu time ou tem convite pendente.`);
           return;
         }
@@ -165,24 +165,14 @@ export function TeamManagementPanel() {
     try {
       const batch = writeBatch(db);
 
-      // 1. Marca o teamMember como removido
+      // 1. Marca TODOS os docs do parceiro como removidos (pode existir auto-ID + predictable-ID)
       const tmQ = query(
         collection(db, "teamMembers"),
         where("ownerUid", "==", member.ownerUid),
         where("subTrainerId", "==", member.subTrainerId)
       );
       const tmSnap = await getDocs(tmQ);
-      if (!tmSnap.empty) {
-        batch.update(tmSnap.docs[0].ref, { status: "removed" });
-      }
-
-      // Garante que o predictable-ID doc também fica como removido
-      const predictableId = `${member.ownerUid}__${member.subTrainerId}`;
-      const predictableRef = doc(db, "teamMembers", predictableId);
-      const predictableSnap = await getDoc(predictableRef);
-      if (predictableSnap.exists() && predictableSnap.data()?.status === "active") {
-        batch.update(predictableRef, { status: "removed" });
-      }
+      tmSnap.docs.forEach(d => batch.update(d.ref, { status: "removed" }));
 
       // 2. Desatribui aulas futuras do parceiro e marca como pendentes
       const now = new Date().toISOString();
@@ -219,17 +209,8 @@ export function TeamManagementPanel() {
         where("subTrainerId", "==", member.subTrainerId)
       );
       const snap = await getDocs(q);
-      if (!snap.empty) {
-        await updateDoc(snap.docs[0].ref, { status: "removed" });
-      }
-
-      // Remove the predictable-ID doc as well (if it exists and is still active)
-      const predictableId = `${member.ownerUid}__${member.subTrainerId}`;
-      const predictableRef = doc(db, "teamMembers", predictableId);
-      const predictableSnap = await getDoc(predictableRef);
-      if (predictableSnap.exists() && predictableSnap.data()?.status === "active") {
-        await updateDoc(predictableRef, { status: "removed" });
-      }
+      // Update ALL matching docs (auto-ID + predictable-ID may both exist)
+      await Promise.all(snap.docs.map(d => updateDoc(d.ref, { status: "removed" })));
 
       queryClient.invalidateQueries({ queryKey: ["fetchCollection"] });
     } catch (error: unknown) { const err = error as Error;
